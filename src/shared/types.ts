@@ -390,6 +390,76 @@ export interface BenchmarkSeries {
   points: PricePoint[]
 }
 
+/** Buckets a target allocation is set in. Property, crypto and other hard-to-sell assets sit outside. */
+export type Bucket = 'EQUITY_IN' | 'EQUITY_INTL' | 'DEBT' | 'GOLD' | 'CASH'
+export const BUCKETS: Bucket[] = ['EQUITY_IN', 'EQUITY_INTL', 'DEBT', 'GOLD', 'CASH']
+export const BUCKET_LABELS: Record<Bucket, string> = {
+  EQUITY_IN: 'Indian equity',
+  EQUITY_INTL: 'International equity',
+  DEBT: 'Debt',
+  GOLD: 'Gold & silver',
+  CASH: 'Cash'
+}
+
+export interface Targets {
+  /** Share of the targeted money in each bucket, 0..1, adding up to 1. */
+  buckets: Record<Bucket, number>
+  /** Allowed drift either side of each target, in percentage points as a fraction (0.05 = ±5 points). */
+  band: number
+  /** Optional split of Indian equity by market cap (shares of large + mid + small, adding up to 1). */
+  caps?: { LARGE: number; MID: number; SMALL: number } | null
+}
+
+export interface RebalanceTrade {
+  action: 'BUY' | 'SELL'
+  bucket: Bucket
+  amountInr: number
+  /** An existing holding to use; null means a new one, described by suggestion. */
+  holding: { accountId: number; instrumentId: number; name: string; accountName: string; personName: string } | null
+  suggestion: string | null
+  /** Approximate units for sales. */
+  units: number | null
+  /** Fixed-rate capital-gains tax this sale would add (after the yearly exemption), INR. */
+  taxInr: number | null
+  /** Gains this sale would add to income (taxed at your slab), INR. */
+  slabGainInr: number | null
+  gainInr: number | null
+  note: string | null
+}
+
+export interface RebalanceReport {
+  targets: Targets | null
+  /** Where the targets came from: this scope's own, the family's (for a person without one), or none. */
+  targetSource: 'OWN' | 'FAMILY' | null
+  /** Money in the five buckets (after looking inside funds). */
+  baseInr: number
+  /** Property, crypto and other assets left out of the targets. */
+  excludedInr: number
+  buckets: {
+    bucket: Bucket
+    valueInr: number
+    share: number
+    target: number | null
+    status: 'OK' | 'OVER' | 'UNDER' | 'NO_TARGET'
+    /** Part held in deposits, EPF, PPF, NPS, policies and physical gold, which can't be sold to rebalance. */
+    lockedInr: number
+  }[]
+  /** Indian equity by market cap, after looking inside funds. */
+  caps: { band: 'LARGE' | 'MID' | 'SMALL' | 'OTHER'; valueInr: number; share: number; target: number | null }[]
+  /** Today's mix rounded to whole 5% steps, offered as a starting point. */
+  suggestedTargets: Targets
+  plan: {
+    newMoneyInr: number
+    allowSells: boolean
+    trades: RebalanceTrade[]
+    /** Each bucket's share once the trades are done. */
+    after: { bucket: Bucket; share: number }[]
+    taxInr: number
+    slabGainInr: number
+    notes: string[]
+  }
+}
+
 /** Risk figures for one daily return series over about a year. */
 export interface RiskStats {
   /** Return over the window (annualised if longer than a year). */
@@ -712,6 +782,10 @@ export interface RequestApi {
   getRisk(personId?: number): Promise<ApiResult<RiskReport>>
   /** Yearly risk-free rate (0.07 = 7%) for the Sharpe and Sortino ratios. */
   setRiskFreeRate(rate: number): Promise<ApiResult<null>>
+  /** Target allocation, drift and suggested trades for new money (and sales, if allowed). */
+  getRebalance(personId: number | undefined, opts: { newMoneyInr: number; allowSells: boolean }): Promise<ApiResult<RebalanceReport>>
+  /** Saves the target allocation for a person, or the family when personId is null; null targets removes it. */
+  setTargets(personId: number | null, targets: Targets | null): Promise<ApiResult<null>>
   /** Your own average buy price for a holding (null removes it). */
   setBuyPrice(input: {
     personId: number

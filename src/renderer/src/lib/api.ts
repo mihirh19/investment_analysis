@@ -8,7 +8,8 @@ import type {
   ManualTxnInput,
   NpsHoldingInput,
   Person,
-  PolicyInput
+  PolicyInput,
+  Targets
 } from '@shared/types'
 
 export async function unwrap<T>(p: Promise<ApiResult<T>>): Promise<T> {
@@ -152,6 +153,20 @@ export function useSetRiskFreeRate() {
   return useMutation({
     mutationFn: (rate: number) => unwrap(api().setRiskFreeRate(rate)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['risk'] })
+  })
+}
+
+export const useRebalance = (personId: number | undefined, opts: { newMoneyInr: number; allowSells: boolean }) =>
+  useQuery({
+    queryKey: ['rebalance', personId ?? 'all', opts.newMoneyInr, opts.allowSells],
+    queryFn: () => unwrap(api().getRebalance(personId, opts)),
+    placeholderData: (prev) => prev
+  })
+export function useSetTargets() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { personId: number | null; targets: Targets | null }) => unwrap(api().setTargets(v.personId, v.targets)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rebalance'] })
   })
 }
 

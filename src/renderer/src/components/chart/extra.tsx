@@ -453,7 +453,8 @@ export function Bullet({
 }) {
   const theme = useChartTheme()
   const { data, options } = useMemo(() => {
-    const top = Math.max(0, ...rows.flatMap((r) => [r.actual, r.target, r.high ?? 0])) * 1.1 || 1
+    // Round the axis up to a whole 10% so the last tick reads cleanly.
+    const top = Math.min(1, Math.ceil(Math.max(0, ...rows.flatMap((r) => [r.actual, r.target, r.high ?? 0])) * 1.05 * 10) / 10) || 1
     const tick = top / 200
     const off = (r: BulletRow) => r.low !== undefined && r.high !== undefined && (r.actual < r.low || r.actual > r.high)
     return {

@@ -103,7 +103,7 @@ export function grandfatheredCost(cost: number, fmv31Jan2018: number | null, pro
 // ---------------- classifying instruments ----------------
 
 const GOLD = /\b(gold|silver)\b/i
-const FOREIGN_THEME = /nasdaq|s&p ?500|hang seng|nyse|fang|international|global|overseas|world|u\.?s\.? |us equity|greater china|japan|taiwan|emerging market/i
+export const FOREIGN_THEME = /nasdaq|s&p ?500|hang seng|nyse|fang|international|global|overseas|world|u\.?s\.? |us equity|greater china|japan|taiwan|emerging market/i
 const DEBT = /\bdebt\b|liquid|gilt|money market|overnight|\bbond\b|bharat bond|income fund|duration|credit risk|banking (and|&) psu|floater|floating rate|target maturity|g-?sec|\bsdl\b|corporate bond|conservative hybrid|ultra short|low duration|short term fund|crisil.*(debt|gilt)|psu bond/i
 const EQUITY = /equity|elss|tax saver|arbitrage|aggressive hybrid|equity savings|flexi ?cap|large ?cap|mid ?cap|small ?cap|multi ?cap|focused|value fund|contra|dividend yield|sectoral|thematic|nifty|sensex|bse ?\d|index fund/i
 

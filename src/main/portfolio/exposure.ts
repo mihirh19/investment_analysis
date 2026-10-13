@@ -38,13 +38,13 @@ function regionOf(isin: string | null | undefined, country?: string | null): str
 }
 
 export function computeExposure(db: Db, personId?: number): ExposureReport {
-  return buildExposure(
-    listHoldings(db, personId),
-    loadFundHoldings(db),
-    loadSectorMap(db),
-    loadCategories(db),
-    loadCaps(db)
-  )
+  const i = loadExposureInputs(db)
+  return buildExposure(listHoldings(db, personId), i.funds, i.sectors, i.categories, i.caps)
+}
+
+/** Everything buildExposure needs besides the holdings, loaded once. */
+export function loadExposureInputs(db: Db) {
+  return { funds: loadFundHoldings(db), sectors: loadSectorMap(db), categories: loadCategories(db), caps: loadCaps(db) }
 }
 
 export interface CapList {

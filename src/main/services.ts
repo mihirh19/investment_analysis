@@ -14,6 +14,7 @@ import type {
   MarketStatus,
   Person,
   PricePoint,
+  Targets,
   Transaction
 } from '@shared/types'
 import { PLATFORM_LABELS } from '@shared/types'
@@ -25,6 +26,7 @@ import { computePerformance } from './portfolio/performance'
 import { computeTax } from './portfolio/tax'
 import { computeFunds } from './portfolio/fundInsights'
 import { computeRisk, RISK_FREE_KEY } from './portfolio/risk'
+import { computeRebalance, saveTargets } from './portfolio/rebalance'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
@@ -410,6 +412,12 @@ export function createServices(deps: ServiceDeps) {
     getTax: (personId?: number) => computeTax(db, personId),
     getFunds: (personId?: number) => computeFunds(db, personId),
     getRisk: (personId?: number) => computeRisk(db, personId),
+    getRebalance: (personId: number | undefined, opts: { newMoneyInr: number; allowSells: boolean }) =>
+      computeRebalance(db, personId, opts),
+    setTargets(personId: number | null, targets: Targets | null): null {
+      saveTargets(db, personId, targets)
+      return null
+    },
     setRiskFreeRate(rate: number): null {
       if (!(rate >= 0 && rate <= 0.2)) throw new Error('Enter a rate between 0% and 20%')
       setSetting(RISK_FREE_KEY, String(rate))

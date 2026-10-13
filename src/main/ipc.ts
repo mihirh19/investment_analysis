@@ -68,6 +68,8 @@ export function registerIpc(services: Services): void {
     getFunds: (personId) => services.getFunds(personId),
     getRisk: (personId) => services.getRisk(personId),
     setRiskFreeRate: (rate) => services.setRiskFreeRate(rate),
+    getRebalance: (personId, opts) => services.getRebalance(personId, opts),
+    setTargets: (personId, targets) => services.setTargets(personId, targets),
     setBuyPrice: (input) => services.setBuyPrice(input),
 
     getDisclosureStatus: () => services.getDisclosureStatus(),

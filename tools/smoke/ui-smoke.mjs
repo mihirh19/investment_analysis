@@ -82,6 +82,7 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Analysis',
     'Performance',
     'Tax',
+    'Rebalance',
     'Holdings',
     'Other assets',
     'Sectors & exposure',

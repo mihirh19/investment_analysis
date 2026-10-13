@@ -154,13 +154,20 @@ Covers daily-priced holdings only (shares, ETFs, funds, NPS); deposits, EPF, pro
 **Files:** new `portfolio/risk.ts`, `pages/Performance.tsx`
 **Tests:** `tests/risk.test.ts`
 
-## Phase 6 — Targets and rebalancing (`/rebalance`)
+## Phase 6 — Targets and rebalancing (`/rebalance`) ✅ done
 
-- [ ] Target mix per person or for the family: equity / debt / gold / cash / international, plus optional large / mid / small cap. Stored in `settings` under `targets:<personId|family>`
-- [ ] Bullet chart per bucket with an allowed range; off-target buckets show up on the Dashboard checklist (Phase 7)
-- [ ] Suggested trades, in two modes:
-  - [ ] new money only
-  - [ ] sells allowed, tax-aware (uses the Phase 3 tax data)
+Done: `portfolio/rebalance.ts` (five buckets after look-through: Indian equity, international equity, debt, gold, cash; property, crypto,
+policies left outside; targets per person with family fallback in `settings` `targets:<id|family>`; drift with a ±band; optional large/mid/small
+split of Indian equity; plan: new money by gap, optional tax-aware sales of over-band buckets using Tax-page lots and each person's exemption),
+`getRebalance` / `setTargets` APIs, `pages/Rebalance.tsx`. Hand-entered assets, EPF/PPF/NPS and physical gold count as can't-be-sold.
+Tests: `rebalance.test.ts` (10). Checked on demo data, light + dark.
+The off-target count is ready for the Phase 7 dashboard checklist.
+
+- [x] Target mix per person or for the family: equity / debt / gold / cash / international, plus optional large / mid / small cap. Stored in `settings` under `targets:<personId|family>`
+- [x] Bullet chart per bucket with an allowed range; off-target buckets show up on the Dashboard checklist (Phase 7)
+- [x] Suggested trades, in two modes:
+  - [x] new money only
+  - [x] sells allowed, tax-aware (uses the Phase 3 tax data)
 
 **Files:** new `portfolio/rebalance.ts`, `services.ts`, `pages/Rebalance.tsx`
 **Tests:** `tests/rebalance.test.ts`

@@ -44,6 +44,8 @@ export const API_METHODS = [
   'getFunds',
   'getRisk',
   'setRiskFreeRate',
+  'getRebalance',
+  'setTargets',
   'setBuyPrice',
   'getDisclosureStatus',
   'syncDisclosures',

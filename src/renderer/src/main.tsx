@@ -19,6 +19,7 @@ import { Analysis } from './pages/Analysis'
 import { Performance } from './pages/Performance'
 import { Tax } from './pages/Tax'
 import { Funds } from './pages/Funds'
+import { Rebalance } from './pages/Rebalance'
 import { OtherAssets } from './pages/OtherAssets'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } } })
@@ -44,6 +45,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="performance" element={<Performance />} />
               <Route path="tax" element={<Tax />} />
               <Route path="funds" element={<Funds />} />
+              <Route path="rebalance" element={<Rebalance />} />
               <Route path="other-assets" element={<OtherAssets />} />
             </Route>
           </Routes>
