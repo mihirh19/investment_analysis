@@ -186,7 +186,7 @@ const cellLabels = (text: (v: number) => string, strongAt: number): Plugin<'matr
     const meta = chart.getDatasetMeta(0)
     const ctx = chart.ctx
     ctx.save()
-    ctx.font = `500 11px ${FONT}`
+    ctx.font = `500 ${meta.data.length > 30 ? 10 : 11}px ${FONT}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     meta.data.forEach((el, i) => {
@@ -196,9 +196,9 @@ const cellLabels = (text: (v: number) => string, strongAt: number): Plugin<'matr
         width: number
         height: number
       }
-      if (width < 30 || height < 18) return
+      if (width < 24 || height < 16) return
       const cell = chart.data.datasets[0].data[i] as unknown as Cell
-      ctx.fillStyle = cell.v >= strongAt ? '#fff' : token('ink')
+      ctx.fillStyle = Math.abs(cell.v) >= strongAt ? '#fff' : token('ink')
       ctx.fillText(text(cell.v), x + width / 2, y + height / 2)
     })
     ctx.restore()
@@ -215,13 +215,21 @@ export function Heatmap({
   color = 'var(--series-1)',
   onSelect,
   height,
-  colNames
+  colNames,
+  rowNames,
+  diverging = false,
+  valueLabel = 'overlap'
 }: {
+  /** Colour negative values red and positive blue (e.g. correlations from −1 to 1). */
+  diverging?: boolean
+  /** Word after the value in the tooltip. */
+  valueLabel?: string
   rows: string[]
   /** Column labels shown on the axis; must be unique. */
   cols: string[]
-  /** Full column names for the tooltip when the axis labels are shortened. */
+  /** Full column and row names for the tooltip when the axis labels are shortened. */
   colNames?: string[]
+  rowNames?: string[]
   /** values[row][col]; null leaves the cell blank (e.g. the diagonal). */
   values: (number | null)[][]
   format: (v: number) => string
@@ -242,12 +250,13 @@ export function Heatmap({
     )
     return out
   }, [rows, cols, values])
-  const top = max ?? Math.max(0, ...cells.map((c) => c.v))
+  const top = max ?? Math.max(0, ...cells.map((c) => (diverging ? Math.abs(c.v) : c.v)))
 
   const { data, options, plugins } = useMemo(() => {
     const fill = (v: number) => {
-      const t = top > 0 ? Math.min(1, v / top) : 0
-      return resolveColor(`color-mix(in oklab, ${color} ${Math.round(8 + t * 92)}%, var(--div-mid))`)
+      const t = top > 0 ? Math.min(1, Math.abs(v) / top) : 0
+      const hue = diverging ? (v >= 0 ? 'var(--div-pos)' : 'var(--div-neg)') : color
+      return resolveColor(`color-mix(in oklab, ${hue} ${Math.round(8 + t * 92)}%, var(--div-mid))`)
     }
     return {
       data: {
@@ -292,7 +301,7 @@ export function Heatmap({
       } as unknown as ChartOptions<'matrix'>,
       plugins: [cellLabels(format, top * 0.6)]
     }
-  }, [cells, rows, cols, top, color, label, theme])
+  }, [cells, rows, cols, top, color, label, theme, diverging])
 
   if (!cells.length) return <div className="py-8 text-[14px] text-ink-muted">Nothing to compare yet.</div>
   return (
@@ -311,9 +320,13 @@ export function Heatmap({
         return (
           <div>
             <div className="mb-0.5 font-medium text-ink">
-              {c.y} × {colNames?.[c.c] ?? c.x}
+              {rowNames?.[c.r] ?? c.y} × {colNames?.[c.c] ?? c.x}
             </div>
-            <TipRow color={color} label="overlap" value={format(c.v)} />
+            <TipRow
+              color={diverging ? (c.v >= 0 ? 'var(--div-pos)' : 'var(--div-neg)') : color}
+              label={valueLabel}
+              value={format(c.v)}
+            />
           </div>
         )
       }}

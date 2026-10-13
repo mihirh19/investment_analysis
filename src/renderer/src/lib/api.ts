@@ -145,6 +145,16 @@ export const useTax = (personId?: number) =>
 export const useFunds = (personId?: number) =>
   useQuery({ queryKey: ['funds', personId ?? 'all'], queryFn: () => unwrap(api().getFunds(personId)) })
 
+export const useRisk = (personId?: number) =>
+  useQuery({ queryKey: ['risk', personId ?? 'all'], queryFn: () => unwrap(api().getRisk(personId)) })
+export function useSetRiskFreeRate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rate: number) => unwrap(api().setRiskFreeRate(rate)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['risk'] })
+  })
+}
+
 export const useBenchmarks = (since?: string) =>
   useQuery({
     queryKey: ['benchmarks', since ?? 'all'],

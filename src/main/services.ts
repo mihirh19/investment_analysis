@@ -24,6 +24,7 @@ import { BENCHMARKS, seriesFor } from './market/benchmarks'
 import { computePerformance } from './portfolio/performance'
 import { computeTax } from './portfolio/tax'
 import { computeFunds } from './portfolio/fundInsights'
+import { computeRisk, RISK_FREE_KEY } from './portfolio/risk'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
@@ -408,6 +409,12 @@ export function createServices(deps: ServiceDeps) {
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),
     getFunds: (personId?: number) => computeFunds(db, personId),
+    getRisk: (personId?: number) => computeRisk(db, personId),
+    setRiskFreeRate(rate: number): null {
+      if (!(rate >= 0 && rate <= 0.2)) throw new Error('Enter a rate between 0% and 20%')
+      setSetting(RISK_FREE_KEY, String(rate))
+      return null
+    },
     setBuyPrice(input: { personId: number; accountId: number; instrumentId: number; avgCost: number | null }): null {
       setManualCost(db, input)
       return null

@@ -390,6 +390,63 @@ export interface BenchmarkSeries {
   points: PricePoint[]
 }
 
+/** Risk figures for one daily return series over about a year. */
+export interface RiskStats {
+  /** Return over the window (annualised if longer than a year). */
+  return1y: number | null
+  /** Annualised standard deviation of daily returns. */
+  volatility: number | null
+  sharpe: number | null
+  sortino: number | null
+  maxDrawdown: { depth: number; peak: string; trough: string; recovered: string | null } | null
+  /** Against the Nifty 50; null for the Nifty itself or without data. */
+  beta: number | null
+  correlation: number | null
+  worstDay: { date: string; r: number } | null
+  bestDay: { date: string; r: number } | null
+}
+
+export interface RiskReport {
+  riskFreeRate: number
+  from: string | null
+  to: string | null
+  coverage: {
+    includedInr: number
+    totalInr: number
+    /** Holdings left out, with why: no daily prices (deposits, property…) or too little history. */
+    excluded: { name: string; valueInr: number; reason: 'NO_DAILY_PRICES' | 'TOO_LITTLE_HISTORY' }[]
+  }
+  /** Today's market holdings replayed over the window at today's weights. */
+  portfolio: RiskStats | null
+  benchmarks: { key: string; label: string; stats: RiskStats }[]
+  dates: string[]
+  /** Growth of ₹100 for the portfolio as held today, and for the Nifty 50, on dates. */
+  growth: number[]
+  niftyGrowth: (number | null)[]
+  holdings: {
+    instrumentId: number
+    name: string
+    valueInr: number
+    weight: number
+    /** Share of the portfolio's swings (adds up to 1). */
+    riskShare: number | null
+    volatility: number | null
+    beta: number | null
+    return1y: number | null
+  }[]
+  correlation: { names: string[]; matrix: (number | null)[][] }
+  concentration: {
+    label: string
+    personId: number | null
+    holdings: number
+    /** 1 / Herfindahl index: how many equal-sized holdings would be as concentrated. */
+    effectiveHoldings: number
+    largest: { name: string; share: number } | null
+    top5Share: number
+    top10Share: number
+  }[]
+}
+
 /** DIRECT / REGULAR from the scheme name; NOT_STATED for old names without a plan; ETF has no plans. */
 export type FundPlan = 'DIRECT' | 'REGULAR' | 'NOT_STATED' | 'ETF'
 
@@ -651,6 +708,10 @@ export interface RequestApi {
   getTax(personId?: number): Promise<ApiResult<TaxReport>>
   /** Fund overlap, fund houses and categories, Regular vs Direct plans. */
   getFunds(personId?: number): Promise<ApiResult<FundsReport>>
+  /** Volatility, Sharpe, beta, correlation and concentration of today's holdings over the last year. */
+  getRisk(personId?: number): Promise<ApiResult<RiskReport>>
+  /** Yearly risk-free rate (0.07 = 7%) for the Sharpe and Sortino ratios. */
+  setRiskFreeRate(rate: number): Promise<ApiResult<null>>
   /** Your own average buy price for a holding (null removes it). */
   setBuyPrice(input: {
     personId: number

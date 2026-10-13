@@ -138,12 +138,18 @@ Debt and liquid funds are left out of the overlap matrix. "Your shares" (direct 
 **Files:** new `portfolio/overlap.ts`, `portfolio/exposure.ts`, `pages/Exposure.tsx` (or a new `pages/Funds.tsx`)
 **Tests:** `tests/overlap.test.ts`
 
-## Phase 5 — Risk numbers (on the Performance page)
+## Phase 5 — Risk numbers (on the Performance page) ✅ done
 
-- [ ] Volatility (yearly), Sharpe and Sortino ratios (risk-free rate set in Settings, default 7%)
-- [ ] Biggest drop from a peak and how long it took to recover
-- [ ] Beta and correlation with Nifty; correlation grid of the top holdings
-- [ ] Concentration score (Herfindahl index) plus top-5 and top-10 share, per person and for the family
+Done: `portfolio/stats.ts` (covariance, correlation, beta, downside deviation, alignment, HHI, risk shares), `portfolio/risk.ts`
+(`computeRisk`: today's market holdings replayed over 1y of daily prices at today's weights; benchmarks; per-holding risk share, volatility, beta;
+correlation of the 8 largest; concentration by holding for family and each person), `getRisk` / `setRiskFreeRate` APIs (setting `risk:riskFreeRate`,
+default 7%, edited inline on the page), `components/RiskSection.tsx`, Heatmap `diverging` mode. Tests: `risk.test.ts` (12).
+Covers daily-priced holdings only (shares, ETFs, funds, NPS); deposits, EPF, property, gold and crypto are listed as left out.
+
+- [x] Volatility (yearly), Sharpe and Sortino ratios (risk-free rate set in Settings, default 7%)
+- [x] Biggest drop from a peak and how long it took to recover
+- [x] Beta and correlation with Nifty; correlation grid of the top holdings
+- [x] Concentration score (Herfindahl index) plus top-5 and top-10 share, per person and for the family
 
 **Files:** new `portfolio/risk.ts`, `pages/Performance.tsx`
 **Tests:** `tests/risk.test.ts`

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { PerformanceReport, PerformanceYear } from '@shared/types'
 import { Drawdown, LineCompare, Waterfall, type LineSeries } from '../components/chart/extra'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { RiskSection } from '../components/RiskSection'
 import { usePerformance } from '../lib/api'
 import { compactMoney, lakhCrore, money, shortDate, signedMoney, toneClass } from '../lib/format'
 import { stagger, useCountUp } from '../lib/motion'
@@ -140,6 +141,7 @@ export function Performance() {
             Holdings that only appear in statements have no purchase dates, so their returns can't be measured over time.
           </p>
         )}
+        <RiskSection personId={scopePersonId(scope)} family={scope === 'family'} />
       </>
     )
   }
@@ -403,6 +405,8 @@ export function Performance() {
           height={220}
         />
       </Section>
+
+      <RiskSection personId={scopePersonId(scope)} family={scope === 'family'} />
 
       <Section id="by-account" title="By account" note="XIRR of each demat account or folio, from its own purchases, sales and dividends.">
         <XirrTable
