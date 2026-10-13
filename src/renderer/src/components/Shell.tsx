@@ -15,6 +15,7 @@ const NAV = [
     { to: '/holdings', label: 'Holdings' },
     { to: '/other-assets', label: 'Other assets' },
     { to: '/exposure', label: 'Sectors & exposure' },
+    { to: '/funds', label: 'Funds' },
     { to: '/dividends', label: 'Dividends' },
     { to: '/retirement', label: 'EPF & NPS' },
     { to: '/insurance', label: 'Insurance' }

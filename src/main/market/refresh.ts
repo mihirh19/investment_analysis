@@ -16,6 +16,7 @@ import { mapLimit, type FetchFn } from './http'
 import { refreshCrypto, refreshHistory, refreshMetals } from './extra'
 import { refreshBenchmarks, refreshDaily } from './benchmarks'
 import { refreshGrandfathering } from './grandfather'
+import { refreshDirectPlans } from './directPlans'
 import { refreshMarketCaps } from './marketcap'
 import { syncDisclosures, type DisclosureDeps } from './disclosures'
 import { fromIndustryText, fromNseIndustry, fromYahoo } from './sectors'
@@ -41,6 +42,7 @@ type SourceKey =
   | 'benchmarks'
   | 'daily'
   | 'fmv2018'
+  | 'direct'
   | 'disclosures'
   | 'caps'
 
@@ -57,6 +59,7 @@ const SOURCE_LABELS: Record<SourceKey, string> = {
   benchmarks: 'Benchmarks: Nifty 50 / 500 / Midcap 150, S&P 500, liquid fund',
   daily: 'Daily closes, last year (risk figures)',
   fmv2018: 'Prices on 31 Jan 2018 (tax on older shares and funds)',
+  direct: 'Direct-plan NAVs (what Regular plans cost you)',
   disclosures: 'Fund portfolios (fund house monthly disclosures)',
   caps: 'Large, mid & small cap bands (AMFI)'
 }
@@ -182,6 +185,7 @@ export class MarketData {
           await this.guard('benchmarks', () => refreshBenchmarks(this.db, this.f))
           await this.guard('daily', () => refreshDaily(this.db, this.f))
           await this.guard('fmv2018', () => refreshGrandfathering(this.db, this.f))
+          await this.guard('direct', () => refreshDirectPlans(this.db, this.f))
           await this.guard('caps', async () => {
             if (!(await refreshMarketCaps(this.db, this.f))) throw new Error("AMFI's market-cap list could not be read")
           })

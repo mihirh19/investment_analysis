@@ -23,6 +23,7 @@ import { historyFor } from './market/extra'
 import { BENCHMARKS, seriesFor } from './market/benchmarks'
 import { computePerformance } from './portfolio/performance'
 import { computeTax } from './portfolio/tax'
+import { computeFunds } from './portfolio/fundInsights'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
@@ -406,6 +407,7 @@ export function createServices(deps: ServiceDeps) {
     getAnalysis: (personId?: number) => computeAnalysis(db, personId),
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),
+    getFunds: (personId?: number) => computeFunds(db, personId),
     setBuyPrice(input: { personId: number; accountId: number; instrumentId: number; avgCost: number | null }): null {
       setManualCost(db, input)
       return null

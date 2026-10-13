@@ -122,12 +122,18 @@ Follow-up for Phase 7: sidebar now needs scrolling at 15 items — group the nav
 **Files:** `portfolio/fifo.ts`, new `portfolio/tax.ts`, `services.ts`, `shared/*`, `pages/Tax.tsx`
 **Tests:** `tests/tax.test.ts` (cases across the 23 Jul 2024 rate change, 2018 grandfathering, debt funds after Apr 2023, US 24-month rule), `tests/fifo.test.ts` extended
 
-## Phase 4 — Fund overlap and fund insights
+## Phase 4 — Fund overlap and fund insights ✅ done
 
-- [ ] Overlap heatmap: how much each pair of funds holds the same stocks (sum of the smaller weight per shared stock); click a cell to list the shared companies
-- [ ] Allocation by fund house and by fund category, with a concentration warning
-- [ ] Flag Regular plans; estimate the yearly extra cost compared with the Direct plan of the same fund
-- [ ] Effective stock exposure: direct shares plus what your funds hold of each company, combined
+Done: `portfolio/fundInsights.ts` (overlap, plan detection, Direct-plan matching, categories, companies by route), `market/directPlans.ts`
+(finds the Direct counterpart via AMFI's Plan/Option columns, 98% of Regular schemes matched in a live check; stores ~13 months of its NAVs;
+new Settings status row), `parseNavAll` now keeps Plan/Option, `getFunds` API, `pages/Funds.tsx` (`/funds`). Tests: `funds.test.ts` (11).
+Regular-plan cost = last year's return gap vs the Direct plan × today's value (measured, not an expense-ratio lookup), which settles open decision 2.
+Debt and liquid funds are left out of the overlap matrix. "Your shares" (direct stocks) is a row in the matrix.
+
+- [x] Overlap heatmap: how much each pair of funds holds the same stocks (sum of the smaller weight per shared stock); click a cell to list the shared companies
+- [x] Allocation by fund house and by fund category, with a concentration warning
+- [x] Flag Regular plans; estimate the yearly extra cost compared with the Direct plan of the same fund
+- [x] Effective stock exposure: direct shares plus what your funds hold of each company, combined
 
 **Files:** new `portfolio/overlap.ts`, `portfolio/exposure.ts`, `pages/Exposure.tsx` (or a new `pages/Funds.tsx`)
 **Tests:** `tests/overlap.test.ts`

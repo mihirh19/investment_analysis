@@ -155,7 +155,9 @@ describe('market data parsers', () => {
         nav: 88.9258,
         date: '2026-10-09',
         fundHouse: null,
-        category: 'Equity Scheme - Flexi Cap Fund'
+        category: 'Equity Scheme - Flexi Cap Fund',
+        plan: null,
+        option: null
       }
     ])
   })
@@ -167,9 +169,9 @@ describe('market data parsers', () => {
         '140084;INF204KB14I2;-;Nippon India ETF Nifty 50 BeES;Direct Plan;;256.8604;09-Oct-2026\n \nAxis Mutual Fund\n \n' +
         '135762;INF846K01WO1;-;Axis Children\'s Fund;Direct Plan;Growth Option;29.0745;09-Oct-2026\n'
     )
-    expect(rows.map((r) => [r.isinGrowth, r.nav, r.fundHouse, r.category])).toEqual([
-      ['INF204KB14I2', 256.8604, 'Nippon India Mutual Fund', 'Exchange Traded Funds (ETFs) - Other ETF'],
-      ['INF846K01WO1', 29.0745, 'Axis Mutual Fund', 'Exchange Traded Funds (ETFs) - Other ETF']
+    expect(rows.map((r) => [r.isinGrowth, r.nav, r.fundHouse, r.category, r.plan, r.option])).toEqual([
+      ['INF204KB14I2', 256.8604, 'Nippon India Mutual Fund', 'Exchange Traded Funds (ETFs) - Other ETF', 'Direct Plan', null],
+      ['INF846K01WO1', 29.0745, 'Axis Mutual Fund', 'Exchange Traded Funds (ETFs) - Other ETF', 'Direct Plan', 'Growth Option']
     ])
   })
 

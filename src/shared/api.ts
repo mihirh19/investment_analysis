@@ -41,6 +41,7 @@ export const API_METHODS = [
   'listBenchmarks',
   'getPerformance',
   'getTax',
+  'getFunds',
   'setBuyPrice',
   'getDisclosureStatus',
   'syncDisclosures',

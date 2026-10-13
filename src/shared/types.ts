@@ -390,6 +390,47 @@ export interface BenchmarkSeries {
   points: PricePoint[]
 }
 
+/** DIRECT / REGULAR from the scheme name; NOT_STATED for old names without a plan; ETF has no plans. */
+export type FundPlan = 'DIRECT' | 'REGULAR' | 'NOT_STATED' | 'ETF'
+
+export interface FundsReport {
+  totalFundsInr: number
+  funds: {
+    instrumentId: number
+    name: string
+    shortName: string
+    fundHouse: string | null
+    categoryGroup: string
+    category: string
+    plan: FundPlan
+    valueInr: number
+    people: string[]
+    holdingsAsOf: string | null
+    holdingsSource: string | null
+    holdingsCount: number
+    /** For Regular plans: the Direct plan of the same scheme and what the difference cost last year. */
+    directPlan: { code: string | null; name: string | null; gap1y: number | null; extraCostInr: number | null } | null
+  }[]
+  overlap: {
+    /** Rows/columns of the matrix; id 0 is your directly held shares. */
+    portfolios: { id: number; label: string }[]
+    /** Share of holdings in common (0..1); null on the diagonal. */
+    matrix: (number | null)[][]
+    pairs: {
+      a: number
+      b: number
+      overlap: number
+      sharedCount: number
+      shared: { name: string; isin: string | null; weightA: number; weightB: number }[]
+    }[]
+  }
+  /** Companies reached through more than one route, largest first. */
+  companies: { name: string; isin: string | null; valueInr: number; directInr: number; sources: { label: string; valueInr: number }[] }[]
+  byHouse: { name: string; valueInr: number; funds: string[] }[]
+  byCategory: { group: string; name: string; valueInr: number; funds: string[] }[]
+  notes: string[]
+}
+
 export type TaxKind = '111A' | '112A' | 'SLAB' | 'LT_OTHER'
 
 /** One sale matched to one purchase lot, with its tax treatment. */
@@ -608,6 +649,8 @@ export interface RequestApi {
   getPerformance(personId?: number): Promise<ApiResult<PerformanceReport>>
   /** Capital gains by financial year, open lots by holding period, harvesting ideas. */
   getTax(personId?: number): Promise<ApiResult<TaxReport>>
+  /** Fund overlap, fund houses and categories, Regular vs Direct plans. */
+  getFunds(personId?: number): Promise<ApiResult<FundsReport>>
   /** Your own average buy price for a holding (null removes it). */
   setBuyPrice(input: {
     personId: number

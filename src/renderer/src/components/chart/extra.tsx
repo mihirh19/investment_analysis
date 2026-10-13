@@ -214,10 +214,14 @@ export function Heatmap({
   max,
   color = 'var(--series-1)',
   onSelect,
-  height
+  height,
+  colNames
 }: {
   rows: string[]
+  /** Column labels shown on the axis; must be unique. */
   cols: string[]
+  /** Full column names for the tooltip when the axis labels are shortened. */
+  colNames?: string[]
   /** values[row][col]; null leaves the cell blank (e.g. the diagonal). */
   values: (number | null)[][]
   format: (v: number) => string
@@ -276,6 +280,9 @@ export function Heatmap({
             type: 'category',
             labels: rows,
             offset: true,
+            // The matrix plugin reverses y by default; turn that off so the first row is at the top and
+            // the diagonal runs top-left to bottom-right.
+            reverse: false,
             grid: { display: false },
             border: { display: false },
             ticks: { color: token('ink'), font: { size: 12 }, autoSkip: false }
@@ -304,7 +311,7 @@ export function Heatmap({
         return (
           <div>
             <div className="mb-0.5 font-medium text-ink">
-              {c.y} × {c.x}
+              {c.y} × {colNames?.[c.c] ?? c.x}
             </div>
             <TipRow color={color} label="overlap" value={format(c.v)} />
           </div>

@@ -142,6 +142,9 @@ export const usePerformance = (personId?: number) =>
 export const useTax = (personId?: number) =>
   useQuery({ queryKey: ['tax', personId ?? 'all'], queryFn: () => unwrap(api().getTax(personId)) })
 
+export const useFunds = (personId?: number) =>
+  useQuery({ queryKey: ['funds', personId ?? 'all'], queryFn: () => unwrap(api().getFunds(personId)) })
+
 export const useBenchmarks = (since?: string) =>
   useQuery({
     queryKey: ['benchmarks', since ?? 'all'],

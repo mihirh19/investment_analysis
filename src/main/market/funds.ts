@@ -57,6 +57,10 @@ export interface AmfiScheme {
   fundHouse: string | null
   /** Category heading, e.g. "Exchange Traded Funds (ETFs) - Other ETF". */
   category: string | null
+  /** "Direct Plan" / "Regular Plan" from the file's Plan column (newer files only). */
+  plan: string | null
+  /** "Growth Option", "IDCW Option", "Monthly IDCW Payout"… from the Option column (newer files only). */
+  option: string | null
 }
 
 /**
@@ -107,7 +111,10 @@ export function parseNavAll(text: string): AmfiScheme[] {
       nav,
       date: `${m[3]}-${months[m[2]] ?? '01'}-${m[1]}`,
       fundHouse,
-      category
+      category,
+      // Newer files: Code;ISIN;ISIN;Name;Plan;Option;NAV;Date.
+      plan: p.length >= 8 ? p[4].trim() || null : null,
+      option: p.length >= 8 ? p[5].trim() || null : null
     })
   }
   return out

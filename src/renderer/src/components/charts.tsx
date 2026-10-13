@@ -131,7 +131,7 @@ export function HBars({
     const longest = Math.max(0, ...totals.map((t) => format(t).length))
     return {
       data: {
-        labels: rows.map((r) => (r.sublabel ? `${clip(r.label, 28)}  ${r.sublabel}` : clip(r.label, 34))),
+        labels: rows.map((r) => (r.sublabel ? `${clip(r.label, 24)}  ${r.sublabel}` : clip(r.label, 34))),
         datasets: series.map((s, si) => ({
           label: s.label,
           data: rows.map((r) => r.values[si] ?? 0),
