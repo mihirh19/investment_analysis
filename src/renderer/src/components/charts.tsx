@@ -1,82 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { stagger } from '../lib/motion'
-import { niceTicks } from '../lib/ticks'
+import { useMemo } from 'react'
+import type { ChartOptions, ScriptableContext } from 'chart.js'
+import { ChartBox } from './chart/ChartBox'
+import { FONT, alpha, categoryAxis, crosshairPlugin, endLabelsPlugin, resolveColor, token, useChartTheme, valueAxis } from './chart/setup'
+import { Legend, TipRow } from './chart/tooltip'
 
-// Small hand-built charts following the app's data-viz rules: thin marks, 4px rounded data-ends,
-// 2px surface gaps between touching fills, hairline solid grid, hover + focus tooltips.
-// Every chart here sits next to a table that carries the same numbers.
+// Bar, column and line charts on Chart.js, following the app's data-viz rules: thin marks, 4px
+// rounded data-ends, hairline grid, hover + keyboard tooltips. Every chart sits next to a table
+// carrying the same numbers.
 
-// ---------------- tooltip ----------------
-
-interface Tip {
-  x: number
-  y: number
-  content: ReactNode
-}
-
-export function useTooltip() {
-  const [tip, setTip] = useState<Tip | null>(null)
-  const show = (e: { clientX: number; clientY: number }, content: ReactNode) =>
-    setTip({ x: e.clientX, y: e.clientY, content })
-  const showAt = (el: Element, content: ReactNode) => {
-    const r = el.getBoundingClientRect()
-    setTip({ x: r.left + r.width / 2, y: r.top, content })
-  }
-  const hide = () => setTip(null)
-  const node = tip ? (
-    <div
-      role="tooltip"
-      className="pointer-events-none fixed z-50 rounded-md border border-rule-strong bg-sheet px-3 py-2 text-[13px] shadow-lg"
-      style={{
-        left: Math.min(tip.x + 14, window.innerWidth - 240),
-        top: Math.max(8, tip.y - 12),
-        transform: 'translateY(-100%)'
-      }}
-    >
-      {tip.content}
-    </div>
-  ) : null
-  return { show, showAt, hide, node }
-}
-
-export function TipRow({
-  color,
-  label,
-  value,
-  line = false
-}: {
-  color?: string
-  label: string
-  value: string
-  line?: boolean
-}) {
-  return (
-    <div className="flex items-center gap-2 whitespace-nowrap">
-      {color && (
-        <span
-          aria-hidden
-          className={line ? 'inline-block h-[2px] w-3 rounded' : 'inline-block size-2.5 rounded-[2px]'}
-          style={{ background: color }}
-        />
-      )}
-      <span className="num font-semibold text-ink">{value}</span>
-      <span className="text-ink-muted">{label}</span>
-    </div>
-  )
-}
-
-export function Legend({ items }: { items: { label: string; color: string }[] }) {
-  return (
-    <ul className="mb-2 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-ink-muted">
-      {items.map((i) => (
-        <li key={i.label} className="flex items-center gap-1.5">
-          <span aria-hidden className="inline-block size-2.5 rounded-[2px]" style={{ background: i.color }} />
-          {i.label}
-        </li>
-      ))}
-    </ul>
-  )
-}
+export { Legend, TipRow, useTooltip } from './chart/tooltip'
 
 // ---------------- 100% stacked bar (part-to-whole) ----------------
 
@@ -96,41 +28,72 @@ export function StackBar({
   format: (v: number) => string
   label: string
 }) {
-  const tip = useTooltip()
-  const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0)
-  if (total <= 0) return null
+  const theme = useChartTheme()
   const parts = segments.filter((s) => s.value > 0)
+  const total = parts.reduce((s, x) => s + x.value, 0)
+
+  const { data, options } = useMemo(() => {
+    let acc = 0
+    const ranges = parts.map((p) => {
+      const r: [number, number] = [acc, acc + p.value]
+      acc += p.value
+      return r
+    })
+    const last = parts.length - 1
+    return {
+      data: {
+        labels: ['all'],
+        datasets: [
+          {
+            data: ranges.map((r) => ({ x: r, y: 'all' })),
+            backgroundColor: parts.map((p) => resolveColor(p.color)),
+            hoverBackgroundColor: parts.map((p) => alpha(p.color, 0.85)),
+            borderSkipped: false,
+            borderRadius: (ctx: ScriptableContext<'bar'>) => {
+              const i = ctx.dataIndex
+              return {
+                topLeft: i === 0 ? 4 : 0,
+                bottomLeft: i === 0 ? 4 : 0,
+                topRight: i === last ? 4 : 0,
+                bottomRight: i === last ? 4 : 0
+              }
+            },
+            barPercentage: 1,
+            categoryPercentage: 1
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        layout: { padding: 0 },
+        scales: {
+          x: { display: false, min: 0, max: total, stacked: false },
+          y: { display: false }
+        },
+        interaction: { mode: 'nearest', intersect: true }
+      } as ChartOptions<'bar'>
+    }
+  }, [segments, theme])
+
+  if (total <= 0) return null
   return (
-    <div role="group" aria-label={label} className="anim-grow-x flex h-3.5 w-full gap-[2px]">
-      {parts.map((s, i) => {
-        const share = s.value / total
-        const content = (
-          <TipRow color={s.color} label={`${s.label}, ${(share * 100).toFixed(1)}%`} value={format(s.value)} />
-        )
-        return (
-          <div
-            key={s.key}
-            tabIndex={0}
-            aria-label={`${s.label}: ${format(s.value)}, ${(share * 100).toFixed(1)}%`}
-            className={
-              'min-w-[2px] cursor-default outline-offset-2 transition-[filter] hover:brightness-110 focus-visible:brightness-110 ' +
-              (i === 0 ? 'rounded-l-[4px] ' : '') +
-              (i === parts.length - 1 ? 'rounded-r-[4px]' : '')
-            }
-            style={{ flexGrow: share, flexBasis: 0, background: s.color }}
-            onPointerMove={(e) => tip.show(e, content)}
-            onPointerLeave={tip.hide}
-            onFocus={(e) => tip.showAt(e.currentTarget, content)}
-            onBlur={tip.hide}
-          />
-        )
-      })}
-      {tip.node}
-    </div>
+    <ChartBox
+      type="bar"
+      data={data as never}
+      options={options}
+      label={label}
+      height={14}
+      focusMode="item"
+      tooltip={([p]) => {
+        const s = parts[p.index]
+        if (!s) return null
+        return <TipRow color={s.color} label={`${s.label}, ${((s.value / total) * 100).toFixed(1)}%`} value={format(s.value)} />
+      }}
+    />
   )
 }
 
-// ---------------- horizontal bars (ranked categories, optionally two stacked parts) ----------------
+// ---------------- horizontal bars (ranked categories, optionally stacked parts) ----------------
 
 export interface BarRow {
   key: string
@@ -138,6 +101,8 @@ export interface BarRow {
   sublabel?: string
   values: number[]
 }
+
+const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
 export function HBars({
   rows,
@@ -151,102 +116,103 @@ export function HBars({
   series: { label: string; color: string }[]
   format: (v: number) => string
   label: string
-  /** Makes each row a button that opens its detail. */
+  /** Makes each row selectable to open its detail. */
   onSelect?: (key: string) => void
   selected?: string | null
 }) {
-  const tip = useTooltip()
-  const max = Math.max(...rows.map((r) => r.values.reduce((a, b) => a + b, 0)), 0)
+  const theme = useChartTheme()
+  const totals = rows.map((r) => r.values.reduce((a, b) => a + b, 0))
+  const max = Math.max(0, ...totals)
+
+  const { data, options } = useMemo(() => {
+    const selIdx = selected ? rows.findIndex((r) => r.key === selected) : -1
+    // The outermost non-zero part of each row gets the rounded end.
+    const outer = rows.map((r) => r.values.reduce((o, v, i) => (v > 0 ? i : o), -1))
+    const longest = Math.max(0, ...totals.map((t) => format(t).length))
+    return {
+      data: {
+        labels: rows.map((r) => (r.sublabel ? `${clip(r.label, 28)}  ${r.sublabel}` : clip(r.label, 34))),
+        datasets: series.map((s, si) => ({
+          label: s.label,
+          data: rows.map((r) => r.values[si] ?? 0),
+          backgroundColor: rows.map((_, ri) => (selIdx >= 0 && ri !== selIdx ? alpha(s.color, 0.35) : resolveColor(s.color))),
+          hoverBackgroundColor: alpha(s.color, 0.85),
+          borderSkipped: false,
+          borderRadius: (ctx: ScriptableContext<'bar'>) =>
+            outer[ctx.dataIndex] === si ? { topRight: 4, bottomRight: 4, topLeft: 0, bottomLeft: 0 } : 0,
+          barThickness: 12
+        }))
+      },
+      options: {
+        indexAxis: 'y',
+        layout: { padding: { right: longest * 6.5 + 14 } },
+        scales: {
+          x: { display: false, stacked: true, min: 0, max },
+          y: {
+            stacked: true,
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+              color: token('ink'),
+              font: { size: 14, family: FONT },
+              crossAlign: 'far',
+              padding: 12
+            },
+            afterFit: (scale: { width: number }) => {
+              scale.width = Math.min(260, Math.max(150, scale.width))
+            }
+          }
+        },
+        interaction: { mode: 'index', axis: 'y', intersect: false },
+        plugins: { endLabels: { text: (i: number) => format(totals[i]) } }
+      } as ChartOptions<'bar'>
+    }
+  }, [rows, series, selected, theme, max])
+
   if (max <= 0) return null
   return (
     <figure aria-label={label} className="m-0">
       {series.length > 1 && <Legend items={series} />}
-      <div className="flex flex-col">
-        {rows.map((r, ri) => {
-          const total = r.values.reduce((a, b) => a + b, 0)
-          const content = (
+      <ChartBox
+        type="bar"
+        data={data as never}
+        options={options}
+        plugins={[endLabelsPlugin]}
+        label={label}
+        height={rows.length * 28 + 6}
+        onSelect={onSelect ? (i) => rows[i] && onSelect(rows[i].key) : undefined}
+        tooltip={([p]) => {
+          const r = rows[p.index]
+          if (!r) return null
+          return (
             <div className="flex flex-col gap-0.5">
               <div className="mb-0.5 font-medium text-ink">{r.label}</div>
               {series.length > 1 &&
                 series.map(
                   (s, i) =>
-                    r.values[i] > 0 && (
-                      <TipRow key={s.label} color={s.color} label={s.label} value={format(r.values[i])} />
-                    )
+                    r.values[i] > 0 && <TipRow key={s.label} color={s.color} label={s.label} value={format(r.values[i])} />
                 )}
-              <TipRow label={series.length > 1 ? 'Total' : series[0].label} value={format(total)} />
+              <TipRow label={series.length > 1 ? 'Total' : series[0].label} value={format(totals[p.index])} />
             </div>
           )
-          const parts = r.values.map((v, i) => ({ v, color: series[i].color })).filter((p) => p.v > 0)
-          return (
-            <div
-              key={r.key}
-              tabIndex={0}
-              role={onSelect ? 'button' : undefined}
-              aria-pressed={onSelect ? selected === r.key : undefined}
-              aria-label={`${r.label}: ${format(total)}`}
-              className={
-                'grid grid-cols-[minmax(140px,240px)_1fr] items-center gap-4 rounded-sm py-[5px] outline-offset-1 hover:bg-sheet/70 ' +
-                (onSelect ? 'cursor-pointer ' : '') +
-                (selected === r.key ? 'bg-stamp-wash shadow-[inset_3px_0_0_var(--stamp)]' : '')
-              }
-              onPointerMove={(e) => tip.show(e, content)}
-              onPointerLeave={tip.hide}
-              onFocus={(e) => tip.showAt(e.currentTarget, content)}
-              onBlur={tip.hide}
-              onClick={onSelect ? () => onSelect(r.key) : undefined}
-              onKeyDown={
-                onSelect
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onSelect(r.key)
-                      }
-                    }
-                  : undefined
-              }
-            >
-              <div className={'min-w-0 truncate text-[14px] ' + (onSelect ? 'pl-2' : '')} title={r.label}>
-                {r.label}
-                {r.sublabel && <span className="ml-2 text-[12px] text-ink-muted">{r.sublabel}</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                <div
-                  className="anim-grow-x flex h-3 gap-[2px]"
-                  style={{ width: `calc((100% - 96px) * ${total / max})`, ...stagger(ri) }}
-                >
-                  {parts.map((p, i) => (
-                    <div
-                      key={i}
-                      className={'min-w-[2px] ' + (i === parts.length - 1 ? 'rounded-r-[4px]' : '')}
-                      style={{ flexGrow: p.v, flexBasis: 0, background: p.color }}
-                    />
-                  ))}
-                </div>
-                <span className="num text-[13px] text-ink-muted">{format(total)}</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      {tip.node}
+        }}
+      />
+      {onSelect && (
+        <ul className="sr-only">
+          {rows.map((r, i) => (
+            <li key={r.key}>
+              <button type="button" aria-pressed={selected === r.key} onClick={() => onSelect(r.key)}>
+                {r.label}: {format(totals[i])}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </figure>
   )
 }
 
 // ---------------- columns (one series over periods) ----------------
-
-export function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
-  const ref = useRef<T>(null)
-  const [w, setW] = useState(600)
-  useEffect(() => {
-    if (!ref.current) return
-    const ro = new ResizeObserver(([e]) => setW(Math.max(240, e.contentRect.width)))
-    ro.observe(ref.current)
-    return () => ro.disconnect()
-  }, [])
-  return [ref, w]
-}
 
 export function Columns({
   points,
@@ -263,97 +229,71 @@ export function Columns({
   seriesLabel: string
   height?: number
 }) {
-  const [ref, width] = useWidth<HTMLDivElement>()
-  const tip = useTooltip()
+  const theme = useChartTheme()
   const max = Math.max(0, ...points.map((p) => p.value))
-  if (points.length === 0 || max <= 0) return <div ref={ref} />
-  const ticks = niceTicks(0, max, 4)
-  const top = ticks[ticks.length - 1]
-  const padL = 56
-  const padB = 24
-  const padT = 18
-  const plotW = width - padL
-  const plotH = height - padB - padT
-  const band = plotW / points.length
-  const barW = Math.min(24, band * 0.6)
-  const y = (v: number) => padT + plotH - (v / top) * plotH
-  const labelled = new Set([points.reduce((a, b) => (b.value > a.value ? b : a)).key, points[points.length - 1].key])
 
+  const { data, options } = useMemo(() => {
+    const peak = points.length ? points.reduce((a, b, i) => (b.value > points[a].value ? i : a), 0) : -1
+    const labelled = new Set([peak, points.length - 1])
+    return {
+      data: {
+        labels: points.map((p) => p.label),
+        datasets: [
+          {
+            label: seriesLabel,
+            data: points.map((p) => p.value),
+            backgroundColor: token('series-1'),
+            hoverBackgroundColor: alpha('var(--series-1)', 0.8),
+            borderRadius: 4,
+            maxBarThickness: 24
+          }
+        ]
+      },
+      options: {
+        layout: { padding: { top: 20 } },
+        scales: { x: categoryAxis(), y: valueAxis(axisFormat, { beginAtZero: true }) },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          endLabels: {
+            text: (i: number) => (labelled.has(i) && points[i]?.value > 0 ? axisFormat(points[i].value) : null),
+            color: token('ink'),
+            bold: true
+          }
+        }
+      } as ChartOptions<'bar'>
+    }
+  }, [points, seriesLabel, theme])
+
+  if (points.length === 0 || max <= 0) return null
   return (
-    <div ref={ref} className="w-full">
-      <svg width={width} height={height} role="img" aria-label={label} className="block overflow-visible">
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={padL} x2={width} y1={y(t)} y2={y(t)} stroke="var(--rule)" strokeWidth={1} />
-            <text
-              x={padL - 8}
-              y={y(t)}
-              dy="0.32em"
-              textAnchor="end"
-              className="num fill-[var(--ink-muted)] text-[11px]"
-            >
-              {axisFormat(t)}
-            </text>
-          </g>
-        ))}
-        {points.map((p, i) => {
-          const cx = padL + band * i + band / 2
-          const h = Math.max(0, y(0) - y(p.value))
-          const x0 = cx - barW / 2
-          const r = Math.min(4, h, barW / 2)
-          const yTop = y(p.value)
-          const content = (
-            <TipRow color="var(--series-1)" label={`${seriesLabel}, ${p.label}`} value={format(p.value)} />
-          )
-          return (
-            <g key={p.key}>
-              {h > 0 && (
-                <path
-                  d={`M${x0},${y(0)} V${yTop + r} Q${x0},${yTop} ${x0 + r},${yTop} H${x0 + barW - r} Q${x0 + barW},${yTop} ${x0 + barW},${yTop + r} V${y(0)} Z`}
-                  fill="var(--series-1)"
-                  className="anim-grow-y"
-                  style={stagger(i, 50)}
-                />
-              )}
-              {labelled.has(p.key) && h > 0 && (
-                <text x={cx} y={yTop - 6} textAnchor="middle" className="num fill-[var(--ink)] text-[11px] font-medium">
-                  {axisFormat(p.value)}
-                </text>
-              )}
-              <text x={cx} y={height - 6} textAnchor="middle" className="fill-[var(--ink-muted)] text-[11px]">
-                {p.label}
-              </text>
-              {/* Hit target: the whole band, not just the painted bar. */}
-              <rect
-                x={padL + band * i}
-                y={padT}
-                width={band}
-                height={plotH}
-                fill="transparent"
-                tabIndex={0}
-                aria-label={`${p.label}: ${format(p.value)}`}
-                className="outline-none focus-visible:fill-[var(--stamp-wash)] hover:fill-[var(--stamp-wash)]"
-                style={{ fillOpacity: 0.5 }}
-                onPointerMove={(e) => tip.show(e, content)}
-                onPointerLeave={tip.hide}
-                onFocus={(e) => tip.showAt(e.currentTarget, content)}
-                onBlur={tip.hide}
-              />
-            </g>
-          )
-        })}
-        <line x1={padL} x2={width} y1={y(0)} y2={y(0)} stroke="var(--rule-strong)" strokeWidth={1} />
-      </svg>
-      {tip.node}
-    </div>
+    <ChartBox
+      type="bar"
+      data={data as never}
+      options={options}
+      plugins={[endLabelsPlugin]}
+      label={label}
+      height={height}
+      tooltip={([p]) => {
+        const pt = points[p.index]
+        return pt ? <TipRow color="var(--series-1)" label={`${seriesLabel}, ${pt.label}`} value={format(pt.value)} /> : null
+      }}
+    />
   )
 }
 
 // ---------------- price line with crosshair ----------------
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const dayLabel = (iso: string) =>
+export const dayLabel = (iso: string) =>
   `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
+
+export const TIME_FORMATS = {
+  day: 'd MMM',
+  week: 'd MMM',
+  month: 'MMM yy',
+  quarter: 'MMM yy',
+  year: 'yyyy'
+}
 
 export function PriceLine({
   points,
@@ -371,171 +311,92 @@ export function PriceLine({
   reference?: { value: number; label: string } | null
   height?: number
 }) {
-  const [ref, width] = useWidth<HTMLDivElement>()
-  const [hover, setHover] = useState<number | null>(null)
-  const padL = 60
-  const padR = 64
-  const padT = 12
-  const padB = 24
-  const geo = useMemo(() => {
-    if (points.length < 2) return null
+  const theme = useChartTheme()
+
+  const { data, options } = useMemo(() => {
     const values = points.map((p) => p.close).concat(reference ? [reference.value] : [])
-    const ticks = niceTicks(Math.min(...values), Math.max(...values), 4)
-    const lo = ticks[0]
-    const hi = ticks[ticks.length - 1]
-    const plotW = width - padL - padR
-    const plotH = height - padT - padB
-    const x = (i: number) => padL + (i / (points.length - 1)) * plotW
-    const y = (v: number) => padT + plotH - ((v - lo) / (hi - lo || 1)) * plotH
-    const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.close).toFixed(1)}`).join(' ')
-    const area = `${d} L${x(points.length - 1)},${padT + plotH} L${padL},${padT + plotH} Z`
-    // One x label per month boundary, thinned to fit.
-    const monthStarts = points
-      .map((p, i) => ({ i, m: p.date.slice(0, 7) }))
-      .filter((p, k, a) => k === 0 || p.m !== a[k - 1].m)
-    const every = Math.ceil(monthStarts.length / Math.max(2, Math.floor(plotW / 70)))
-    const xTicks = monthStarts.filter((_, k) => k % every === 0)
-    return { ticks, x, y, d, area, xTicks, plotH }
-  }, [points, width, height, reference])
+    const lo = Math.min(...values)
+    const hi = Math.max(...values)
+    const pad = (hi - lo || hi || 1) * 0.06
+    const last = points.length - 1
+    const line = token('series-1')
+    return {
+      data: {
+        datasets: [
+          {
+            label,
+            data: points.map((p) => ({ x: p.date, y: p.close })),
+            borderColor: line,
+            backgroundColor: alpha('var(--series-1)', 0.1),
+            fill: 'origin',
+            borderWidth: 2,
+            tension: 0,
+            pointRadius: (ctx: ScriptableContext<'line'>) => (ctx.dataIndex === last ? 4 : 0),
+            pointHoverRadius: 4,
+            pointBackgroundColor: line,
+            pointBorderColor: token('paper'),
+            pointBorderWidth: 2
+          }
+        ]
+      },
+      options: {
+        layout: { padding: { top: 18, right: 28 } },
+        scales: {
+          x: {
+            type: 'time',
+            time: { displayFormats: TIME_FORMATS },
+            grid: { display: false },
+            border: { color: token('rule-strong') },
+            ticks: { color: token('ink-muted'), font: { size: 11 }, maxRotation: 0, autoSkipPadding: 24 }
+          },
+          y: valueAxis(axisFormat, { min: lo - pad, max: hi + pad })
+        },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          crosshair: {},
+          endLabels: { text: (i: number) => (i === last ? axisFormat(points[i].close) : null), color: token('ink'), bold: true },
+          annotation: {
+            annotations: reference
+              ? {
+                  ref: {
+                    type: 'line',
+                    yMin: reference.value,
+                    yMax: reference.value,
+                    borderColor: token('ink-muted'),
+                    borderWidth: 1,
+                    borderDash: [4, 4],
+                    label: {
+                      display: true,
+                      content: reference.label,
+                      position: 'start',
+                      backgroundColor: 'transparent',
+                      color: token('ink-muted'),
+                      font: { size: 11, family: FONT },
+                      yAdjust: -9
+                    }
+                  }
+                }
+              : {}
+          }
+        }
+      } as ChartOptions<'line'>
+    }
+  }, [points, reference?.value, reference?.label, theme])
 
-  if (!geo)
-    return (
-      <div ref={ref} className="py-10 text-[14px] text-ink-muted">
-        Not enough price history to draw a chart.
-      </div>
-    )
-  const last = points[points.length - 1]
-  const h = hover !== null ? points[hover] : null
-
-  const onMove = (e: React.PointerEvent<SVGRectElement>) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    const frac = (e.clientX - r.left) / r.width
-    setHover(Math.max(0, Math.min(points.length - 1, Math.round(frac * (points.length - 1)))))
-  }
-
+  if (points.length < 2)
+    return <div className="py-10 text-[14px] text-ink-muted">Not enough price history to draw a chart.</div>
   return (
-    <div ref={ref} className="relative w-full">
-      <svg width={width} height={height} role="img" aria-label={label} className="block">
-        {geo.ticks.map((t) => (
-          <g key={t}>
-            <line x1={padL} x2={width - padR} y1={geo.y(t)} y2={geo.y(t)} stroke="var(--rule)" strokeWidth={1} />
-            <text
-              x={padL - 8}
-              y={geo.y(t)}
-              dy="0.32em"
-              textAnchor="end"
-              className="num fill-[var(--ink-muted)] text-[11px]"
-            >
-              {axisFormat(t)}
-            </text>
-          </g>
-        ))}
-        {geo.xTicks.map((t) => (
-          <text
-            key={t.i}
-            x={geo.x(t.i)}
-            y={height - 6}
-            textAnchor="middle"
-            className="fill-[var(--ink-muted)] text-[11px]"
-          >
-            {MONTHS[Number(points[t.i].date.slice(5, 7)) - 1]}
-            {points[t.i].date.slice(5, 7) === '01' || t.i === geo.xTicks[0].i ? ` ${points[t.i].date.slice(2, 4)}` : ''}
-          </text>
-        ))}
-        {reference && (
-          <g>
-            <line
-              x1={padL}
-              x2={width - padR}
-              y1={geo.y(reference.value)}
-              y2={geo.y(reference.value)}
-              stroke="var(--ink-muted)"
-              strokeWidth={1}
-            />
-            <text
-              x={width - padR + 6}
-              y={geo.y(reference.value)}
-              dy="0.32em"
-              className="fill-[var(--ink-muted)] text-[11px]"
-            >
-              {reference.label}
-            </text>
-          </g>
-        )}
-        <path d={geo.area} fill="var(--series-1)" fillOpacity={0.1} className="anim-fade" />
-        <path
-          d={geo.d}
-          fill="none"
-          stroke="var(--series-1)"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          pathLength={1}
-          className="anim-draw"
-        />
-        <circle
-          cx={geo.x(points.length - 1)}
-          cy={geo.y(last.close)}
-          r={4}
-          fill="var(--series-1)"
-          stroke="var(--paper)"
-          strokeWidth={2}
-        />
-        <text
-          x={geo.x(points.length - 1) + 8}
-          y={geo.y(last.close)}
-          dy="0.32em"
-          className="num fill-[var(--ink)] text-[12px] font-medium"
-        >
-          {axisFormat(last.close)}
-        </text>
-        {h && hover !== null && (
-          <g pointerEvents="none">
-            <line
-              x1={geo.x(hover)}
-              x2={geo.x(hover)}
-              y1={padT}
-              y2={padT + geo.plotH}
-              stroke="var(--ink-muted)"
-              strokeWidth={1}
-            />
-            <circle
-              cx={geo.x(hover)}
-              cy={geo.y(h.close)}
-              r={4}
-              fill="var(--series-1)"
-              stroke="var(--paper)"
-              strokeWidth={2}
-            />
-          </g>
-        )}
-        <rect
-          x={padL}
-          y={padT}
-          width={width - padL - padR}
-          height={geo.plotH}
-          fill="transparent"
-          tabIndex={0}
-          aria-label={`${label}. Use left and right arrow keys to read values.`}
-          className="outline-none"
-          onPointerMove={onMove}
-          onPointerLeave={() => setHover(null)}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowLeft') setHover((v) => Math.max(0, (v ?? points.length) - 1))
-            if (e.key === 'ArrowRight') setHover((v) => Math.min(points.length - 1, (v ?? -1) + 1))
-          }}
-          onBlur={() => setHover(null)}
-        />
-      </svg>
-      {h && hover !== null && (
-        <div
-          role="tooltip"
-          className="pointer-events-none absolute top-0 rounded-md border border-rule-strong bg-sheet px-3 py-2 text-[13px] shadow-lg"
-          style={{ left: Math.min(geo.x(hover) + 12, width - 170) }}
-        >
-          <TipRow color="var(--series-1)" line label={dayLabel(h.date)} value={format(h.close)} />
-        </div>
-      )}
-    </div>
+    <ChartBox
+      type="line"
+      data={data as never}
+      options={options}
+      plugins={[crosshairPlugin, endLabelsPlugin]}
+      label={label}
+      height={height}
+      tooltip={([p]) => {
+        const pt = points[p.index]
+        return pt ? <TipRow color="var(--series-1)" line label={dayLabel(pt.date)} value={format(pt.close)} /> : null
+      }}
+    />
   )
 }

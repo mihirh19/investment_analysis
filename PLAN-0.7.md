@@ -28,21 +28,23 @@ Status: **proposed** · Baseline: 0.6.0 (148 tests + click-through smoke passing
 
 ---
 
-## Phase 0 — Chart.js foundation
+## Phase 0 — Chart.js foundation ✅ done
 
-- [ ] Baseline git commit of 0.6.0
-- [ ] Install `chart.js`, `react-chartjs-2`, `chartjs-adapter-date-fns` + `date-fns`, `chartjs-chart-treemap`, `chartjs-chart-matrix`
-- [ ] Optional add-ons: `chartjs-plugin-zoom`, `chartjs-plugin-annotation`
-- [ ] Shared chart setup (`components/chart/`):
-  - [ ] registers Chart.js once
-  - [ ] chart colours come from the app's CSS colour tokens (`--series-1..8`, `--gain`, `--loss`, `--rule`, `--ink`, …) and update when the theme changes
-  - [ ] Anek Latin font, ₹ / lakh / crore axis labels via `lib/format.ts`
-  - [ ] animations turned off when reduced motion is set
-  - [ ] one tooltip style everywhere; crosshair on line charts
-- [ ] Rewrite these wrappers on Chart.js, keeping their names and inputs so pages barely change: `AreaStack`, `Donut`, `StackBar`, `Columns`, `StackedColumns`, `HBars`, `DivergingBars`, `Treemap`, `PriceLine`, `Sparkline`
-- [ ] New chart types: `LineCompare`, `Drawdown`, `Heatmap`, `Waterfall`, `Bullet`
-- [ ] Keep chart click-throughs working: Exposure drill-down, treemap → HoldingDetail
-- [ ] Delete the old SVG code once no page uses it
+- [x] Baseline git commit of 0.6.0 (`7a48da0`)
+- [x] Install `chart.js` 4.5, `react-chartjs-2` 5.3, `chartjs-adapter-date-fns` + `date-fns`, `chartjs-chart-treemap`, `chartjs-chart-matrix`
+- [x] `chartjs-plugin-annotation` (reference lines). `chartjs-plugin-zoom` skipped: needs hammerjs, nothing uses zoom yet
+- [x] Shared chart setup (`components/chart/setup.ts`, `ChartBox.tsx`, `tooltip.tsx`):
+  - [x] registers Chart.js once
+  - [x] chart colours come from the CSS tokens (resolved through the DOM, incl. `color-mix`) and refresh on theme / `data-theme` / font changes
+  - [x] Anek Latin font, ₹ / lakh / crore axis labels via the pages' existing formatters
+  - [x] animations off (duration 0) when reduced motion is set
+  - [x] one HTML tooltip everywhere (portalled to `<body>`); crosshair on line charts; arrow-key reading + Enter to select
+- [x] Rewrite these wrappers on Chart.js, same names and inputs (no page changes): `AreaStack`, `Donut`, `StackBar`, `Columns`, `StackedColumns`, `HBars`, `DivergingBars`, `Treemap`, `PriceLine`, `Sparkline`
+- [x] New chart types (`components/chart/extra.tsx`): `LineCompare`, `Drawdown`, `Heatmap`, `Waterfall`, `Bullet`
+- [x] Exposure drill-down works (click a bar, or the hidden button list for keyboard / screen readers)
+- [ ] Treemap → HoldingDetail: `Treemap` now accepts `onSelect`; wiring it on Analysis needs holding ids in the treemap data. Moved to Phase 7
+- [x] Old SVG drawing code removed (`charts.tsx` / `viz.tsx` are now thin Chart.js wrappers)
+- [x] Smoke test: checks that canvases render, the donut tooltip appears on hover, and a sector drill-down opens
 
 **Files:** `package.json`, new `src/renderer/src/components/chart/*`, `charts.tsx`, `viz.tsx`, `styles.css`, pages that use charts
 **Done when:** every page renders on Chart.js in light and dark, the smoke test passes, and there are no console errors

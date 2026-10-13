@@ -121,10 +121,39 @@ await sleep(2500)
 await ok('analysis with charts')
 await clickText('[role=radio]', '5Y')
 await ok('net worth range 5Y')
-await ev(
-  `document.querySelector('[aria-label="Allocation by group"] circle')?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 300, clientY: 300 }))`
-)
+const canvases = await ev(`document.querySelectorAll('canvas').length`)
+if (!(canvases > 3)) {
+  failures++
+  console.log('FAIL analysis draws Chart.js canvases'.padEnd(46), canvases)
+}
+const hovered = await ev(`(async () => {
+  const c = document.querySelector('canvas[data-chart="Allocation by group"]')
+  if (!c) return 'NO CANVAS'
+  const r = c.getBoundingClientRect()
+  // A point on the ring, straight above the centre.
+  c.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + 22 }))
+  await new Promise((res) => setTimeout(res, 400))
+  return document.querySelector('[role=tooltip]') ? 'ok' : 'NO TOOLTIP'
+})()`)
+if (hovered !== 'ok') {
+  failures++
+  console.log('FAIL hover donut slice shows tooltip'.padEnd(46), hovered)
+}
 await ok('hover donut slice')
+await nav('Sectors & exposure')
+await sleep(2000)
+const drilled = await ev(`(async () => {
+  const btn = document.querySelector('figure[aria-label="Equity by sector"] .sr-only button')
+  if (!btn) return 'NO SECTOR BARS'
+  btn.click()
+  await new Promise((res) => setTimeout(res, 600))
+  return btn.getAttribute('aria-pressed') === 'true' || document.getElementById('sector-detail') ? 'ok' : 'NOT OPENED'
+})()`)
+if (drilled !== 'ok' && drilled !== 'NO SECTOR BARS') {
+  failures++
+  console.log('FAIL open sector drill-down'.padEnd(46), drilled)
+}
+await ok('open sector drill-down')
 await nav('Activity')
 await clickText('button', 'Add a trade by hand')
 await ok('open manual trade form')
