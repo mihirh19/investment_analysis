@@ -19,7 +19,10 @@ interface ChartResponse {
             instrumentType?: string
           }
           timestamp?: number[]
-          indicators?: { quote?: { close?: (number | null)[] }[]; adjclose?: { adjclose?: (number | null)[] }[] }
+          indicators?: {
+            quote?: { close?: (number | null)[]; high?: (number | null)[] }[]
+            adjclose?: { adjclose?: (number | null)[] }[]
+          }
           events?: { dividends?: Record<string, { amount: number; date: number }> }
         }[]
       | null
@@ -85,6 +88,17 @@ export async function yahooHistory(
     if (typeof c === 'number' && Number.isFinite(c)) prices.push({ date: dateInOffset(t, offset), close: c })
   })
   return { prices, dividends: parseDividends(r.events?.dividends, offset), currency: r.meta.currency?.toUpperCase() }
+}
+
+/** The day's high on one date (exchange time), or null if the symbol did not trade that day. */
+export async function yahooHighOn(symbol: string, date: string, f?: FetchFn): Promise<number | null> {
+  const t0 = Date.parse(`T00:00:00Z`) / 1000 - 86400
+  const r = await chart(symbol, `period1=${t0}&period2=${t0 + 3 * 86400}&interval=1d`, f)
+  const offset = r.meta.gmtoffset ?? 0
+  const highs = r.indicators?.quote?.[0]?.high ?? []
+  const i = (r.timestamp ?? []).findIndex((t) => dateInOffset(t, offset) === date)
+  const h = i >= 0 ? highs[i] : null
+  return typeof h === 'number' && Number.isFinite(h) ? h : null
 }
 
 export async function yahooDividends(symbol: string, f?: FetchFn): Promise<DividendEvent[]> {

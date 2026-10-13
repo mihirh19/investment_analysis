@@ -94,23 +94,30 @@ Smoke test not re-run (slow); added Performance to its page list.
 **Files:** new `portfolio/performance.ts`, `portfolio/benchmark.ts`, `services.ts`, `shared/api.ts`, `shared/types.ts`, `pages/Performance.tsx`, `main.tsx`, `Shell.tsx`
 **Tests:** `tests/performance.test.ts`, `tests/benchmark.test.ts`
 
-## Phase 3 — Tax page (`/tax`)
+## Phase 3 — Tax page (`/tax`) ✅ done
 
-- [ ] Extend `computeFifo` to return a record for each sale: buy date, sell date, units, cost, proceeds, days held
-- [ ] Tax rule table, by asset type and date:
-  - [ ] listed shares and equity funds: short term if held under 12 months, at 20%; long term at 12.5% above ₹1.25L a year (rates from 23 Jul 2024; older sales use the old rates)
-  - [ ] grandfathering: gains on shares bought before 31 Jan 2018 use the 31 Jan 2018 price as cost
-  - [ ] debt funds bought on or after 1 Apr 2023: taxed at the income-tax slab
-  - [ ] US shares: long term after 24 months
-  - [ ] gold funds and Sovereign Gold Bonds: their own rules
-- [ ] What the page shows:
-  - [ ] realized short- and long-term gains by financial year, per person
-  - [ ] unrealized gains split by holding period
-  - [ ] how much of this year's ₹1.25L long-term exemption is left, and which lots to sell to use it (harvesting)
-  - [ ] lots turning long-term in the next 30 or 60 days
-  - [ ] candidates for selling at a loss to offset gains
-  - [ ] Schedule 112A-style CSV export
-- [ ] Holdings with no purchase history (NSDL/CDSL statements only) are labelled "estimate only"
+Done: `computeFifo` now returns per-lot `sales`; `portfolio/taxRules.ts` (rule table, grandfathering, exemption, loss set-off, fund classifier);
+`portfolio/tax.ts` (`computeTax`); `market/grandfather.ts` (31 Jan 2018 prices, new Settings status row); `getTax` API; `pages/Tax.tsx`.
+CSV: all sales + Schedule 112A columns. Tests: `tax.test.ts` (18). Checked on demo data, light + dark.
+Not modelled: surcharge, cess (noted), indexation on pre-23-Jul-2024 debt/US sales, losses carried in from earlier years, physical gold/property sales.
+US conversion uses the market rate on each trade date, not the SBI TT buying rate (warning shown).
+Follow-up for Phase 7: sidebar now needs scrolling at 15 items — group the nav.
+
+- [x] Extend `computeFifo` to return a record for each sale: buy date, sell date, units, cost, proceeds, days held
+- [x] Tax rule table, by asset type and date:
+  - [x] listed shares and equity funds: short term if held under 12 months, at 20%; long term at 12.5% above ₹1.25L a year (rates from 23 Jul 2024; older sales use the old rates)
+  - [x] grandfathering: gains on shares bought before 31 Jan 2018 use the 31 Jan 2018 price as cost
+  - [x] debt funds bought on or after 1 Apr 2023: taxed at the income-tax slab
+  - [x] US shares: long term after 24 months
+  - [x] gold funds and Sovereign Gold Bonds: their own rules
+- [x] What the page shows:
+  - [x] realized short- and long-term gains by financial year, per person
+  - [x] unrealized gains split by holding period
+  - [x] how much of this year's ₹1.25L long-term exemption is left, and which lots to sell to use it (harvesting)
+  - [x] lots turning long-term in the next 30 or 60 days
+  - [x] candidates for selling at a loss to offset gains
+  - [x] Schedule 112A-style CSV export
+- [x] Holdings with no purchase history (NSDL/CDSL statements only) are labelled "estimate only"
 
 **Files:** `portfolio/fifo.ts`, new `portfolio/tax.ts`, `services.ts`, `shared/*`, `pages/Tax.tsx`
 **Tests:** `tests/tax.test.ts` (cases across the 23 Jul 2024 rate change, 2018 grandfathering, debt funds after Apr 2023, US 24-month rule), `tests/fifo.test.ts` extended

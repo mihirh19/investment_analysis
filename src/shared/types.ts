@@ -390,6 +390,101 @@ export interface BenchmarkSeries {
   points: PricePoint[]
 }
 
+export type TaxKind = '111A' | '112A' | 'SLAB' | 'LT_OTHER'
+
+/** One sale matched to one purchase lot, with its tax treatment. */
+export interface RealizedGain {
+  personId: number
+  personName: string
+  accountName: string
+  instrumentId: number
+  name: string
+  isin: string | null
+  taxClass: string
+  buyDate: string
+  sellDate: string
+  fy: string
+  units: number
+  /** Cost used for tax (grandfathered where that applies), INR. */
+  costInr: number
+  /** Actual purchase cost, INR. */
+  actualCostInr: number
+  proceedsInr: number
+  gainInr: number
+  term: 'ST' | 'LT'
+  kind: TaxKind
+  rate: number | null
+  /** 31 Jan 2018 value per unit, for units bought before 1 Feb 2018. */
+  fmv2018: number | null
+  grandfathered: boolean
+}
+
+/** A purchase lot still held, valued today. */
+export interface OpenLot {
+  personId: number
+  personName: string
+  accountName: string
+  accountId: number
+  instrumentId: number
+  name: string
+  taxClass: string
+  buyDate: string
+  units: number
+  costInr: number
+  valueInr: number
+  gainInr: number
+  /** If sold today. */
+  term: 'ST' | 'LT'
+  kind: TaxKind
+  /** First day a sale would be long-term (null: never, e.g. debt funds bought after Mar 2023). */
+  longTermFrom: string | null
+}
+
+export interface TaxYearSummary {
+  personId: number
+  personName: string
+  fy: string
+  current: boolean
+  shortTermGain: number
+  longTermGain: number
+  buckets: { kind: TaxKind; rate: number | null; amount: number }[]
+  exemptionUsed: number
+  exemptionLimit: number
+  slabGain: number
+  fixedRateTax: number
+  carryForward: { shortTerm: number; longTerm: number }
+  sales: number
+}
+
+export interface HarvestIdea {
+  personId: number
+  personName: string
+  accountName: string
+  name: string
+  units: number
+  valueInr: number
+  gainInr: number
+}
+
+export interface TaxReport {
+  currentFy: string
+  years: TaxYearSummary[]
+  realized: RealizedGain[]
+  lots: OpenLot[]
+  unrealized: { shortTermGain: number; shortTermLoss: number; longTermGain: number; longTermLoss: number }
+  /** Unused 112A exemption this financial year, per person. */
+  exemptionLeft: { personId: number; personName: string; left: number; limit: number }[]
+  /** Long-term equity lots to sell (and buy back) to use the rest of this year's exemption. */
+  harvest: HarvestIdea[]
+  /** Lots in profit that turn long-term within 60 days: waiting lowers the tax. */
+  soonLongTerm: OpenLot[]
+  /** Lots at a loss: selling books a loss that can be set off against gains. */
+  losses: OpenLot[]
+  /** Holdings without a purchase-by-purchase history: gains here are estimates with no holding period. */
+  estimateOnly: { personName: string; name: string; valueInr: number; gainInr: number | null }[]
+  warnings: string[]
+}
+
 /** One calendar or financial year of the Performance page. */
 export interface PerformanceYear {
   kind: 'CY' | 'FY'
@@ -511,6 +606,8 @@ export interface RequestApi {
   listBenchmarks(since?: string): Promise<ApiResult<BenchmarkSeries[]>>
   /** Time-weighted returns by year, vs benchmarks, drawdown and XIRR by account and holding. */
   getPerformance(personId?: number): Promise<ApiResult<PerformanceReport>>
+  /** Capital gains by financial year, open lots by holding period, harvesting ideas. */
+  getTax(personId?: number): Promise<ApiResult<TaxReport>>
   /** Your own average buy price for a holding (null removes it). */
   setBuyPrice(input: {
     personId: number

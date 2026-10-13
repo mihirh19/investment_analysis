@@ -139,6 +139,9 @@ export const useSparklines = (ids: number[]) =>
 export const usePerformance = (personId?: number) =>
   useQuery({ queryKey: ['performance', personId ?? 'all'], queryFn: () => unwrap(api().getPerformance(personId)) })
 
+export const useTax = (personId?: number) =>
+  useQuery({ queryKey: ['tax', personId ?? 'all'], queryFn: () => unwrap(api().getTax(personId)) })
+
 export const useBenchmarks = (since?: string) =>
   useQuery({
     queryKey: ['benchmarks', since ?? 'all'],

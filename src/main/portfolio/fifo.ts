@@ -14,6 +14,17 @@ export interface Lot {
   costPerUnit: number
 }
 
+/** One sale matched against one purchase lot (a sale spanning two lots gives two records). */
+export interface LotSale {
+  buyDate: string
+  sellDate: string
+  quantity: number
+  /** Purchase cost of these units, buy fees included. */
+  cost: number
+  /** Sale proceeds for these units, sale fees deducted. */
+  proceeds: number
+}
+
 export interface FifoResult {
   quantity: number
   invested: number // cost of the units still held
@@ -22,6 +33,7 @@ export interface FifoResult {
   dividends: number
   charges: number
   openLots: Lot[]
+  sales: LotSale[]
   /** Units sold that had no matching purchase in the data (history starts too late). */
   unmatchedSellQuantity: number
 }
@@ -42,6 +54,7 @@ export function computeFifo(txns: FifoTxn[]): FifoResult {
   let dividends = 0
   let charges = 0
   let unmatchedSellQuantity = 0
+  const sales: LotSale[] = []
 
   for (const t of txns) {
     if (t.type === 'DIVIDEND') {
@@ -65,6 +78,13 @@ export function computeFifo(txns: FifoTxn[]): FifoResult {
         const lot = lots[0]
         const used = Math.min(lot.quantity, toSell)
         realizedPnl += used * (pricePerUnit - lot.costPerUnit)
+        sales.push({
+          buyDate: lot.date,
+          sellDate: t.date,
+          quantity: used,
+          cost: used * lot.costPerUnit,
+          proceeds: used * pricePerUnit
+        })
         lot.quantity -= used
         toSell -= used
         if (lot.quantity <= EPS) lots.shift()
@@ -85,6 +105,7 @@ export function computeFifo(txns: FifoTxn[]): FifoResult {
     dividends,
     charges,
     openLots: lots,
+    sales,
     unmatchedSellQuantity
   }
 }

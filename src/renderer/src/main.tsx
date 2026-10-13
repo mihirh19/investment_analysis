@@ -17,6 +17,7 @@ import { Insurance } from './pages/Insurance'
 import { Settings } from './pages/Settings'
 import { Analysis } from './pages/Analysis'
 import { Performance } from './pages/Performance'
+import { Tax } from './pages/Tax'
 import { OtherAssets } from './pages/OtherAssets'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } } })
@@ -40,6 +41,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="settings" element={<Settings />} />
               <Route path="analysis" element={<Analysis />} />
               <Route path="performance" element={<Performance />} />
+              <Route path="tax" element={<Tax />} />
               <Route path="other-assets" element={<OtherAssets />} />
             </Route>
           </Routes>
