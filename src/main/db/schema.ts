@@ -281,6 +281,20 @@ export const priceHistory = sqliteTable(
   (t) => [primaryKey({ columns: [t.key, t.date] })]
 )
 
+/**
+ * Daily closes for about the last 13 months, for volatility, drawdown and beta. Same keys as
+ * price_history ("I:<instrumentId>", "BM:<benchmark>"). Older rows are pruned on each refresh.
+ */
+export const priceDaily = sqliteTable(
+  'price_daily',
+  {
+    key: text('key').notNull(),
+    date: text('date').notNull(),
+    close: real('close').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.key, t.date] })]
+)
+
 /** Every NSE-listed stock and ETF by ISIN (from NSE's EQUITY_L and ETF lists), refreshed weekly. */
 export const nseListings = sqliteTable('nse_listings', {
   isin: text('isin').primaryKey(),

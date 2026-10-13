@@ -38,6 +38,7 @@ export const API_METHODS = [
   'setGoldPremium',
   'getAnalysis',
   'getSparklines',
+  'listBenchmarks',
   'setBuyPrice',
   'getDisclosureStatus',
   'syncDisclosures',

@@ -49,9 +49,14 @@ Status: **proposed** · Baseline: 0.6.0 (148 tests + click-through smoke passing
 **Files:** `package.json`, new `src/renderer/src/components/chart/*`, `charts.tsx`, `viz.tsx`, `styles.css`, pages that use charts
 **Done when:** every page renders on Chart.js in light and dark, the smoke test passes, and there are no console errors
 
-## Phase 1 — Market data
+## Phase 1 — Market data ✅ done
 
-- [ ] Benchmark weekly history, stored in `price_history`:
+Done: `market/benchmarks.ts` (`refreshBenchmarks`, `refreshDaily`, `seriesFor`, `toInr`), migration `0007_price_daily.sql`,
+two new status rows in Settings (benchmarks, daily), `listBenchmarks` API + `useBenchmarks` hook, `tests/benchmarks.test.ts` (8 tests).
+Checked live: all 5 series fetch (10y weekly, 1y daily). Note: Yahoo indices are price indices (no dividends, ~1–1.5%/yr low).
+Smoke test: last full run failed only the donut-hover step; that step was rewritten (walks round the ring) but not re-run yet.
+
+- [x] Benchmark weekly history, stored in `price_history`:
 
   | Key | Source |
   |---|---|
@@ -61,8 +66,8 @@ Status: **proposed** · Baseline: 0.6.0 (148 tests + click-through smoke passing
   | `BM:SP500_INR` | `^GSPC` × USD/INR from `fx_history` |
   | `BM:LIQUID` | a liquid-fund NAV proxy |
 
-- [ ] Daily closes for the last 1 year, in a new `price_daily` table (migration `drizzle/0007_price_daily.sql`)
-- [ ] Expense ratios, if a reliable source exists (see open decision 2)
+- [x] Daily closes for the last 1 year, in a new `price_daily` table (migration `drizzle/0007_price_daily.sql`)
+- [ ] Expense ratios: deferred to Phase 4 (Regular vs Direct label first)
 
 **Files:** `market/extra.ts`, `market/yahoo.ts`, `market/refresh.ts`, `db/schema.ts`, `drizzle/0007_*`
 **Done when:** the benchmark series fill after a refresh; tests cover the converted S&P 500 series

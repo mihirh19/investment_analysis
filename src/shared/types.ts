@@ -381,6 +381,15 @@ export interface ManualTxnInput {
   currency: string
 }
 
+/** A market index (or fund) to compare with: weekly closes in rupees, oldest first. */
+export interface BenchmarkSeries {
+  key: string
+  label: string
+  /** True when the series includes reinvested dividends/interest; false for a price index. */
+  totalReturn: boolean
+  points: PricePoint[]
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
 /** Everything the renderer can ask the main process to do (request/response over IPC). */
@@ -431,6 +440,8 @@ export interface RequestApi {
   getAnalysis(personId?: number): Promise<ApiResult<AnalysisReport>>
   /** Last ~13 weekly closes per instrument, for sparklines. */
   getSparklines(instrumentIds: number[]): Promise<ApiResult<Record<number, number[]>>>
+  /** Weekly benchmark closes in rupees since a date (all stored history when omitted). */
+  listBenchmarks(since?: string): Promise<ApiResult<BenchmarkSeries[]>>
   /** Your own average buy price for a holding (null removes it). */
   setBuyPrice(input: {
     personId: number

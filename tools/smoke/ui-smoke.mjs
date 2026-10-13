@@ -129,11 +129,20 @@ if (!(canvases > 3)) {
 const hovered = await ev(`(async () => {
   const c = document.querySelector('canvas[data-chart="Allocation by group"]')
   if (!c) return 'NO CANVAS'
+  c.scrollIntoView({ block: 'center' })
+  await new Promise((res) => setTimeout(res, 1200)) // let the ring finish drawing in
   const r = c.getBoundingClientRect()
-  // A point on the ring, straight above the centre.
-  c.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + 22 }))
-  await new Promise((res) => setTimeout(res, 400))
-  return document.querySelector('[role=tooltip]') ? 'ok' : 'NO TOOLTIP'
+  const cx = r.left + r.width / 2
+  const cy = r.top + r.height / 2
+  const radius = r.width * 0.41 // middle of the ring
+  // Walk round the ring: any slice under the pointer should show a tooltip.
+  for (let deg = 20; deg < 360; deg += 40) {
+    const a = (deg * Math.PI) / 180
+    c.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: cx + radius * Math.sin(a), clientY: cy - radius * Math.cos(a) }))
+    await new Promise((res) => setTimeout(res, 150))
+    if (document.querySelector('[role=tooltip]')) return 'ok'
+  }
+  return 'NO TOOLTIP'
 })()`)
 if (hovered !== 'ok') {
   failures++

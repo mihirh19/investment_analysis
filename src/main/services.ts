@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { DisclosureStatus, ManualAssetInput, MetalPrices } from '@shared/assets'
 import type {
   Account,
+  BenchmarkSeries,
   FxInfo,
   ImportBatch,
   ImportRequest,
@@ -19,6 +20,7 @@ import { PLATFORM_LABELS } from '@shared/types'
 import * as assets from './assets'
 import * as manual from './manualAssets'
 import { historyFor } from './market/extra'
+import { BENCHMARKS, seriesFor } from './market/benchmarks'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
@@ -413,6 +415,15 @@ export function createServices(deps: ServiceDeps) {
         if (pts.length >= 3) out[id] = pts.map((p) => p.close)
       }
       return out
+    },
+
+    listBenchmarks(since?: string): BenchmarkSeries[] {
+      return BENCHMARKS.map((b) => ({
+        key: b.key,
+        label: b.label,
+        totalReturn: b.totalReturn,
+        points: seriesFor(db, b.key, { since })
+      })).filter((b) => b.points.length > 0)
     },
 
     // ---------------- fund house disclosures ----------------

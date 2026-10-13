@@ -136,6 +136,13 @@ export const useSparklines = (ids: number[]) =>
     staleTime: 10 * 60_000
   })
 
+export const useBenchmarks = (since?: string) =>
+  useQuery({
+    queryKey: ['benchmarks', since ?? 'all'],
+    queryFn: () => unwrap(api().listBenchmarks(since)),
+    staleTime: 60 * 60_000
+  })
+
 export const useSaveManual = () => useWrite((input: ManualAssetInput) => api().saveManualAsset(input))
 export const useDeleteManual = () => useWrite((id: number) => api().deleteManualAsset(id))
 export const useAddManualEntry = () =>
