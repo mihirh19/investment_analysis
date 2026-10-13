@@ -1,0 +1,5 @@
+date,type,symbol,name,isin,quantity,price,fees,currency,market
+2024-03-15,BUY,AAPL,Apple Inc,,6,172.40,0.50,USD,US
+2024-09-02,BUY,MSFT,Microsoft Corp,,3,408.10,0.50,USD,US
+2025-02-12,DIVIDEND,AAPL,Apple Inc,,0,1.50,0,USD,US
+2025-06-18,BUY,VOO,Vanguard S&P 500 ETF,,2,512.00,0.50,USD,US

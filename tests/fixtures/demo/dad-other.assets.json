@@ -1,0 +1,9 @@
+[
+  { "meta": { "kind": "DEPOSIT", "name": "SCSS", "institution": "Post office", "subtype": "SCSS", "principal": 1500000, "rate": 8.2, "startDate": "2024-06-01", "maturityDate": "2029-06-01", "compounding": "SIMPLE", "payout": "QUARTERLY" } },
+  { "meta": { "kind": "DEPOSIT", "name": "NSC VIII", "institution": "Post office", "subtype": "NSC", "principal": 200000, "rate": 7.7, "startDate": "2023-09-12", "maturityDate": "2028-09-12", "compounding": "YEARLY", "payout": "CUMULATIVE" } },
+  { "meta": { "kind": "DEPOSIT", "name": "KVP", "institution": "Post office", "subtype": "KVP", "principal": 100000, "rate": 7.5, "startDate": "2024-03-01", "maturityDate": "2033-10-01", "compounding": "YEARLY", "payout": "CUMULATIVE" } },
+  { "meta": { "kind": "PROPERTY", "name": "House in Nashik", "propertyType": "RESIDENTIAL", "purchasePrice": 2800000, "purchaseDate": "2009-05-01", "appreciation": 5, "monthlyRent": 0 }, "entries": [ { "date": "2025-12-01", "value": 8500000 } ] },
+  { "meta": { "kind": "PROPERTY", "name": "Shop, Ganesh market", "propertyType": "COMMERCIAL", "purchasePrice": 1200000, "purchaseDate": "2015-02-01", "monthlyRent": 18000 }, "entries": [ { "date": "2025-12-01", "value": 2600000 } ] },
+  { "meta": { "kind": "METAL", "name": "Jewellery (family)", "metal": "GOLD", "form": "JEWELLERY", "grams": 120, "purity": 0.916, "cost": 300000, "purchaseDate": "2012-01-01" } },
+  { "meta": { "kind": "METAL", "name": "Silver utensils", "metal": "SILVER", "form": "PHYSICAL", "grams": 2500, "purity": 0.925, "cost": 90000, "purchaseDate": "2014-01-01" } }
+]

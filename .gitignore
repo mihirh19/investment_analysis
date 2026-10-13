@@ -1,0 +1,15 @@
+node_modules/
+out/
+dist/
+*.log
+.env*
+# Python build env for the bundled casparser.exe
+tools/casparser/.venv/
+tools/casparser/build/
+resources/bin/
+# Never commit real statements or databases
+*.pdf
+*.db
+*.db-*
+tests/fixtures/private/
+*.tsbuildinfo

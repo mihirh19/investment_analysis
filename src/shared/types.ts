@@ -1,0 +1,457 @@
+// Types shared by the main process (Node) and the renderer (React).
+
+import type { AnalysisReport, DisclosureStatus, ManualAssetInput, ManualAssetView, MetalPrices } from './assets'
+
+export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
+
+export interface Person {
+  id: number
+  name: string
+  relation: Relation
+}
+
+export const PLATFORMS = [
+  'ZERODHA',
+  'GROWW',
+  'INDMONEY',
+  'MF_RTA', // folios held directly with CAMS / KFintech (via any app)
+  'DEMAT_OTHER',
+  'EPF',
+  'NPS',
+  'INSURANCE',
+  'BANK',
+  'POST_OFFICE',
+  'MANUAL',
+  'OTHER'
+] as const
+export type Platform = (typeof PLATFORMS)[number]
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  ZERODHA: 'Zerodha',
+  GROWW: 'Groww',
+  INDMONEY: 'INDmoney',
+  MF_RTA: 'MF folio (CAMS/KFin)',
+  DEMAT_OTHER: 'Other demat',
+  EPF: 'EPF',
+  NPS: 'NPS',
+  INSURANCE: 'Insurance',
+  BANK: 'Bank',
+  POST_OFFICE: 'Post office',
+  MANUAL: 'Entered by hand',
+  OTHER: 'Other'
+}
+
+export type AccountKind = 'DEMAT' | 'MF_FOLIO' | 'US_BROKER' | 'EPF' | 'NPS' | 'INSURANCE' | 'MANUAL_ASSET' | 'OTHER'
+
+export interface Account {
+  id: number
+  personId: number
+  platform: Platform
+  kind: AccountKind
+  name: string
+  externalId: string | null
+  currency: string
+}
+
+export type AssetClass =
+  | 'EQUITY_IN'
+  | 'EQUITY_US'
+  | 'MF'
+  | 'ETF'
+  | 'BOND'
+  | 'FD'
+  | 'PPF'
+  | 'NPS'
+  | 'EPF'
+  | 'GOLD'
+  | 'REAL_ESTATE'
+  | 'REIT'
+  | 'CRYPTO'
+  | 'INSURANCE'
+  | 'CASH'
+  | 'OTHER'
+
+export interface Instrument {
+  id: number
+  isin: string | null
+  name: string
+  assetClass: AssetClass
+  symbolNse: string | null
+  tickerUs: string | null
+  amfiCode: string | null
+  mfType: string | null
+  currency: string
+}
+
+export type TxnType = 'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'BONUS' | 'SPLIT' | 'TAX' | 'OTHER'
+
+export interface Transaction {
+  id: number
+  accountId: number
+  instrumentId: number
+  date: string // YYYY-MM-DD
+  type: TxnType
+  quantity: number // signed: +units in, -units out, 0 for cash-only rows
+  price: number | null
+  amount: number // signed cash flow from the investor's view: buy < 0, sell/dividend > 0
+  fees: number
+  currency: string
+  description: string | null
+  source: string
+}
+
+export interface HoldingRow {
+  personId: number
+  personName: string
+  accountId: number
+  accountName: string
+  platform: Platform
+  instrumentId: number
+  instrumentName: string
+  isin: string | null
+  symbol: string | null
+  assetClass: AssetClass
+  currency: string
+  quantity: number
+  avgCost: number | null // per unit, from transactions (FIFO)
+  invested: number | null
+  lastPrice: number | null
+  priceDate: string | null
+  marketValue: number | null
+  unrealizedPnl: number | null
+  realizedPnl: number
+  dividends: number
+  /** Units the imported trades add up to at the statement date, when that disagrees with the statement. */
+  tradesQuantity: number | null
+  prevClose: number | null
+  dayChange: number | null
+  priceSource: PriceSource
+  sector: string | null
+  /** 1 for INR holdings; the live USD→INR rate for US holdings. */
+  fxRate: number
+  marketValueInr: number | null
+  /** For US holdings, each purchase converted at the USD→INR rate on its date. */
+  investedInr: number | null
+  unrealizedPnlInr: number | null
+  dayChangeInr: number | null
+  /** Where the buy price came from; null when it isn't known. */
+  costSource: CostSource | null
+}
+
+/**
+ * TRADES: your trade history. STATEMENT: the statement printed the cost (MF folios).
+ * BROKER: a broker's holdings file. MANUAL: typed in. EARLIER: an older statement's average cost.
+ */
+export type CostSource = 'TRADES' | 'STATEMENT' | 'BROKER' | 'MANUAL' | 'EARLIER'
+
+/** Where a holding's price came from. */
+export type PriceSource = 'LIVE' | 'NAV' | 'STATEMENT' | 'TRADE' | 'ESTIMATE' | 'MANUAL'
+
+export interface MarketSourceStatus {
+  key: string
+  label: string
+  lastSuccess: string | null
+  lastError: string | null
+  failed: string[]
+}
+
+export interface MarketStatus {
+  lastRefresh: string | null
+  refreshing: boolean
+  nseOpen: boolean
+  usOpen: boolean
+  sources: MarketSourceStatus[]
+}
+
+export interface FxInfo {
+  usdInr: number | null
+  prevClose: number | null
+  asOf: string | null
+}
+
+export interface PricePoint {
+  date: string
+  close: number
+}
+
+export interface DividendPayment {
+  personId: number
+  personName: string
+  accountName: string
+  instrumentId: number
+  instrumentName: string
+  symbol: string | null
+  exDate: string
+  perShare: number | null
+  quantity: number | null
+  gross: number
+  /** US dividends: 25% withheld at source (claimable as foreign tax credit). */
+  withholding: number
+  net: number
+  currency: string
+  netInr: number
+  /** RECORDED: from a statement, trades file or manual entry. ESTIMATED: units held × published dividend. */
+  basis: 'RECORDED' | 'ESTIMATED'
+}
+
+export interface DividendOutlook {
+  instrumentId: number
+  instrumentName: string
+  symbol: string | null
+  currency: string
+  /** Dividends per share paid in the last 12 months. */
+  trailingPerShare: number
+  quantity: number
+  /** Last 12 months' payout repeated on today's units, in INR (after US withholding). */
+  nextYearInr: number
+  yieldOnPrice: number | null
+}
+
+export type ExposureAssetType = 'EQUITY' | 'DEBT' | 'GOLD' | 'REAL_ESTATE' | 'CRYPTO' | 'CASH' | 'OTHER'
+
+/** SEBI market-cap band (AMFI list), or where a company falls outside it. */
+export type CapBand = 'LARGE' | 'MID' | 'SMALL' | 'FOREIGN' | 'UNLISTED' | 'NOT_BROKEN_DOWN'
+
+export type DebtType =
+  | 'GSEC'
+  | 'SDL'
+  | 'TBILL'
+  | 'CORPORATE'
+  | 'SECURITISED'
+  | 'MONEY_MARKET'
+  | 'DEPOSIT'
+  | 'SMALL_SAVINGS'
+  | 'OTHER'
+  | 'NOT_BROKEN_DOWN'
+export type DebtRating = 'SOVEREIGN' | 'AAA' | 'AA' | 'A_BELOW' | 'DEPOSIT' | 'UNRATED' | 'NOT_BROKEN_DOWN'
+
+export interface DebtItem {
+  name: string
+  isin: string | null
+  issuer: string
+  type: DebtType
+  rating: DebtRating
+  /** The rating text as the fund house printed it ("CRISIL AAA", "SOVEREIGN"). */
+  ratingRaw: string | null
+  valueInr: number
+  directInr: number
+  viaFundsInr: number
+}
+
+export interface ExposureReport {
+  totalInr: number
+  assetMix: { type: ExposureAssetType; valueInr: number }[]
+  /** Equity only, after looking inside funds. "Not broken down" holds fund equity with no holdings imported. */
+  sectors: { sector: string; valueInr: number; directInr: number; viaFundsInr: number }[]
+  /** Every company held, directly or through funds, largest first. */
+  companies: {
+    name: string
+    isin: string | null
+    sector: string | null
+    cap: CapBand
+    valueInr: number
+    directInr: number
+    viaFundsInr: number
+  }[]
+  /** Equity by SEBI market-cap band. */
+  marketCap: { cap: CapBand; valueInr: number; directInr: number; viaFundsInr: number }[]
+  /** Half-year of AMFI's list in use (e.g. 2026-06-30), or null before it is loaded. */
+  capListPeriod: string | null
+  /** Debt held directly (bonds, deposits, EPF, PPF) and inside funds. */
+  debt: {
+    totalInr: number
+    types: { type: DebtType; valueInr: number }[]
+    ratings: { rating: DebtRating; valueInr: number }[]
+    items: DebtItem[]
+  }
+  geography: { region: string; valueInr: number }[]
+  funds: { instrumentId: number; name: string; valueInr: number; holdingsAsOf: string | null; source: string | null }[]
+}
+
+export interface EpfAccountView {
+  accountId: number
+  personId: number
+  personName: string
+  name: string
+  uan: string | null
+  monthlyContribution: number
+  interestRate: number
+  entries: { date: string; balance: number }[]
+  estimatedBalance: number | null
+}
+
+export interface EpfInput {
+  accountId?: number
+  personId: number
+  name: string
+  uan?: string
+  /** Employee + employer share going into EPF each month. */
+  monthlyContribution: number
+  /** Annual rate as a percentage, e.g. 8.25. */
+  interestRate: number
+}
+
+export const POLICY_TYPES = ['TERM', 'ENDOWMENT', 'ULIP', 'MONEY_BACK', 'WHOLE_LIFE', 'HEALTH', 'OTHER'] as const
+export type PolicyType = (typeof POLICY_TYPES)[number]
+export const PREMIUM_FREQUENCIES = ['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'SINGLE'] as const
+export type PremiumFrequency = (typeof PREMIUM_FREQUENCIES)[number]
+
+export interface PolicyInput {
+  accountId?: number
+  personId: number
+  insurer: string
+  name: string
+  policyNumber: string
+  type: PolicyType
+  sumAssured: number
+  premium: number
+  premiumFrequency: PremiumFrequency
+  startDate?: string
+  nextDueDate?: string
+  maturityDate?: string
+  /** Surrender or fund value today (endowment/ULIP); leave empty for term and health cover. */
+  currentValue?: number
+}
+
+export interface PolicyView extends PolicyInput {
+  accountId: number
+  personName: string
+  annualPremium: number
+  valueDate: string | null
+}
+
+export interface NpsHoldingInput {
+  personId: number
+  pran?: string
+  schemeCode: string
+  schemeName: string
+  units: number
+  date: string
+}
+
+export type ImportKind =
+  'CAS_PDF' | 'ZERODHA_TRADEBOOK' | 'GROWW_ORDERS' | 'GENERIC_TRADES' | 'BROKER_HOLDINGS' | 'FUND_PORTFOLIO' | 'MANUAL'
+
+export interface ImportRequest {
+  kind: ImportKind
+  personId: number
+  filePath: string
+  /** Platform for GENERIC_TRADES files (e.g. INDMONEY for US stocks). */
+  platform?: Platform
+  password?: string
+  rememberPassword?: boolean
+}
+
+export interface ImportResult {
+  batchId: number
+  kind: ImportKind
+  fileName: string
+  accountsCreated: number
+  instrumentsCreated: number
+  transactionsAdded: number
+  transactionsSkipped: number
+  snapshotsAdded: number
+  warnings: string[]
+  /** Informational lines, e.g. which funds a portfolio file was matched to. */
+  notes?: string[]
+}
+
+export interface ImportBatch {
+  id: number
+  kind: ImportKind
+  fileName: string
+  personId: number
+  personName: string
+  importedAt: string
+  summary: ImportResult | null
+}
+
+export interface ManualTxnInput {
+  personId: number
+  platform: Platform
+  date: string
+  type: Extract<TxnType, 'BUY' | 'SELL' | 'DIVIDEND'>
+  assetClass: AssetClass
+  name: string
+  symbol: string // NSE symbol or US ticker
+  isin?: string
+  quantity: number
+  price: number
+  fees?: number
+  currency: string
+}
+
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string }
+
+/** Everything the renderer can ask the main process to do (request/response over IPC). */
+export interface RequestApi {
+  listPersons(): Promise<ApiResult<Person[]>>
+  savePerson(p: Omit<Person, 'id'> & { id?: number }): Promise<ApiResult<Person>>
+  listAccounts(): Promise<ApiResult<Account[]>>
+  listHoldings(personId?: number): Promise<ApiResult<HoldingRow[]>>
+  listTransactions(filter: {
+    personId?: number
+    accountId?: number
+    limit?: number
+  }): Promise<ApiResult<(Transaction & { instrumentName: string; accountName: string })[]>>
+  addManualTransaction(input: ManualTxnInput): Promise<ApiResult<number>>
+  deleteTransaction(id: number): Promise<ApiResult<null>>
+  pickFile(kind: ImportKind | 'BACKUP'): Promise<ApiResult<string | null>>
+  hasSavedCasPassword(personId: number): Promise<ApiResult<boolean>>
+  runImport(req: ImportRequest): Promise<ApiResult<ImportResult>>
+  listImports(): Promise<ApiResult<ImportBatch[]>>
+  undoImport(batchId: number): Promise<ApiResult<null>>
+
+  getMarketStatus(): Promise<ApiResult<MarketStatus>>
+  refreshMarket(): Promise<ApiResult<MarketStatus>>
+  getFx(): Promise<ApiResult<FxInfo>>
+  getPriceHistory(instrumentId: number, range: '1mo' | '6mo' | '1y' | '5y'): Promise<ApiResult<PricePoint[]>>
+  listDividends(personId?: number): Promise<ApiResult<{ payments: DividendPayment[]; outlook: DividendOutlook[] }>>
+  getExposure(personId?: number): Promise<ApiResult<ExposureReport>>
+
+  listEpf(): Promise<ApiResult<EpfAccountView[]>>
+  saveEpf(input: EpfInput): Promise<ApiResult<number>>
+  addEpfEntry(accountId: number, date: string, balance: number): Promise<ApiResult<null>>
+  deleteEpfEntry(accountId: number, date: string): Promise<ApiResult<null>>
+
+  listPolicies(): Promise<ApiResult<PolicyView[]>>
+  savePolicy(input: PolicyInput): Promise<ApiResult<number>>
+  deletePolicy(accountId: number): Promise<ApiResult<null>>
+
+  listNpsSchemes(): Promise<ApiResult<{ code: string; name: string }[]>>
+  addNpsHolding(input: NpsHoldingInput): Promise<ApiResult<null>>
+
+  listManualAssets(personId?: number): Promise<ApiResult<ManualAssetView[]>>
+  saveManualAsset(input: ManualAssetInput): Promise<ApiResult<number>>
+  deleteManualAsset(accountId: number): Promise<ApiResult<null>>
+  addManualEntry(accountId: number, date: string, value: number): Promise<ApiResult<null>>
+  deleteManualEntry(accountId: number, date: string): Promise<ApiResult<null>>
+  getMetalPrices(): Promise<ApiResult<MetalPrices>>
+  setGoldPremium(pct: number): Promise<ApiResult<MetalPrices>>
+  getAnalysis(personId?: number): Promise<ApiResult<AnalysisReport>>
+  /** Last ~13 weekly closes per instrument, for sparklines. */
+  getSparklines(instrumentIds: number[]): Promise<ApiResult<Record<number, number[]>>>
+  /** Your own average buy price for a holding (null removes it). */
+  setBuyPrice(input: {
+    personId: number
+    accountId: number
+    instrumentId: number
+    avgCost: number | null
+  }): Promise<ApiResult<null>>
+
+  getDisclosureStatus(): Promise<ApiResult<DisclosureStatus[]>>
+  /** Checks fund houses for new monthly portfolios now; force re-downloads the current month. */
+  syncDisclosures(force?: boolean): Promise<ApiResult<DisclosureStatus[]>>
+  /** Opens an http(s) link in the default browser. */
+  openExternal(url: string): Promise<ApiResult<null>>
+
+  getRecoveryKey(): Promise<ApiResult<string>>
+  backupDatabase(): Promise<ApiResult<string | null>>
+  /** Replaces this computer's data with a backup and restarts the app. */
+  restoreDatabase(filePath: string, recoveryKey: string): Promise<ApiResult<null>>
+}
+
+/** The bridge exposed as window.api: requests plus a push channel for fresh prices. */
+export interface Api extends RequestApi {
+  onMarketUpdate(listener: () => void): () => void
+}

@@ -1,0 +1,161 @@
+{
+  "statement_period": {
+    "from": "01-Sep-2026",
+    "to": "30-Sep-2026"
+  },
+  "file_type": "CDSL",
+  "accounts": [
+    {
+      "name": "ZERODHA BROKING LIMITED",
+      "type": "CDSL Demat Account",
+      "dp_id": "12081600",
+      "client_id": "00123456",
+      "equities": [
+        {
+          "name": "INFOSYS LIMITED",
+          "isin": "INE009A01021",
+          "num_shares": "40",
+          "price": "1612.40",
+          "value": "64496.00",
+          "symbol": "INFY",
+          "exchange": "NSE"
+        },
+        {
+          "name": "HDFC BANK LIMITED",
+          "isin": "INE040A01034",
+          "num_shares": "60",
+          "price": "1874.15",
+          "value": "112449.00",
+          "symbol": "HDFCBANK",
+          "exchange": "NSE"
+        },
+        {
+          "name": "RELIANCE INDUSTRIES LTD",
+          "isin": "INE002A01018",
+          "num_shares": "35",
+          "price": "1398.60",
+          "value": "48951.00",
+          "symbol": "RELIANCE",
+          "exchange": "NSE"
+        },
+        {
+          "name": "TATA CONSULTANCY SERVICES LTD",
+          "isin": "INE467B01029",
+          "num_shares": "12",
+          "price": "3205.75",
+          "value": "38469.00",
+          "symbol": "TCS",
+          "exchange": "NSE"
+        },
+        {
+          "name": "NIPPON INDIA ETF NIFTY 50 BEES",
+          "isin": "INF204KB14I2",
+          "num_shares": "300",
+          "price": "286.92",
+          "value": "86076.00",
+          "symbol": "NIFTYBEES",
+          "exchange": "NSE"
+        },
+        {
+          "name": "NIPPON INDIA ETF GOLD BEES",
+          "isin": "INF204KB17I5",
+          "num_shares": "200",
+          "price": "85.00",
+          "value": "17000.00",
+          "symbol": null,
+          "exchange": null
+        }
+      ],
+      "mutual_funds": [
+        {
+          "name": "UTI NIFTY 50 INDEX FUND - DIRECT PLAN - GROWTH",
+          "isin": "INF789F1AUV1",
+          "amfi": "120716",
+          "type": "EQUITY",
+          "balance": "1520.338",
+          "nav": "178.4521",
+          "value": "271310.52",
+          "total_cost": "215000.00",
+          "folio": null
+        },
+        {
+          "name": "HDFC LIQUID FUND - DIRECT PLAN - GROWTH",
+          "isin": "INF179K01VQ8",
+          "amfi": "119062",
+          "type": "DEBT",
+          "balance": "9.871",
+          "nav": "5321.1100",
+          "value": "52525.68",
+          "total_cost": "50000.00",
+          "folio": null
+        }
+      ]
+    },
+    {
+      "name": "GROWW INVEST TECH PRIVATE LIMITED",
+      "type": "CDSL Demat Account",
+      "dp_id": "12088700",
+      "client_id": "00654321",
+      "equities": [
+        {
+          "name": "TATA MOTORS LIMITED",
+          "isin": "INE155A01022",
+          "num_shares": "50",
+          "price": "712.30",
+          "value": "35615.00",
+          "symbol": "TATAMOTORS",
+          "exchange": "NSE"
+        },
+        {
+          "name": "ITC LIMITED",
+          "isin": "INE154A01025",
+          "num_shares": "150",
+          "price": "421.55",
+          "value": "63232.50",
+          "symbol": "ITC",
+          "exchange": "NSE"
+        }
+      ],
+      "mutual_funds": []
+    },
+    {
+      "name": "Mutual Fund Folios",
+      "type": "Mutual Fund Folios",
+      "dp_id": "",
+      "client_id": "",
+      "equities": [],
+      "mutual_funds": [
+        {
+          "name": "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+          "isin": "INF879O01027",
+          "amfi": "122639",
+          "type": "EQUITY",
+          "balance": "2210.540",
+          "nav": "92.4410",
+          "value": "204344.03",
+          "total_cost": "150000.00",
+          "folio": "1234567/89"
+        }
+      ]
+    }
+  ],
+  "nps": {
+    "pran": "XXXXXXXX1234",
+    "schemes": [
+      {
+        "scheme": "SBI PENSION FUND SCHEME E",
+        "tier": "I",
+        "units": "4120.512",
+        "nav": "58.2140",
+        "value": "239873.11"
+      },
+      {
+        "scheme": "SBI PENSION FUND SCHEME C",
+        "tier": "I",
+        "units": "2010.330",
+        "nav": "44.9120",
+        "value": "90288.15"
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "statement_period": { "from": "01-Apr-2023", "to": "30-Sep-2026" },
+  "file_type": "CAMS",
+  "cas_type": "DETAILED",
+  "folios": [
+    {
+      "folio": "1234567/89",
+      "amc": "PPFAS Mutual Fund",
+      "schemes": [
+        {
+          "scheme": "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+          "isin": "INF879O01027",
+          "amfi": "122639",
+          "type": "EQUITY",
+          "rta": "CAMS",
+          "close": "2210.540",
+          "valuation": { "date": "2026-09-30", "nav": "92.4410", "cost": "150000.00", "value": "204344.03" },
+          "transactions": [
+            {
+              "date": "2023-04-10",
+              "description": "SIP Purchase - Instalment 1",
+              "amount": "50000.00",
+              "units": "860.142",
+              "nav": "58.1300",
+              "balance": "860.142",
+              "type": "PURCHASE_SIP"
+            },
+            {
+              "date": "2024-04-10",
+              "description": "SIP Purchase - Instalment 2",
+              "amount": "50000.00",
+              "units": "713.776",
+              "nav": "70.0500",
+              "balance": "1573.918",
+              "type": "PURCHASE_SIP"
+            },
+            {
+              "date": "2025-04-10",
+              "description": "SIP Purchase - Instalment 3",
+              "amount": "50000.00",
+              "units": "636.622",
+              "nav": "78.5400",
+              "balance": "2210.540",
+              "type": "PURCHASE_SIP"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

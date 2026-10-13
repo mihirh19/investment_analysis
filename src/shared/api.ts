@@ -1,0 +1,55 @@
+import type { RequestApi } from './types'
+
+/** IPC channel names exposed to the renderer; each maps to `api:<name>` in the main process. */
+export const API_METHODS = [
+  'listPersons',
+  'savePerson',
+  'listAccounts',
+  'listHoldings',
+  'listTransactions',
+  'addManualTransaction',
+  'deleteTransaction',
+  'pickFile',
+  'hasSavedCasPassword',
+  'runImport',
+  'listImports',
+  'undoImport',
+  'getMarketStatus',
+  'refreshMarket',
+  'getFx',
+  'getPriceHistory',
+  'listDividends',
+  'getExposure',
+  'listEpf',
+  'saveEpf',
+  'addEpfEntry',
+  'deleteEpfEntry',
+  'listPolicies',
+  'savePolicy',
+  'deletePolicy',
+  'listNpsSchemes',
+  'addNpsHolding',
+  'listManualAssets',
+  'saveManualAsset',
+  'deleteManualAsset',
+  'addManualEntry',
+  'deleteManualEntry',
+  'getMetalPrices',
+  'setGoldPremium',
+  'getAnalysis',
+  'getSparklines',
+  'setBuyPrice',
+  'getDisclosureStatus',
+  'syncDisclosures',
+  'openExternal',
+  'getRecoveryKey',
+  'backupDatabase',
+  'restoreDatabase'
+] as const satisfies readonly (keyof RequestApi)[]
+
+// Compile-time check that every RequestApi method is listed above.
+type Missing = Exclude<keyof RequestApi, (typeof API_METHODS)[number]>
+export const _allMethodsListed: Missing extends never ? true : Missing = true
+
+/** Main → renderer push channel, sent after each market data refresh. */
+export const MARKET_UPDATED = 'market:updated'

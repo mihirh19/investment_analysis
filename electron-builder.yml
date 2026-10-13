@@ -1,0 +1,33 @@
+appId: in.familyportfolio.desktop
+productName: Family Portfolio
+copyright: Personal use
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+  # The SQLite driver ships its C sources and binaries for every OS; keep only Windows x64.
+  - '!node_modules/better-sqlite3/{deps,src}/**'
+  - '!node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl}-*.node'
+  - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'
+  - '!**/*.map'
+extraResources:
+  # SQL migrations applied at startup
+  - from: drizzle
+    to: drizzle
+  # casparser.exe, built by tools/casparser/build.ps1
+  - from: resources/bin
+    to: bin
+asarUnpack:
+  - '**/*.node'
+# The SQLite driver ships N-API prebuilds that work in Electron as-is.
+npmRebuild: false
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Family Portfolio

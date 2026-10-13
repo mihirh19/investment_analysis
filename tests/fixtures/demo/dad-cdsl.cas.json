@@ -1,0 +1,55 @@
+{
+  "statement_period": { "from": "01-Sep-2026", "to": "30-Sep-2026" },
+  "file_type": "CDSL",
+  "accounts": [
+    {
+      "name": "ZERODHA BROKING LIMITED",
+      "type": "CDSL Demat Account",
+      "dp_id": "12081600",
+      "client_id": "00777888",
+      "equities": [
+        {
+          "name": "STATE BANK OF INDIA",
+          "isin": "INE062A01020",
+          "num_shares": "200",
+          "price": "812.45",
+          "value": "162490.00",
+          "symbol": "SBIN",
+          "exchange": "NSE"
+        },
+        {
+          "name": "LARSEN & TOUBRO LTD",
+          "isin": "INE018A01030",
+          "num_shares": "30",
+          "price": "3622.10",
+          "value": "108663.00",
+          "symbol": "LT",
+          "exchange": "NSE"
+        },
+        {
+          "name": "COAL INDIA LTD",
+          "isin": "INE522F01014",
+          "num_shares": "250",
+          "price": "389.90",
+          "value": "97475.00",
+          "symbol": "COALINDIA",
+          "exchange": "NSE"
+        }
+      ],
+      "mutual_funds": [
+        {
+          "name": "ICICI PRUDENTIAL EQUITY & DEBT FUND - DIRECT - GROWTH",
+          "isin": "INF109K01Y72",
+          "amfi": "120251",
+          "type": "EQUITY",
+          "balance": "1180.240",
+          "nav": "412.3300",
+          "value": "486648.36",
+          "total_cost": "360000.00",
+          "folio": null
+        }
+      ]
+    }
+  ],
+  "nps": null
+}
