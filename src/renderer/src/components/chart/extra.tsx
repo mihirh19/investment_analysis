@@ -145,7 +145,8 @@ export function Drawdown({
       options: {
         scales: {
           x: timeAxis(),
-          y: valueAxis((v) => `${Math.round(v * 100)}%`, { max: 0, min: low < 0 ? low * 1.1 : -0.01 })
+          // Whole percents for deep falls; one decimal when the deepest fall is under 5%.
+          y: valueAxis((v) => `${(v * 100).toFixed(low > -0.05 ? 1 : 0)}%`, { max: 0, min: low < 0 ? low * 1.1 : -0.01 })
         },
         interaction: { mode: 'index', intersect: false },
         plugins: { crosshair: {} }
@@ -315,6 +316,17 @@ export function Heatmap({
 
 // ---------------- waterfall (where the change came from) ----------------
 
+function zoomFloor(ranges: [number, number][]): { min?: number } {
+  const lo = Math.min(...ranges.map(([a, b]) => Math.min(a, b)).filter((v) => v > 0))
+  const floats = ranges.filter(([a]) => a !== 0)
+  if (!floats.length || !Number.isFinite(lo)) return {}
+  const low = Math.min(...floats.map(([a, b]) => Math.min(a, b)))
+  const high = Math.max(...ranges.map(([a, b]) => Math.max(a, b)))
+  // Zoom only when every floating bar sits in the top 40% of the scale.
+  if (low <= 0 || low / high < 0.6) return {}
+  return { min: low - (high - low) * 0.6 }
+}
+
 export interface WaterfallStep {
   key: string
   label: string
@@ -367,7 +379,12 @@ export function Waterfall({
         ]
       },
       options: {
-        scales: { x: categoryAxis(), y: valueAxis(axisFormat) },
+        scales: {
+          x: categoryAxis(),
+          // When the changes are small next to the totals, start the axis near the lowest level so the
+          // floating bars are visible (the totals are then shown cut off, which the tooltip makes clear).
+          y: valueAxis(axisFormat, zoomFloor(ranges))
+        },
         interaction: { mode: 'index', intersect: false }
       } as ChartOptions<'bar'>
     }

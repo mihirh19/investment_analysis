@@ -136,6 +136,9 @@ export const useSparklines = (ids: number[]) =>
     staleTime: 10 * 60_000
   })
 
+export const usePerformance = (personId?: number) =>
+  useQuery({ queryKey: ['performance', personId ?? 'all'], queryFn: () => unwrap(api().getPerformance(personId)) })
+
 export const useBenchmarks = (since?: string) =>
   useQuery({
     queryKey: ['benchmarks', since ?? 'all'],

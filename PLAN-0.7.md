@@ -72,18 +72,24 @@ Smoke test: last full run failed only the donut-hover step; that step was rewrit
 **Files:** `market/extra.ts`, `market/yahoo.ts`, `market/refresh.ts`, `db/schema.ts`, `drizzle/0007_*`
 **Done when:** the benchmark series fill after a refresh; tests cover the converted S&P 500 series
 
-## Phase 2 — Performance page (`/performance`)
+## Phase 2 — Performance page (`/performance`) ✅ done
 
-- [ ] Returns by period:
-  - [ ] calendar-year and financial-year returns (time-weighted, so money added or withdrawn doesn't distort them)
-  - [ ] XIRR for each account, each holding and each person
-  - [ ] 1Y / 3Y / 5Y / since-start returns
-- [ ] Compared with benchmarks:
-  - [ ] portfolio vs each index over time
-  - [ ] "same money in Nifty": your actual cash flows replayed into the index on the same dates
-  - [ ] better or worse than the index, per year
-- [ ] Where the returns came from (waterfall, per year): opening value, + money added, − money withdrawn, + market gain, + dividends = closing value
-- [ ] Drawdown chart and rolling 1-year return chart
+Done: `portfolio/returns.ts` (Modified Dietz, chaining, annualise, drawdown, rolling, CY/FY spans, index replay), `portfolio/performance.ts`,
+`getPerformance` API, `pages/Performance.tsx` + sidebar link. `analysis.ts` refactored (`loadContext`, `buildHistory(only)`) so XIRR and
+Performance use the same flows. Tests: `returns.test.ts` (19), `performance.test.ts` (5). Checked on demo data in light + dark.
+Scope: holdings with a complete money trail (trades, deposits, property with dates); statement-only holdings and EPF excluded (shown as coverage).
+Smoke test not re-run (slow); added Performance to its page list.
+
+- [x] Returns by period:
+  - [x] calendar-year and financial-year returns (time-weighted, so money added or withdrawn doesn't distort them)
+  - [x] XIRR for each account, each holding and each person
+  - [x] 1Y / 3Y / 5Y / since-start returns
+- [x] Compared with benchmarks:
+  - [x] portfolio vs each index over time
+  - [x] "same money in Nifty": your actual cash flows replayed into the index on the same dates
+  - [x] better or worse than the index, per year
+- [x] Where the returns came from (waterfall, per year): opening value, + money added, − money withdrawn, + market gain, + dividends = closing value
+- [x] Drawdown chart and rolling 1-year return chart
 
 **Files:** new `portfolio/performance.ts`, `portfolio/benchmark.ts`, `services.ts`, `shared/api.ts`, `shared/types.ts`, `pages/Performance.tsx`, `main.tsx`, `Shell.tsx`
 **Tests:** `tests/performance.test.ts`, `tests/benchmark.test.ts`

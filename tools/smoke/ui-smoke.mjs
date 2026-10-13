@@ -80,6 +80,7 @@ for (const tab of ['Me', 'Dad', 'Family']) {
   for (const n of [
     'Overview',
     'Analysis',
+    'Performance',
     'Holdings',
     'Other assets',
     'Sectors & exposure',

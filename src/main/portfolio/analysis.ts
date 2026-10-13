@@ -26,7 +26,7 @@ const MARKET_LIQUIDITY: Partial<Record<HoldingRow['assetClass'], Liquidity>> = {
 }
 
 /** The investor's cash flow for one transaction, in INR. Reinvested dividends never left the fund. */
-function txnFlow(t: Txn, fx: FxTable): number {
+export function txnFlow(t: Txn, fx: FxTable): number {
   const rate = t.currency === 'USD' ? (fx.on(t.date) ?? fx.latest() ?? 0) : 1
   switch (t.type) {
     case 'BUY':
@@ -45,15 +45,32 @@ function txnFlow(t: Txn, fx: FxTable): number {
   }
 }
 
-interface Item {
+export interface Item {
   row: HoldingRow
   /** Dated flows including today's value as the last one; null when the history is incomplete. */
   flows: CashFlow[] | null
+  /** The same flows without the closing value: money in and out only. */
+  own: CashFlow[] | null
   incomeThisFy: number
   liquidity: Liquidity
 }
 
-export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
+export type Engines = Map<number, { engine: Engine; name: string; personId: number }>
+
+export interface Context {
+  today: string
+  fx: FxTable
+  rows: HoldingRow[]
+  payments: ReturnType<typeof listDividends>['payments']
+  accounts: (typeof schema.accounts.$inferSelect)[]
+  txnsByPair: Map<string, Txn[]>
+  engines: Engines
+  items: Item[]
+  persons: Map<number, string>
+}
+
+/** Holdings, their dated cash flows and valuation engines: the shared input of Analysis and Performance. */
+export function loadContext(db: Db, personId?: number): Context {
   const today = todayIso()
   const fy = financialYearOf(today)
   const fyFrom = addDays(fy.start, -1)
@@ -83,7 +100,7 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
   }
 
   const manual = loadManualAssets(db, personId)
-  const engines = new Map<number, { engine: Engine; name: string; personId: number }>()
+  const engines: Engines = new Map()
   for (const m of manual)
     engines.set(m.account.id, {
       engine: engineFor(m.meta, m.entries, book, today),
@@ -102,22 +119,42 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
       const matured = !!mat && mat.date <= today
       const flows = base.length ? [...base, ...(matured ? [] : [{ date: today, amount: value }])] : null
       const inc = engine.incomeBetween(fyFrom, today)
-      return { row, flows, incomeThisFy: inc.interest + inc.rent, liquidity: engine.liquidity().bucket }
+      return {
+        row,
+        flows,
+        own: base.length ? base.map((f) => ({ date: f.date, amount: f.amount })) : null,
+        incomeThisFy: inc.interest + inc.rent,
+        liquidity: engine.liquidity().bucket
+      }
     }
     const pairTxns = txnsByPair.get(`${row.accountId}:${row.instrumentId}`) ?? []
     const complete = pairTxns.some((t) => t.type === 'BUY') && row.tradesQuantity === null
     const divs = payments.filter((p) => p.instrumentId === row.instrumentId && p.accountName === row.accountName)
-    let flows: CashFlow[] | null = null
+    let own: CashFlow[] | null = null
     if (complete) {
-      flows = [
+      own = [
         ...pairTxns.map((t) => ({ date: t.date, amount: txnFlow(t, fx) })),
-        ...divs.filter((p) => p.basis === 'ESTIMATED').map((p) => ({ date: p.exDate, amount: p.netInr })),
-        { date: today, amount: value }
+        ...divs.filter((p) => p.basis === 'ESTIMATED').map((p) => ({ date: p.exDate, amount: p.netInr }))
       ]
     }
+    const flows = own ? [...own, { date: today, amount: value }] : null
     const incomeThisFy = divs.filter((p) => p.exDate > fyFrom && p.exDate <= today).reduce((s, p) => s + p.netInr, 0)
-    return { row, flows, incomeThisFy, liquidity: MARKET_LIQUIDITY[row.assetClass] ?? 'LIQUID' }
+    return { row, flows, own, incomeThisFy, liquidity: MARKET_LIQUIDITY[row.assetClass] ?? 'LIQUID' }
   })
+
+  const persons = new Map(
+    db
+      .select()
+      .from(schema.persons)
+      .all()
+      .map((p) => [p.id, p.name])
+  )
+  return { today, fx, rows, payments, accounts, txnsByPair, engines, items, persons }
+}
+
+export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
+  const { today, fx, rows, payments, accounts, txnsByPair, engines, items, persons } = loadContext(db, personId)
+  const fy = financialYearOf(today)
 
   const valueOf = (i: Item) => i.row.marketValueInr ?? i.row.investedInr ?? 0
   const totalInr = items.reduce((s, i) => s + valueOf(i), 0)
@@ -151,13 +188,6 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
   scorecard.sort((a, b) => b.valueInr - a.valueInr)
 
   const overall = groupXirr(items)
-  const persons = new Map(
-    db
-      .select()
-      .from(schema.persons)
-      .all()
-      .map((p) => [p.id, p.name])
-  )
   const byPerson = [...new Set(items.map((i) => i.row.personId))].map((pid) => {
     const x = groupXirr(items.filter((i) => i.row.personId === pid))
     return { personName: persons.get(pid) ?? '', xirr: x.xirr, coverage: x.coverage }
@@ -302,13 +332,15 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
  * Value of everything at each month end: units held (from trades or statements) × that week's price,
  * EPF from passbook entries, hand-maintained assets from their engines.
  */
-function buildHistory(
+export function buildHistory(
   db: Db,
   accounts: (typeof schema.accounts.$inferSelect)[],
   txnsByPair: Map<string, Txn[]>,
   engines: Map<number, { engine: Engine }>,
   fx: FxTable,
-  today: string
+  today: string,
+  /** Only these "accountId:instrumentId" pairs (all when omitted). */
+  only?: Set<string>
 ): AnalysisReport['history'] {
   const accountById = new Map(accounts.map((a) => [a.id, a]))
   const snaps = accounts.length
@@ -385,6 +417,7 @@ function buildHistory(
     const account = accountById.get(accountId)
     const instrument = instruments.get(instrumentId)
     if (!account || !instrument || account.kind === 'MANUAL_ASSET') continue
+    if (only && !only.has(k)) continue
     const group = GROUP_OF[instrument.assetClass]
     const pTxns = txnsByPair.get(k) ?? []
     const pSnaps = snapsByPair.get(k) ?? []
@@ -428,6 +461,7 @@ function buildHistory(
     const id = account ? JSON.parse(account.metaJson ?? '{}').instrumentId : null
     const instrument = id ? instruments.get(id) : null
     if (!instrument) continue
+    if (only && !only.has(`${accountId}:${instrument.id}`)) continue
     const group = GROUP_OF[instrument.assetClass]
     months.forEach((d, i) => add(group, i, engine.valueOn(d)))
   }

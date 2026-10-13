@@ -390,6 +390,73 @@ export interface BenchmarkSeries {
   points: PricePoint[]
 }
 
+/** One calendar or financial year of the Performance page. */
+export interface PerformanceYear {
+  kind: 'CY' | 'FY'
+  label: string
+  start: string
+  end: string
+  /** History starts or ends inside this year. */
+  partial: boolean
+  /** Time-weighted return: what ₹100 held all year became, ignoring when money was added. */
+  twr: number | null
+  /** The same period's return for each benchmark (by key); null when the index doesn't cover it. */
+  benchmarks: Record<string, number | null>
+  opening: number
+  added: number
+  /** Sales and dividends paid out to you. */
+  withdrawn: number
+  /** Investment gain: price change plus dividends. */
+  gain: number
+  closing: number
+}
+
+export interface PerformanceReport {
+  /** Share of today's value with a complete money trail (the part these figures describe). */
+  coverage: number
+  coveredValueInr: number
+  totalValueInr: number
+  /** Month-end dates; the last one is today. */
+  dates: string[]
+  /** Value of the covered holdings at each date. */
+  values: number[]
+  /** Money put in minus money taken out, cumulative, at each date. */
+  netInvested: number[]
+  /** Growth of ₹100 at the portfolio's time-weighted return. */
+  growth: number[]
+  /** Month-by-month return (one fewer than dates). */
+  monthly: (number | null)[]
+  drawdown: number[]
+  maxDrawdown: { depth: number; peak: string; trough: string; recovered: string | null } | null
+  /** Trailing 12-month return at each date (null for the first 11 months). */
+  rolling12: (number | null)[]
+  trailing: { key: '1Y' | '3Y' | '5Y' | 'ALL'; years: number; twr: number | null; benchmarks: Record<string, number | null> }[]
+  years: PerformanceYear[]
+  benchmarks: {
+    key: string
+    label: string
+    totalReturn: boolean
+    /** Growth of ₹100 on the same dates (null before the index starts). */
+    growth: (number | null)[]
+    /** Your actual money, put into this index on the same days. */
+    sameMoney: (number | null)[]
+  }[]
+  xirr: {
+    overall: number | null
+    byAccount: { accountId: number; label: string; personName: string; xirr: number | null; valueInr: number }[]
+    byHolding: {
+      accountId: number
+      instrumentId: number
+      name: string
+      personName: string
+      platform: string
+      xirr: number | null
+      valueInr: number
+      gainInr: number | null
+    }[]
+  }
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
 /** Everything the renderer can ask the main process to do (request/response over IPC). */
@@ -442,6 +509,8 @@ export interface RequestApi {
   getSparklines(instrumentIds: number[]): Promise<ApiResult<Record<number, number[]>>>
   /** Weekly benchmark closes in rupees since a date (all stored history when omitted). */
   listBenchmarks(since?: string): Promise<ApiResult<BenchmarkSeries[]>>
+  /** Time-weighted returns by year, vs benchmarks, drawdown and XIRR by account and holding. */
+  getPerformance(personId?: number): Promise<ApiResult<PerformanceReport>>
   /** Your own average buy price for a holding (null removes it). */
   setBuyPrice(input: {
     personId: number

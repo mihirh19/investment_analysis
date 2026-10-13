@@ -39,6 +39,7 @@ export const API_METHODS = [
   'getAnalysis',
   'getSparklines',
   'listBenchmarks',
+  'getPerformance',
   'setBuyPrice',
   'getDisclosureStatus',
   'syncDisclosures',

@@ -10,6 +10,7 @@ const NAV = [
   [
     { to: '/', label: 'Overview', end: true },
     { to: '/analysis', label: 'Analysis' },
+    { to: '/performance', label: 'Performance' },
     { to: '/holdings', label: 'Holdings' },
     { to: '/other-assets', label: 'Other assets' },
     { to: '/exposure', label: 'Sectors & exposure' },

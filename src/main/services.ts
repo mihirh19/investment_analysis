@@ -21,6 +21,7 @@ import * as assets from './assets'
 import * as manual from './manualAssets'
 import { historyFor } from './market/extra'
 import { BENCHMARKS, seriesFor } from './market/benchmarks'
+import { computePerformance } from './portfolio/performance'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
@@ -402,6 +403,7 @@ export function createServices(deps: ServiceDeps) {
       return manual.getMetalPrices(db)
     },
     getAnalysis: (personId?: number) => computeAnalysis(db, personId),
+    getPerformance: (personId?: number) => computePerformance(db, personId),
     setBuyPrice(input: { personId: number; accountId: number; instrumentId: number; avgCost: number | null }): null {
       setManualCost(db, input)
       return null

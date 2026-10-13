@@ -63,6 +63,7 @@ export function registerIpc(services: Services): void {
     getAnalysis: (personId) => services.getAnalysis(personId),
     getSparklines: (ids) => services.getSparklines(ids),
     listBenchmarks: (since) => services.listBenchmarks(since),
+    getPerformance: (personId) => services.getPerformance(personId),
     setBuyPrice: (input) => services.setBuyPrice(input),
 
     getDisclosureStatus: () => services.getDisclosureStatus(),
