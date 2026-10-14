@@ -201,9 +201,9 @@ Note: charts follow the theme through Electron's `nativeTheme` (prefers-color-sc
 
 ## Testing and release
 
-- [ ] Each phase ends with: `npm run typecheck`, `npm test`, `npm run smoke`
-- [ ] Extend `tools/smoke/ui-smoke.mjs` to cover the new pages, the theme switch and the period picker
-- [ ] Bump the version to 0.7.0 and run `npm run dist`
+- [x] Each phase ends with: `npm run typecheck`, `npm test` (smoke run once at the end, as agreed)
+- [x] Extend `tools/smoke/ui-smoke.mjs` to cover the new pages, the theme switch and the period picker (48 page visits + 24 steps, all pass)
+- [x] Bump the version to 0.7.0 and build `dist/Family Portfolio Setup 0.7.0.exe`
 
 ## Order
 

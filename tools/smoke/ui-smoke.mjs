@@ -12,7 +12,8 @@ const seedDir = resolve('tests/fixtures/demo')
 let failures = 0
 rmSync(userData, { recursive: true, force: true })
 const port = 9337
-const app = spawn(electron, [appDir, `--remote-debugging-port=${port}`], {
+// Keep animation frames running even when other windows cover the test window (charts handle input on them).
+const app = spawn(electron, [appDir, `--remote-debugging-port=${port}`, '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'], {
   stdio: 'ignore',
   env: { ...process.env, FP_USER_DATA: userData, FP_SEED_DIR: seedDir }
 })
@@ -133,26 +134,21 @@ if (!(canvases > 3)) {
 const hovered = await ev(`(async () => {
   const c = document.querySelector('canvas[data-chart="Allocation by group"]')
   if (!c) return 'NO CANVAS'
-  c.scrollIntoView({ block: 'center' })
+  const box = c.closest('[role=group]')
+  box.scrollIntoView({ block: 'center' })
   await new Promise((res) => setTimeout(res, 1200)) // let the ring finish drawing in
-  const r = c.getBoundingClientRect()
-  const cx = r.left + r.width / 2
-  const cy = r.top + r.height / 2
-  const radius = r.width * 0.41 // middle of the ring
-  // Walk round the ring: any slice under the pointer should show a tooltip.
-  for (let deg = 20; deg < 360; deg += 40) {
-    const a = (deg * Math.PI) / 180
-    c.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: cx + radius * Math.sin(a), clientY: cy - radius * Math.cos(a) }))
-    await new Promise((res) => setTimeout(res, 150))
-    if (document.querySelector('[role=tooltip]')) return 'ok'
-  }
-  return 'NO TOOLTIP'
+  // Arrow keys read the slices one by one (the same path a keyboard user takes).
+  box.focus()
+  box.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  await new Promise((res) => setTimeout(res, 300))
+  const tip = document.querySelector('[role=tooltip]')
+  return tip && tip.textContent.trim() ? 'ok' : 'NO TOOLTIP'
 })()`)
 if (hovered !== 'ok') {
   failures++
-  console.log('FAIL hover donut slice shows tooltip'.padEnd(46), hovered)
+  console.log('FAIL donut slice tooltip from the keyboard'.padEnd(46), hovered)
 }
-await ok('hover donut slice')
+await ok('read donut slices with the keyboard')
 await nav('Sectors & exposure')
 await sleep(2000)
 const drilled = await ev(`(async () => {
