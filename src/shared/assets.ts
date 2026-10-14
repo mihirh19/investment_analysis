@@ -231,7 +231,7 @@ export interface AnalysisReport {
   maturities: { year: string; amount: number; items: { name: string; date: string; amount: number }[] }[]
   liquidity: { bucket: Liquidity; valueInr: number }[]
   concentration: { top10Share: number; largest: { name: string; share: number } | null }
-  treemap: { name: string; group: ChartGroup; valueInr: number; gainPct: number | null }[]
+  treemap: { instrumentId: number; name: string; group: ChartGroup; valueInr: number; gainPct: number | null }[]
   movers: { name: string; gainInr: number; gainPct: number | null }[]
 }
 

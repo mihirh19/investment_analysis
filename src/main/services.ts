@@ -15,6 +15,7 @@ import type {
   Person,
   PricePoint,
   Targets,
+  Theme,
   Transaction
 } from '@shared/types'
 import { PLATFORM_LABELS } from '@shared/types'
@@ -27,6 +28,7 @@ import { computeTax } from './portfolio/tax'
 import { computeFunds } from './portfolio/fundInsights'
 import { computeRisk, RISK_FREE_KEY } from './portfolio/risk'
 import { computeRebalance, saveTargets } from './portfolio/rebalance'
+import { computeHealth } from './portfolio/health'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
@@ -64,6 +66,8 @@ export interface ServiceDeps {
   }
   /** The database's encryption key, shown to the user as the recovery key. */
   dbKey?: string
+  /** Switches the window between light, dark and the Windows setting (Electron-specific). */
+  applyTheme?(theme: Theme): void
   /** Swaps in a verified backup and restarts the app (Electron-specific). */
   replaceDatabase?(filePath: string, key: string): void
   fetch?: FetchFn
@@ -72,6 +76,7 @@ export interface ServiceDeps {
 const RANGE_DAYS = { '1mo': 31, '6mo': 183, '1y': 366, '5y': 1827 } as const
 
 const casPasswordKey = (personId: number) => `cas_password:${personId}`
+export const THEME_KEY = 'ui:theme'
 
 export function createServices(deps: ServiceDeps) {
   const { db } = deps
@@ -89,6 +94,19 @@ export function createServices(deps: ServiceDeps) {
   }
 
   return {
+    getTheme(): Theme {
+      const v = getSetting(THEME_KEY)
+      return v === 'light' || v === 'dark' ? v : 'system'
+    },
+    setTheme(theme: Theme): null {
+      if (!['light', 'dark', 'system'].includes(theme)) throw new Error('Unknown theme')
+      setSetting(THEME_KEY, theme)
+      deps.applyTheme?.(theme)
+      return null
+    },
+
+    getHealth: (personId?: number) => computeHealth(db, personId, deps.market?.getStatus() ?? null),
+
     listPersons(): Person[] {
       return db
         .select({ id: schema.persons.id, name: schema.persons.name, relation: schema.persons.relation })

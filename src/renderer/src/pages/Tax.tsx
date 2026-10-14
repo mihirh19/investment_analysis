@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import type { OpenLot, RealizedGain, TaxKind, TaxReport } from '@shared/types'
 import { StackBar } from '../components/charts'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { PageSkeleton } from '../components/Skeleton'
 import { StackedColumns } from '../components/viz'
+import { DataTable, downloadCsv } from '../components/DataTable'
 import { useTax } from '../lib/api'
 import { compactMoney, money as money2, shortDate, signedMoney as signed2, toneClass, units as fmtUnits } from '../lib/format'
 import { stagger } from '../lib/motion'
@@ -13,14 +15,6 @@ const KIND_LABELS: Record<TaxKind, string> = {
   '112A': 'Long-term, listed equity',
   SLAB: 'At your slab rate',
   LT_OTHER: 'Long-term, other'
-}
-
-const CLASS_LABELS: Record<string, string> = {
-  EQUITY: 'Shares & equity funds',
-  DEBT_FUND: 'Debt funds',
-  OTHER_FUND: 'Gold, international & other funds',
-  LISTED_OTHER: 'Bonds & SGBs',
-  FOREIGN: 'US shares'
 }
 
 // Whole rupees throughout: tax figures don't need paise.
@@ -47,19 +41,7 @@ const Th = ({ children, num = false }: { children?: React.ReactNode; num?: boole
 
 // ---------------- CSV ----------------
 
-const csvCell = (v: string | number | null) => {
-  const s = v === null ? '' : typeof v === 'number' ? String(Math.round(v * 100) / 100) : v
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
-function download(name: string, rows: (string | number | null)[][]) {
-  const blob = new Blob(['\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = name
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-}
+const download = downloadCsv
 
 /** Columns of Schedule 112A in the ITR forms (one row per sale lot). */
 function export112A(fy: string, person: string, sales: RealizedGain[]) {
@@ -102,28 +84,6 @@ function export112A(fy: string, person: string, sales: RealizedGain[]) {
   ])
 }
 
-function exportAll(fy: string, person: string, sales: RealizedGain[]) {
-  download(`Capital-gains-${fy}-${person}.csv`, [
-    ['Person', 'Account', 'Name', 'ISIN', 'Type', 'Bought', 'Sold', 'Units', 'Cost (tax)', 'Actual cost', 'Sale value', 'Gain', 'Term', 'Taxed as', 'Rate'],
-    ...sales.map((s) => [
-      s.personName,
-      s.accountName,
-      s.name,
-      s.isin,
-      CLASS_LABELS[s.taxClass] ?? s.taxClass,
-      s.buyDate,
-      s.sellDate,
-      s.units,
-      s.costInr,
-      s.actualCostInr,
-      s.proceedsInr,
-      s.gainInr,
-      s.term === 'LT' ? 'Long' : 'Short',
-      KIND_LABELS[s.kind],
-      rate(s.rate)
-    ])
-  ])
-}
 
 // ---------------- page ----------------
 
@@ -137,6 +97,7 @@ export function Tax() {
       <>
         <PageHeader title="Tax" />
         <ErrorNote error={q.error} />
+        {q.isLoading && <PageSkeleton />}
       </>
     )
   }
@@ -459,14 +420,6 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            disabled={!sales.length}
-            onClick={() => exportAll(fy, family ? 'family' : sales[0]?.personName ?? '', sales)}
-            className="rounded border border-rule-strong px-3 py-1 text-[14px] hover:bg-sheet disabled:opacity-50"
-          >
-            Download all sales (CSV)
-          </button>
           {[...new Set(sales.filter((s) => s.kind === '112A').map((s) => s.personName))].map((p) => (
             <button
               key={p}
@@ -478,51 +431,65 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
             </button>
           ))}
         </div>
-        {sales.length ? (
-          <div className="max-h-[480px] overflow-auto">
-            <table className="w-full text-[14px]">
-              <thead className="sticky top-0 bg-paper">
-                <tr className="border-b border-rule-strong text-left text-[13px] text-ink-muted">
-                  <Th>Holding</Th>
-                  {family && <Th>Person</Th>}
-                  <Th>Bought</Th>
-                  <Th>Sold</Th>
-                  <Th num>Units</Th>
-                  <Th num>Cost</Th>
-                  <Th num>Sale value</Th>
-                  <Th num>Gain</Th>
-                  <Th>Taxed as</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.map((s, i) => (
-                  <tr key={i} className="border-b border-rule">
-                    <td className="py-1.5">{s.name}</td>
-                    {family && <td className="py-1.5 text-ink-muted">{s.personName}</td>}
-                    <td className="py-1.5 whitespace-nowrap">{shortDate(s.buyDate)}</td>
-                    <td className="py-1.5 whitespace-nowrap">{shortDate(s.sellDate)}</td>
-                    <td className="num py-1.5">{fmtUnits(s.units)}</td>
-                    <td className="num py-1.5">
-                      {money(s.costInr)}
-                      {s.grandfathered && (
-                        <span className="ml-1 text-[11px] text-ink-muted" title={`Actual cost ${money(s.actualCostInr)}`}>
-                          GF
-                        </span>
-                      )}
-                    </td>
-                    <td className="num py-1.5">{money(s.proceedsInr)}</td>
-                    <td className={`num py-1.5 ${toneClass(s.gainInr)}`}>{signedMoney(s.gainInr)}</td>
-                    <td className="py-1.5 text-[13px] text-ink-muted">
-                      {KIND_LABELS[s.kind]}, {rate(s.rate)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-[14px] text-ink-muted">No sales in {fy}.</p>
-        )}
+        <DataTable
+          id="tax-sales"
+          key={fy}
+          rows={sales}
+          rowKey={(s, i) => `${s.instrumentId}:${s.buyDate}:${s.sellDate}:${i}`}
+          initialSort={{ key: 'sold', desc: true }}
+          filterPlaceholder="Filter by holding or person"
+          csvName={`capital-gains-${fy}`}
+          maxHeight={520}
+          empty={`No sales in ${fy}.`}
+          groups={[
+            { key: 'holding', label: 'Holding', value: (s) => s.name },
+            { key: 'person', label: 'Person', value: (s) => s.personName },
+            { key: 'kind', label: 'Taxed as', value: (s) => KIND_LABELS[s.kind] },
+            { key: 'term', label: 'Short or long term', value: (s) => (s.term === 'LT' ? 'Long-term' : 'Short-term') }
+          ]}
+          columns={[
+            { key: 'holding', header: 'Holding', always: true, value: (s) => s.name },
+            { key: 'isin', header: 'ISIN', hidden: true, value: (s) => s.isin },
+            { key: 'person', header: 'Person', hidden: !family, value: (s) => s.personName, className: 'text-ink-muted' },
+            { key: 'account', header: 'Account', hidden: true, value: (s) => s.accountName },
+            { key: 'bought', header: 'Bought', value: (s) => s.buyDate, render: (s) => shortDate(s.buyDate), className: 'whitespace-nowrap' },
+            { key: 'sold', header: 'Sold', value: (s) => s.sellDate, render: (s) => shortDate(s.sellDate), className: 'whitespace-nowrap' },
+            { key: 'units', header: 'Units', align: 'right', value: (s) => s.units, render: (s) => fmtUnits(s.units) },
+            {
+              key: 'cost',
+              header: 'Cost',
+              align: 'right',
+              sum: true,
+              value: (s) => Math.round(s.costInr),
+              render: (s) => (
+                <>
+                  {money(s.costInr)}
+                  {s.grandfathered && (
+                    <span className="ml-1 text-[11px] text-ink-muted" title={`Actual cost ${money(s.actualCostInr)}`}>
+                      GF
+                    </span>
+                  )}
+                </>
+              )
+            },
+            { key: 'actual', header: 'Actual cost', hidden: true, align: 'right', value: (s) => Math.round(s.actualCostInr), render: (s) => money(s.actualCostInr) },
+            { key: 'proceeds', header: 'Sale value', align: 'right', sum: true, value: (s) => Math.round(s.proceedsInr), render: (s) => money(s.proceedsInr) },
+            {
+              key: 'gain',
+              header: 'Gain',
+              align: 'right',
+              sum: true,
+              value: (s) => Math.round(s.gainInr),
+              render: (s) => <span className={toneClass(s.gainInr)}>{signedMoney(s.gainInr)}</span>
+            },
+            {
+              key: 'kind',
+              header: 'Taxed as',
+              value: (s) => `${KIND_LABELS[s.kind]}, ${rate(s.rate)}`,
+              className: 'text-[13px] text-ink-muted'
+            }
+          ]}
+        />
       </Section>
     </>
   )

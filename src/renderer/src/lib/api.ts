@@ -9,7 +9,8 @@ import type {
   NpsHoldingInput,
   Person,
   PolicyInput,
-  Targets
+  Targets,
+  Theme
 } from '@shared/types'
 
 export async function unwrap<T>(p: Promise<ApiResult<T>>): Promise<T> {
@@ -167,6 +168,17 @@ export function useSetTargets() {
   return useMutation({
     mutationFn: (v: { personId: number | null; targets: Targets | null }) => unwrap(api().setTargets(v.personId, v.targets)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rebalance'] })
+  })
+}
+
+export const useHealth = (personId?: number) =>
+  useQuery({ queryKey: ['health', personId ?? 'all'], queryFn: () => unwrap(api().getHealth(personId)) })
+export const useTheme = () => useQuery({ queryKey: ['theme'], queryFn: () => unwrap(api().getTheme()), staleTime: Infinity })
+export function useSetTheme() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (t: Theme) => unwrap(api().setTheme(t)),
+    onSuccess: (_d, t) => qc.setQueryData(['theme'], t)
   })
 }
 

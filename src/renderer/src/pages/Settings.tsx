@@ -11,8 +11,11 @@ import {
   useMetalPrices,
   useRefreshMarket,
   useSetGoldPremium,
-  useSyncDisclosures
+  useSetTheme,
+  useSyncDisclosures,
+  useTheme
 } from '../lib/api'
+import type { Theme } from '@shared/types'
 import { money, shortDate, timeAgo } from '../lib/format'
 
 // What a source had nothing for, and what the app does instead, in that source's own terms.
@@ -44,6 +47,7 @@ export function Settings() {
   return (
     <>
       <PageHeader title="Settings & backup" />
+      <Appearance />
 
       <section aria-labelledby="sources" className="max-w-[880px]">
         <div className="mb-2 flex items-baseline justify-between">
@@ -305,5 +309,46 @@ function Disclosures() {
       </table>
       <ErrorNote error={sync.error ?? status.error} />
     </div>
+  )
+}
+
+const THEMES: { key: Theme; label: string; note: string }[] = [
+  { key: 'system', label: 'Same as Windows', note: 'Follows the light or dark setting in Windows' },
+  { key: 'light', label: 'Light', note: 'Paper and ink' },
+  { key: 'dark', label: 'Dark', note: 'Easier on the eyes at night' }
+]
+
+function Appearance() {
+  const theme = useTheme()
+  const set = useSetTheme()
+  const current = theme.data ?? 'system'
+  return (
+    <section aria-labelledby="appearance" className="mb-12 max-w-[880px]">
+      <h2 id="appearance" className="wide mb-2 text-[19px] font-semibold">
+        Appearance
+      </h2>
+      <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {THEMES.map((t) => {
+          const on = current === t.key
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => set.mutate(t.key)}
+              className={
+                'rounded-md border px-3 py-2 text-left transition-colors ' +
+                (on ? 'border-stamp bg-stamp-wash' : 'border-rule-strong hover:bg-sheet')
+              }
+            >
+              <div className={'text-[15px] ' + (on ? 'font-semibold text-stamp' : 'text-ink')}>{t.label}</div>
+              <div className="text-[13px] text-ink-muted">{t.note}</div>
+            </button>
+          )
+        })}
+      </div>
+      <ErrorNote error={set.error} />
+    </section>
   )
 }

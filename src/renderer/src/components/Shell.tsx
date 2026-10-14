@@ -5,30 +5,99 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { timeAgo } from '../lib/format'
 import { useScope, type Scope } from '../lib/scope'
 
-// Grouped by what the reader is doing: looking at money, recording it, keeping the app.
-const NAV = [
-  [
-    { to: '/', label: 'Overview', end: true },
-    { to: '/analysis', label: 'Analysis' },
-    { to: '/performance', label: 'Performance' },
-    { to: '/tax', label: 'Tax' },
-    { to: '/rebalance', label: 'Rebalance' },
-    { to: '/holdings', label: 'Holdings' },
-    { to: '/other-assets', label: 'Other assets' },
-    { to: '/exposure', label: 'Sectors & exposure' },
-    { to: '/funds', label: 'Funds' },
-    { to: '/dividends', label: 'Dividends' },
-    { to: '/retirement', label: 'EPF & NPS' },
-    { to: '/insurance', label: 'Insurance' }
-  ],
-  [
-    { to: '/activity', label: 'Activity' },
-    { to: '/import', label: 'Import statements' },
-    { to: '/people', label: 'People & accounts' },
-    { to: '/settings', label: 'Settings & backup' }
-  ]
+// Grouped by what the reader is doing: what they own, how it is doing, and keeping the records.
+const NAV: { title: string; items: { to: string; label: string; end?: boolean }[] }[] = [
+  {
+    title: 'What you own',
+    items: [
+      { to: '/', label: 'Overview', end: true },
+      { to: '/holdings', label: 'Holdings' },
+      { to: '/other-assets', label: 'Other assets' },
+      { to: '/retirement', label: 'EPF & NPS' },
+      { to: '/insurance', label: 'Insurance' },
+      { to: '/dividends', label: 'Dividends' }
+    ]
+  },
+  {
+    title: 'How it is doing',
+    items: [
+      { to: '/analysis', label: 'Analysis' },
+      { to: '/performance', label: 'Performance' },
+      { to: '/exposure', label: 'Sectors & exposure' },
+      { to: '/funds', label: 'Funds' },
+      { to: '/tax', label: 'Tax' },
+      { to: '/rebalance', label: 'Rebalance' }
+    ]
+  },
+  {
+    title: 'Records',
+    items: [
+      { to: '/activity', label: 'Activity' },
+      { to: '/import', label: 'Import statements' },
+      { to: '/people', label: 'People & accounts' },
+      { to: '/settings', label: 'Settings & backup' }
+    ]
+  }
 ]
 
+const COLLAPSED_KEY = 'nav:collapsed'
+
+function SideNav({ pathname }: { pathname: string }) {
+  const [collapsed, setCollapsed] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[]
+    } catch {
+      return []
+    }
+  })
+  const toggle = (title: string) =>
+    setCollapsed((c) => {
+      const next = c.includes(title) ? c.filter((x) => x !== title) : [...c, title]
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next))
+      return next
+    })
+  const isActive = (to: string, end?: boolean) => (end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`))
+  return (
+    <nav aria-label="Sections" className="mt-3 flex min-h-0 flex-col overflow-y-auto border-t border-rule px-3 pb-2">
+      {NAV.map((g) => {
+        // The group holding the open page always stays open.
+        const open = !collapsed.includes(g.title) || g.items.some((n) => isActive(n.to, n.end))
+        const id = `nav-${g.title.replace(/\W+/g, '-').toLowerCase()}`
+        return (
+          <div key={g.title} className="pt-2.5">
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls={id}
+              onClick={() => toggle(g.title)}
+              className="flex w-full items-center justify-between rounded px-3 py-0.5 text-[11px] font-semibold tracking-wider text-ink-muted uppercase hover:text-ink"
+            >
+              {g.title}
+              <span aria-hidden className={'transition-transform ' + (open ? 'rotate-90' : '')}>
+                ›
+              </span>
+            </button>
+            <div id={id} hidden={!open} className="mt-0.5 flex flex-col">
+              {g.items.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  end={n.end}
+                  className={({ isActive: a }) =>
+                    'rounded-md px-3 py-[3px] text-[14.5px] ' +
+                    (a ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-paper hover:text-ink')
+                  }
+                >
+                  {n.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </nav>
+  )
+}
 function LiveStatus() {
   const status = useMarketStatus()
   const refresh = useRefreshMarket()
@@ -97,7 +166,7 @@ export function Shell() {
   return (
     <div className="flex h-full">
       <aside className="flex w-60 shrink-0 flex-col border-r border-rule bg-sheet">
-        <div className="px-5 pt-6 pb-5">
+        <div className="px-5 pt-5 pb-4">
           <div className="wide text-[17px] font-semibold tracking-tight text-ink">Family Portfolio</div>
           <div className="text-[13px] text-ink-muted">Kept on this computer</div>
         </div>
@@ -123,7 +192,7 @@ export function Shell() {
                 aria-selected={active}
                 onClick={() => setScope(t.id)}
                 className={
-                  'relative -mr-px rounded-l-md border py-2 pr-4 pl-4 text-left text-[15px] transition-colors ' +
+                  'relative -mr-px rounded-l-md border py-1.5 pr-4 pl-4 text-left text-[15px] transition-colors ' +
                   (active
                     ? 'border-rule border-r-paper bg-paper font-semibold text-ink'
                     : 'border-transparent text-ink-muted hover:text-ink')
@@ -135,25 +204,7 @@ export function Shell() {
           })}
         </div>
 
-        <nav aria-label="Sections" className="mt-5 flex flex-col overflow-y-auto border-t border-rule px-3">
-          {NAV.map((group, gi) => (
-            <div key={gi} className={'flex flex-col py-3 ' + (gi > 0 ? 'border-t border-rule' : '')}>
-              {group.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  end={'end' in n ? n.end : undefined}
-                  className={({ isActive }) =>
-                    'rounded-md px-3 py-1.5 text-[15px] ' +
-                    (isActive ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-paper hover:text-ink')
-                  }
-                >
-                  {n.label}
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </nav>
+        <SideNav pathname={pathname} />
         <LiveStatus />
       </aside>
 

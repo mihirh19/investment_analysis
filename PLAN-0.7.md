@@ -172,21 +172,28 @@ The off-target count is ready for the Phase 7 dashboard checklist.
 **Files:** new `portfolio/rebalance.ts`, `services.ts`, `pages/Rebalance.tsx`
 **Tests:** `tests/rebalance.test.ts`
 
-## Phase 7 — UI improvements
+## Phase 7 — UI improvements ✅ done
 
-- [ ] **Theme toggle:** Light / Dark / System in Settings, remembered between launches (`nativeTheme.themeSource`); the CSS uses a `data-theme` attribute; charts follow it
-- [ ] **One period picker** in the page header (1M / 6M / 1Y / 3Y / 5Y / All / FY), shared by Overview, Analysis and Performance (`lib/period.tsx`)
-- [ ] **Better tables:** `@tanstack/react-table` for Holdings, Activity, Tax and Dividends:
-  - [ ] sort, filter, choose columns
-  - [ ] headers stay visible while scrolling
-  - [ ] group rows by person or platform
-  - [ ] CSV export
-  - [ ] settings remembered per table
-- [ ] **Dashboard polish:**
-  - [ ] headline numbers with a small trend line and the change over the chosen period
-  - [ ] "Data health" checklist: no buy price, out-of-date prices, missing fund disclosures, off-target allocation, Regular plans; each links to its fix
-  - [ ] placeholder loading blocks and proper empty-page messages
-- [ ] **Sidebar:** add Performance, Tax and Rebalance
+Done: grouped, collapsible sidebar (What you own / How it is doing / Records); theme setting (`getTheme`/`setTheme`, `ui:theme`,
+applied with `nativeTheme` at start-up and live; Appearance in Settings); shared period picker (`lib/period.tsx` + pure `lib/periods.ts`) on
+Overview, Analysis and Performance; `components/DataTable.tsx` (sort, filter, column picker, group with totals, CSV, sticky header, settings
+per table) on Activity, Dividends and Tax sales, plus group-by + CSV on Holdings; Overview check-up (`portfolio/health.ts`, `getHealth`)
+and period-change sparkline; `PageSkeleton` loading blocks; treemap tiles open the holding. Tests: `ui.test.ts` (5).
+Note: charts follow the theme through Electron's `nativeTheme` (prefers-color-scheme), so no `data-theme` CSS attribute was needed.
+
+- [x] **Theme toggle:** Light / Dark / System in Settings, remembered between launches (`nativeTheme.themeSource`); the CSS uses a `data-theme` attribute; charts follow it
+- [x] **One period picker** in the page header (1M / 6M / 1Y / 3Y / 5Y / All / FY), shared by Overview, Analysis and Performance (`lib/period.tsx`)
+- [x] **Better tables:** `@tanstack/react-table` for Holdings, Activity, Tax and Dividends:
+  - [x] sort, filter, choose columns
+  - [x] headers stay visible while scrolling
+  - [x] group rows by person or platform
+  - [x] CSV export
+  - [x] settings remembered per table
+- [x] **Dashboard polish:**
+  - [x] headline numbers with a small trend line and the change over the chosen period
+  - [x] "Data health" checklist: no buy price, out-of-date prices, missing fund disclosures, off-target allocation, Regular plans; each links to its fix
+  - [x] placeholder loading blocks and proper empty-page messages
+- [x] **Sidebar:** add Performance, Tax and Rebalance
 
 **Files:** `styles.css`, `Shell.tsx`, `Settings.tsx`, `Overview.tsx`, `Holdings.tsx`, `Activity.tsx`, `Dividends.tsx`, new `components/DataTable.tsx`, `lib/period.tsx`, `lib/theme.tsx`, `main/index.ts`
 

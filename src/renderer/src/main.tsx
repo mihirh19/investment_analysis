@@ -5,6 +5,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import './styles.css'
 import { Shell } from './components/Shell'
 import { ScopeProvider } from './lib/scope'
+import { PeriodProvider } from './lib/period'
 import { Overview } from './pages/Overview'
 import { Holdings } from './pages/Holdings'
 import { Activity } from './pages/Activity'
@@ -28,6 +29,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ScopeProvider>
+        <PeriodProvider>
         <HashRouter>
           <Routes>
             <Route element={<Shell />}>
@@ -50,6 +52,7 @@ createRoot(document.getElementById('root')!).render(
             </Route>
           </Routes>
         </HashRouter>
+        </PeriodProvider>
       </ScopeProvider>
     </QueryClientProvider>
   </StrictMode>

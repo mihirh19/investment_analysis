@@ -4,7 +4,11 @@ import { PLATFORM_LABELS, type Platform } from '@shared/types'
 import { StackBar } from '../components/charts'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { AreaStack, Donut } from '../components/viz'
-import { useAnalysis, useExposure, useFx, useHoldings, usePersons } from '../lib/api'
+import { useAnalysis, useExposure, useFx, useHealth, useHoldings, usePersons } from '../lib/api'
+import { PeriodPicker, periodStartIndex, periodTitle, usePeriod } from '../lib/period'
+import { PageSkeleton } from '../components/Skeleton'
+import { Sparkline } from '../components/viz'
+import type { HealthReport } from '@shared/types'
 import { compactMoney, lakhCrore, money, percent, shortDate, signedMoney, timeAgo, toneClass } from '../lib/format'
 import { GROUP_COLORS, GROUP_LABELS, MIX_COLORS, MIX_LABELS, MIX_ORDER } from '../lib/labels'
 import { stagger, useCountUp } from '../lib/motion'
@@ -20,13 +24,21 @@ export function Overview() {
   const exposure = useExposure(scopePersonId(scope))
   const analysis = useAnalysis(scopePersonId(scope))
   const fx = useFx().data
+  const health = useHealth(scopePersonId(scope))
+  const { period } = usePeriod()
   const rows = holdings.data ?? []
   const whose = scope === 'family' ? 'the family' : (persons.find((p) => p.id === scope)?.name ?? '')
   const t = totals(rows)
   const shownValue = useCountUp(t.value)
   const shownDay = useCountUp(t.dayChange, 700)
 
-  if (holdings.isLoading) return <PageHeader title="Overview" />
+  if (holdings.isLoading)
+    return (
+      <>
+        <PageHeader title="Overview" />
+        <PageSkeleton label="Loading your holdings" />
+      </>
+    )
 
   if (rows.length === 0) {
     return (
@@ -86,13 +98,21 @@ export function Overview() {
       : [])
   ]
   const hist = analysis.data?.history
-  const trend =
+  const allTrend =
     hist && hist.months.length > 2 ? hist.months.map((_, i) => hist.series.reduce((s, x) => s + x.values[i], 0)) : null
+  const from = hist ? periodStartIndex(hist.months, period) : 0
+  const trend = allTrend ? allTrend.slice(from) : null
+  const trendDates = hist ? hist.months.slice(from) : []
+  // Change over the period, today's live value against the value at its start.
+  const startValue = trend && trend.length > 1 ? trend[0] : null
+  const change = startValue !== null ? t.value - startValue : null
   const upcoming = (analysis.data?.upcoming ?? []).filter((u) => u.amount > 0).slice(0, 5)
 
   return (
     <>
-      <PageHeader title="Overview" />
+      <PageHeader title="Overview">
+        <PeriodPicker />
+      </PageHeader>
       <ErrorNote error={holdings.error} />
 
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,620px)_1fr]">
@@ -138,6 +158,19 @@ export function Overview() {
               <> {money(t.valueWithoutCost)} has no purchase cost on record, so it is left out of the gain.</>
             )}
           </p>
+          {change !== null && trend && (
+            <div className="mt-4 flex items-center gap-3 border-t border-rule pt-3 text-[15px]">
+              <Sparkline values={[...trend.slice(0, -1), t.value]} width={110} height={30} />
+              <span>
+                <span className="text-ink-muted">Over {periodTitle(period).replace(/^last /, 'the last ')}: </span>
+                <span className={`num font-semibold ${toneClass(change)}`}>{signedMoney(change)}</span>
+                <span className={`num ml-1.5 text-[14px] ${toneClass(change)}`}>
+                  {percent(startValue! > 0 ? change / startValue! : null)}
+                </span>
+                <span className="ml-1.5 text-[13px] text-ink-muted">including money added</span>
+              </span>
+            </div>
+          )}
         </section>
 
         {trend && (
@@ -151,7 +184,8 @@ export function Overview() {
               </Link>
             </div>
             <AreaStack
-              dates={hist!.months}
+              key={period}
+              dates={trendDates}
               series={[{ key: 'total', label: 'Net worth', color: 'var(--series-1)', values: trend }]}
               label="Net worth over time"
               format={(v) => money(v)}
@@ -169,6 +203,8 @@ export function Overview() {
           </section>
         )}
       </div>
+
+      {health.data && <Checklist report={health.data} />}
 
       <section aria-labelledby="alloc" className="mt-12">
         <h2 id="alloc" className="wide mb-4 text-[19px] font-semibold">
@@ -316,5 +352,62 @@ export function Overview() {
         )}
       </div>
     </>
+  )
+}
+
+const MARK: Record<'OK' | 'WARN' | 'INFO', { icon: string; cls: string; label: string }> = {
+  WARN: { icon: '!', cls: 'bg-warn text-paper', label: 'Needs attention' },
+  INFO: { icon: 'i', cls: 'bg-stamp text-paper', label: 'Worth a look' },
+  OK: { icon: '✓', cls: 'bg-gain/15 text-gain', label: 'All good' }
+}
+
+/** The data health check-up: what makes the numbers incomplete or costs money, with a link to fix it. */
+function Checklist({ report }: { report: HealthReport }) {
+  const passed = report.checks.filter((c) => c.status === 'OK')
+  const open = report.checks.filter((c) => c.status !== 'OK')
+  return (
+    <section aria-labelledby="health" className="mt-12">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 id="health" className="wide text-[19px] font-semibold">
+          Check-up
+        </h2>
+        <span className="text-[14px] text-ink-muted">
+          {report.issues ? `${report.issues} to fix` : 'Nothing to fix'} · {passed.length} of {report.checks.length} fine
+        </span>
+      </div>
+      <ul className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
+        {open.map((c, i) => (
+          <li key={c.key} className="anim-page flex gap-3 border-b border-rule py-2.5" style={stagger(i, 40)}>
+            <span
+              aria-label={MARK[c.status].label}
+              className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${MARK[c.status].cls}`}
+            >
+              {MARK[c.status].icon}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-medium">{c.title}</div>
+              {c.detail && <div className="text-[13px] text-ink-muted">{c.detail}</div>}
+            </div>
+            {c.link && (
+              <Link to={c.link} className="shrink-0 self-center text-[14px] whitespace-nowrap text-stamp hover:underline">
+                {c.linkLabel}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+      {passed.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-ink-muted">
+          {passed.map((c) => (
+            <li key={c.key} className="flex items-center gap-1.5">
+              <span aria-hidden className="text-gain">
+                ✓
+              </span>
+              {c.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

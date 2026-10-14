@@ -2,18 +2,14 @@ import { useMemo, useState } from 'react'
 import type { PerformanceReport, PerformanceYear } from '@shared/types'
 import { Drawdown, LineCompare, Waterfall, type LineSeries } from '../components/chart/extra'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { PageSkeleton } from '../components/Skeleton'
 import { RiskSection } from '../components/RiskSection'
 import { usePerformance } from '../lib/api'
 import { compactMoney, lakhCrore, money, shortDate, signedMoney, toneClass } from '../lib/format'
 import { stagger, useCountUp } from '../lib/motion'
 import { scopePersonId, useScope } from '../lib/scope'
+import { PeriodPicker, periodStartIndex, usePeriod } from '../lib/period'
 
-const RANGES = [
-  { key: 12, label: '1Y' },
-  { key: 36, label: '3Y' },
-  { key: 60, label: '5Y' },
-  { key: 0, label: 'All' }
-] as const
 
 const BENCH_COLORS: Record<string, string> = {
   'BM:NIFTY50': 'var(--series-2)',
@@ -85,7 +81,7 @@ export function Performance() {
   const { scope } = useScope()
   const q = usePerformance(scopePersonId(scope))
   const p = q.data
-  const [range, setRange] = useState<number>(36)
+  const { period } = usePeriod()
   const [picked, setPicked] = useState<string[]>(['BM:NIFTY50'])
   const [yearKind, setYearKind] = useState<'FY' | 'CY'>('FY')
   const [yearSel, setYearSel] = useState<string | null>(null)
@@ -97,10 +93,9 @@ export function Performance() {
 
   const win = useMemo(() => {
     if (!p) return null
-    const n = p.dates.length
-    const from = range === 0 ? 0 : Math.max(0, n - range - 1)
+    const from = periodStartIndex(p.dates, period)
     return { from, dates: p.dates.slice(from) }
-  }, [p, range])
+  }, [p, period])
 
   const growthSeries = useMemo<LineSeries[]>(() => {
     if (!p || !win) return []
@@ -135,6 +130,7 @@ export function Performance() {
       <>
         <PageHeader title="Performance" />
         <ErrorNote error={q.error} />
+        {q.isLoading && <PageSkeleton />}
         {!q.isLoading && (
           <p className="max-w-[70ch] py-8 text-ink-muted">
             Performance needs holdings with a full money trail: import a tradebook (Zerodha, Groww) or add trades by hand.
@@ -156,7 +152,9 @@ export function Performance() {
 
   return (
     <>
-      <PageHeader title="Performance" />
+      <PageHeader title="Performance">
+        <PeriodPicker />
+      </PageHeader>
       <ErrorNote error={q.error} />
 
       <section aria-label="Headline returns" className="grid grid-cols-1 gap-8 lg:grid-cols-[auto_1fr]">
@@ -203,7 +201,6 @@ export function Performance() {
         note="Time-weighted: what ₹100 kept in your holdings would have become, so adding or withdrawing money doesn't move the line. Indices are price-only (dividends excluded), which flatters you by about 1–1.5% a year against Nifty."
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <Toggle label="Range" options={RANGES} value={range} onChange={setRange} />
           <div role="group" aria-label="Benchmarks" className="flex flex-wrap gap-1.5">
             {p.benchmarks.map((b) => {
               const on = picked.includes(b.key)
@@ -230,7 +227,7 @@ export function Performance() {
         </div>
         {win && (
           <LineCompare
-            key={`${range}-${picked.join()}`}
+            key={`${period}-${picked.join()}`}
             dates={win.dates}
             series={growthSeries}
             label="Growth of 100 rupees, your holdings against benchmarks"

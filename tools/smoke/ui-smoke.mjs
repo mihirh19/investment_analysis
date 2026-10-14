@@ -167,7 +167,29 @@ if (drilled !== 'ok' && drilled !== 'NO SECTOR BARS') {
   console.log('FAIL open sector drill-down'.padEnd(46), drilled)
 }
 await ok('open sector drill-down')
+await nav('Overview')
+await clickText('[role=radio]', '1Y')
+await ok('overview period 1Y')
+await clickText('[role=radio]', 'This FY')
+await ok('overview period this FY')
+const checkup = await ev(`!!document.getElementById('health')`)
+if (!checkup) {
+  failures++
+  console.log('FAIL overview shows the check-up'.padEnd(46))
+}
+await nav('Performance')
+await sleep(1500)
+await ok('performance with shared period')
 await nav('Activity')
+await ev(`(() => {
+  const i = document.querySelector('input[type=search]')
+  if (!i) return
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'buy')
+  i.dispatchEvent(new Event('input', { bubbles: true }))
+  const s = [...document.querySelectorAll('select')].find((x) => [...x.options].some((o) => o.textContent === 'Holding'))
+  if (s) { s.value = 'holding'; s.dispatchEvent(new Event('change', { bubbles: true })) }
+})()`)
+await ok('filter and group the activity table')
 await clickText('button', 'Add a trade by hand')
 await ok('open manual trade form')
 await nav('EPF & NPS')
@@ -180,6 +202,11 @@ await nav('Insurance')
 await clickText('button', 'Add a policy')
 await ok('open policy form')
 await nav('Settings & backup')
+await clickText('[role=radio]', 'Dark')
+await sleep(800)
+await ok('switch theme to dark')
+await clickText('[role=radio]', 'Same as Windows')
+await ok('switch theme back to Windows')
 await clickText('button', 'Show recovery key')
 await ok('show recovery key')
 await nav('Import statements')

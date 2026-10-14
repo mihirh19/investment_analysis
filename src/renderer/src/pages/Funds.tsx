@@ -3,6 +3,7 @@ import type { FundPlan, FundsReport } from '@shared/types'
 import { HBars } from '../components/charts'
 import { Heatmap } from '../components/chart/extra'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { PageSkeleton } from '../components/Skeleton'
 import { useFunds } from '../lib/api'
 import { compactMoney, money, shortDate, toneClass } from '../lib/format'
 import { stagger } from '../lib/motion'
@@ -63,6 +64,7 @@ export function Funds() {
       <>
         <PageHeader title="Funds" />
         <ErrorNote error={q.error} />
+        {q.isLoading && <PageSkeleton />}
         {!q.isLoading && <p className="py-8 text-ink-muted">No mutual funds or ETFs yet. Import a CAS to see how your funds compare.</p>}
       </>
     )

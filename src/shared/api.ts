@@ -2,6 +2,9 @@ import type { RequestApi } from './types'
 
 /** IPC channel names exposed to the renderer; each maps to `api:<name>` in the main process. */
 export const API_METHODS = [
+  'getTheme',
+  'setTheme',
+  'getHealth',
   'listPersons',
   'savePerson',
   'listAccounts',

@@ -3,6 +3,7 @@ import { BUCKET_LABELS, BUCKETS, type Bucket, type RebalanceReport, type Targets
 import { StackBar } from '../components/charts'
 import { Bullet } from '../components/chart/extra'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { PageSkeleton } from '../components/Skeleton'
 import { Button } from '../components/ui'
 import { useRebalance, useSetTargets } from '../lib/api'
 import { compactMoney, money, units as fmtUnits } from '../lib/format'
@@ -65,6 +66,7 @@ export function Rebalance() {
       <>
         <PageHeader title="Rebalance" />
         <ErrorNote error={q.error} />
+        {q.isLoading && <PageSkeleton />}
       </>
     )
   }

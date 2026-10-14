@@ -271,11 +271,12 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
   // ---------- concentration, treemap, movers (one entry per instrument) ----------
   const agg = new Map<
     number,
-    { name: string; group: ChartGroup; value: number; invested: number; gain: number; hasCost: boolean }
+    { instrumentId: number; name: string; group: ChartGroup; value: number; invested: number; gain: number; hasCost: boolean }
   >()
   for (const i of items) {
     const r = i.row
     const a = agg.get(r.instrumentId) ?? {
+      instrumentId: r.instrumentId,
       name: r.instrumentName,
       group: GROUP_OF[r.assetClass],
       value: 0,
@@ -319,6 +320,7 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
       largest: ranked[0] ? { name: ranked[0].name, share: totalInr > 0 ? ranked[0].value / totalInr : 0 } : null
     },
     treemap: ranked.slice(0, 40).map((a) => ({
+      instrumentId: a.instrumentId,
       name: a.name,
       group: a.group,
       valueInr: a.value,

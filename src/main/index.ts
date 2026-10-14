@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, shell } from 'electron'
 import { MARKET_UPDATED } from '@shared/api'
 import { openDatabase } from './db'
 import { applyDevPaths, captureScreens, seedDemo } from './dev'
@@ -104,6 +104,7 @@ if (!app.requestSingleInstanceLock()) {
         decrypt: decryptSecret,
         market,
         dbKey: key,
+        applyTheme: (t) => (nativeTheme.themeSource = t),
         replaceDatabase(filePath, newKey) {
           market.stop()
           sqlite.close()
@@ -115,6 +116,8 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
       registerIpc(services)
+      // The saved light/dark choice (the FP_THEME development switch wins when set).
+      if (!process.env.FP_THEME) nativeTheme.themeSource = services.getTheme()
       await seedDemo(db, services)
     } catch (err) {
       dialog.showErrorBox('Family Portfolio could not start', err instanceof Error ? err.message : String(err))

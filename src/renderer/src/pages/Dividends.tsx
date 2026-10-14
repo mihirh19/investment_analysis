@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Columns } from '../components/charts'
+import { DataTable } from '../components/DataTable'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { useDividends } from '../lib/api'
 import { compactMoney, financialYear, money, percent, shortDate, units } from '../lib/format'
@@ -143,40 +144,68 @@ export function Dividends() {
               <h2 id="list" className="wide mb-3 text-[19px] font-semibold">
                 Every payment
               </h2>
-              <table className="w-full text-[15px]">
-                <thead>
-                  <tr className="border-b border-rule-strong text-left text-[13px] text-ink-muted">
-                    <th className="py-1.5 font-medium">Ex-date</th>
-                    <th className="py-1.5 font-medium">Holding</th>
-                    <th className="num py-1.5 font-medium">Units × per share</th>
-                    <th className="num py-1.5 font-medium">Withheld</th>
-                    <th className="num py-1.5 font-medium">Received (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.slice(0, 200).map((p, i) => (
-                    <tr key={`${p.instrumentId}:${p.exDate}:${i}`} className="border-b border-rule align-top">
-                      <td className="num py-1.5 pr-4 text-left">{shortDate(p.exDate)}</td>
-                      <td className="py-1.5">
+              <DataTable
+                id="dividends"
+                rows={payments}
+                rowKey={(p, i) => `${p.instrumentId}:${p.exDate}:${p.accountName}:${i}`}
+                initialSort={{ key: 'date', desc: true }}
+                filterPlaceholder="Filter by holding, account or person"
+                csvName="dividends"
+                groups={[
+                  { key: 'fy', label: 'Financial year', value: (p) => financialYear(p.exDate) },
+                  { key: 'holding', label: 'Holding', value: (p) => p.instrumentName },
+                  { key: 'person', label: 'Person', value: (p) => p.personName },
+                  { key: 'account', label: 'Account', value: (p) => p.accountName }
+                ]}
+                columns={[
+                  { key: 'date', header: 'Ex-date', value: (p) => p.exDate, render: (p) => shortDate(p.exDate), className: 'whitespace-nowrap' },
+                  {
+                    key: 'holding',
+                    header: 'Holding',
+                    always: true,
+                    value: (p) => p.instrumentName,
+                    render: (p) => (
+                      <>
                         <div className="leading-snug">{p.instrumentName}</div>
                         <div className="condensed text-[12px] text-ink-muted">
                           <span className="mr-3">{p.accountName}</span>
                           {scope === 'family' && p.personName}
                         </div>
-                      </td>
-                      <td className="num py-1.5 text-ink-muted">
+                      </>
+                    )
+                  },
+                  { key: 'person', header: 'Person', hidden: true, value: (p) => p.personName },
+                  { key: 'account', header: 'Account', hidden: true, value: (p) => p.accountName },
+                  {
+                    key: 'calc',
+                    header: 'Units × per share',
+                    align: 'right',
+                    value: (p) => (p.perShare !== null && p.quantity !== null ? p.quantity * p.perShare : null),
+                    render: (p) => (
+                      <span className="text-ink-muted">
                         {p.perShare !== null && p.quantity !== null
                           ? `${units(p.quantity)} × ${money(p.perShare, p.currency, 2)}`
                           : 'From statement'}
-                      </td>
-                      <td className="num py-1.5 text-ink-muted">
-                        {p.withholding ? money(p.withholding, p.currency) : ''}
-                      </td>
-                      <td className="num py-1.5 font-medium">{money(p.netInr, 'INR', 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    )
+                  },
+                  {
+                    key: 'withheld',
+                    header: 'Withheld',
+                    align: 'right',
+                    value: (p) => p.withholding || null,
+                    render: (p) => <span className="text-ink-muted">{p.withholding ? money(p.withholding, p.currency) : ''}</span>
+                  },
+                  {
+                    key: 'net',
+                    header: 'Received (₹)',
+                    align: 'right',
+                    sum: true,
+                    value: (p) => Math.round(p.netInr * 100) / 100,
+                    render: (p) => <span className="font-medium">{money(p.netInr, 'INR', 0)}</span>
+                  }
+                ]}
+              />
             </section>
           )}
         </>

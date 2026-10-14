@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { AssetClass, HoldingRow } from '@shared/types'
+import { PLATFORM_LABELS, type AssetClass, type HoldingRow } from '@shared/types'
+import { downloadCsv } from '../components/DataTable'
 import { HoldingDetail } from '../components/HoldingDetail'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { Input } from '../components/ui'
@@ -13,6 +14,15 @@ import { scopePersonId, useScope } from '../lib/scope'
 import { groupBy, totals } from '../lib/summary'
 
 type SortKey = 'name' | 'value' | 'day' | 'gain' | 'gainPct'
+type GroupKey = 'type' | 'person' | 'platform' | 'account' | 'none'
+const GROUPS: { key: GroupKey; label: string }[] = [
+  { key: 'type', label: 'Type' },
+  { key: 'person', label: 'Person' },
+  { key: 'platform', label: 'Where held' },
+  { key: 'account', label: 'Account' },
+  { key: 'none', label: 'Nothing' }
+]
+const GROUP_KEY = 'holdings:group'
 
 const gainPct = (r: HoldingRow) =>
   r.unrealizedPnlInr !== null && r.investedInr ? r.unrealizedPnlInr / r.investedInr : null
@@ -40,6 +50,11 @@ export function Holdings() {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('value')
   const [open, setOpen] = useState<HoldingRow | null>(null)
+  const [groupKey, setGroupKey] = useState<GroupKey>(() => (localStorage.getItem(GROUP_KEY) as GroupKey) || 'type')
+  const chooseGroup = (g: GroupKey) => {
+    localStorage.setItem(GROUP_KEY, g)
+    setGroupKey(g)
+  }
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -52,10 +67,54 @@ export function Holdings() {
         r.sector?.toLowerCase().includes(q) ||
         r.accountName.toLowerCase().includes(q)
     )
-    return [...groupBy(rows, (r) => r.assetClass)]
-      .sort((a, b) => ASSET_ORDER.indexOf(a[0]) - ASSET_ORDER.indexOf(b[0]))
-      .map(([cls, rs]) => ({ cls: cls as AssetClass, rows: [...rs].sort(SORTERS[sort]) }))
-  }, [holdings.data, query, sort])
+    const keyOf = (r: HoldingRow): string =>
+      groupKey === 'type'
+        ? r.assetClass
+        : groupKey === 'person'
+          ? r.personName
+          : groupKey === 'platform'
+            ? PLATFORM_LABELS[r.platform]
+            : groupKey === 'account'
+              ? r.accountName
+              : 'All holdings'
+    return [...groupBy(rows, keyOf)]
+      .sort((a, b) =>
+        groupKey === 'type'
+          ? ASSET_ORDER.indexOf(a[0] as AssetClass) - ASSET_ORDER.indexOf(b[0] as AssetClass)
+          : totals(b[1]).value - totals(a[1]).value
+      )
+      .map(([key, rs]) => ({
+        key,
+        label: groupKey === 'type' ? ASSET_LABELS[key as AssetClass] : key,
+        color: groupKey === 'type' ? ASSET_COLORS[key as AssetClass] : null,
+        rows: [...rs].sort(SORTERS[sort])
+      }))
+  }, [holdings.data, query, sort, groupKey])
+
+  const exportCsv = () =>
+    downloadCsv('holdings.csv', [
+      ['Holding', 'Symbol', 'ISIN', 'Type', 'Person', 'Account', 'Units', 'Avg cost', 'Price', 'Currency', 'Price source', 'Value (INR)', 'Invested (INR)', 'Gain (INR)', 'Return', 'Day change (INR)'],
+      ...groups.flatMap((g) =>
+        g.rows.map((r) => [
+          r.instrumentName,
+          r.symbol,
+          r.isin,
+          ASSET_LABELS[r.assetClass],
+          r.personName,
+          r.accountName,
+          isBalance(r) ? null : r.quantity,
+          r.avgCost,
+          r.lastPrice,
+          r.currency,
+          PRICE_SOURCE_LABELS[r.priceSource],
+          r.marketValueInr,
+          r.investedInr,
+          r.unrealizedPnlInr,
+          gainPct(r),
+          r.dayChangeInr
+        ])
+      )
+    ])
 
   const flagged = (holdings.data ?? []).filter((r) => r.tradesQuantity !== null).length
   // Statements from NSDL/CDSL give units and value but no buy price.
@@ -79,12 +138,34 @@ export function Holdings() {
   return (
     <>
       <PageHeader title="Holdings">
+        <label className="flex items-center gap-1.5 text-[14px] text-ink-muted">
+          Group by
+          <select
+            value={groupKey}
+            onChange={(e) => chooseGroup(e.target.value as GroupKey)}
+            className="rounded border border-rule-strong bg-sheet px-1.5 py-1 text-ink"
+          >
+            {GROUPS.map((g) => (
+              <option key={g.key} value={g.key}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={!groups.length}
+          className="rounded border border-rule-strong px-2.5 py-1 text-[14px] hover:bg-sheet disabled:opacity-50"
+        >
+          Download CSV
+        </button>
         <Input
           type="search"
           placeholder="Find a stock, fund, sector or ISIN"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-80"
+          className="w-72"
           aria-label="Filter holdings"
         />
       </PageHeader>
@@ -129,17 +210,16 @@ export function Holdings() {
               <SortHeader k="gainPct">Return</SortHeader>
             </tr>
           </thead>
-          {groups.map(({ cls, rows }) => {
+          {groups.map(({ key, label, color, rows }) => {
             const t = totals(rows)
             return (
-              <tbody key={cls}>
+              <tbody key={key}>
                 <tr className="border-b border-rule-strong">
                   <th colSpan={5} className="pt-6 pb-1.5 text-left">
-                    <span
-                      className="mr-2 inline-block size-2.5 rounded-[2px] align-middle"
-                      style={{ background: ASSET_COLORS[cls] }}
-                    />
-                    <span className="wide text-[16px] font-semibold">{ASSET_LABELS[cls]}</span>
+                    {color && (
+                      <span className="mr-2 inline-block size-2.5 rounded-[2px] align-middle" style={{ background: color }} />
+                    )}
+                    <span className="wide text-[16px] font-semibold">{label}</span>
                     <span className="ml-2 text-[13px] font-normal text-ink-muted">{rows.length}</span>
                   </th>
                   <td className={`num pt-6 pb-1.5 ${toneClass(t.dayChange)}`}>

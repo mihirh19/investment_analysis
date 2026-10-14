@@ -720,10 +720,31 @@ export interface PerformanceReport {
   }
 }
 
+export type Theme = 'light' | 'dark' | 'system'
+
+export interface HealthCheck {
+  key: string
+  /** WARN: makes numbers incomplete or costs money; INFO: worth a look; OK: passed. */
+  status: 'OK' | 'WARN' | 'INFO'
+  title: string
+  detail: string | null
+  link: string | null
+  linkLabel: string
+}
+
+export interface HealthReport {
+  checks: HealthCheck[]
+  issues: number
+}
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
 /** Everything the renderer can ask the main process to do (request/response over IPC). */
 export interface RequestApi {
+  getTheme(): Promise<ApiResult<Theme>>
+  setTheme(theme: Theme): Promise<ApiResult<null>>
+  /** The Overview checklist: missing buy prices, old prices, Regular plans, off-target mix and more. */
+  getHealth(personId?: number): Promise<ApiResult<HealthReport>>
   listPersons(): Promise<ApiResult<Person[]>>
   savePerson(p: Omit<Person, 'id'> & { id?: number }): Promise<ApiResult<Person>>
   listAccounts(): Promise<ApiResult<Account[]>>

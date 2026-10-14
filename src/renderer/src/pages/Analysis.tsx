@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { ChartGroup } from '@shared/assets'
-import type { AssetClass } from '@shared/types'
+import type { AssetClass, HoldingRow } from '@shared/types'
 import { Columns, StackBar } from '../components/charts'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { PageSkeleton } from '../components/Skeleton'
 import { AreaStack, DivergingBars, Donut, StackedColumns, Treemap } from '../components/viz'
-import { useAnalysis } from '../lib/api'
+import { useAnalysis, useHoldings } from '../lib/api'
+import { HoldingDetail } from '../components/HoldingDetail'
 import { compactMoney, money, percent, shortDate, signedMoney, toneClass } from '../lib/format'
 import {
   ASSET_COLORS,
@@ -17,13 +19,8 @@ import {
 } from '../lib/labels'
 import { stagger, useCountUp } from '../lib/motion'
 import { scopePersonId, useScope } from '../lib/scope'
+import { PeriodPicker, periodStartIndex, usePeriod } from '../lib/period'
 
-const RANGES = [
-  { key: 12, label: '1Y' },
-  { key: 36, label: '3Y' },
-  { key: 60, label: '5Y' },
-  { key: 0, label: 'All' }
-] as const
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)}%`)
@@ -55,13 +52,14 @@ export function Analysis() {
   const { scope } = useScope()
   const q = useAnalysis(scopePersonId(scope))
   const a = q.data
-  const [range, setRange] = useState<number>(36)
+  const { period } = usePeriod()
+  const holdings = useHoldings(scopePersonId(scope))
+  const [open, setOpen] = useState<HoldingRow | null>(null)
   const xirrShown = useCountUp((a?.xirr.overall ?? 0) * 100)
 
   const hist = useMemo(() => {
     if (!a) return null
-    const n = a.history.months.length
-    const from = range === 0 ? 0 : Math.max(0, n - range - 1)
+    const from = periodStartIndex(a.history.months, period)
     return {
       dates: a.history.months.slice(from),
       series: a.history.series.map((s) => ({
@@ -71,7 +69,7 @@ export function Analysis() {
         values: s.values.slice(from)
       }))
     }
-  }, [a, range])
+  }, [a, period])
 
   const donut = useMemo(() => {
     if (!a) return []
@@ -107,6 +105,7 @@ export function Analysis() {
       <>
         <PageHeader title="Analysis" />
         <ErrorNote error={q.error} />
+        {q.isLoading && <PageSkeleton />}
         {!q.isLoading && <p className="py-8 text-ink-muted">Add holdings to see the analysis.</p>}
       </>
     )
@@ -117,7 +116,9 @@ export function Analysis() {
 
   return (
     <>
-      <PageHeader title="Analysis" />
+      <PageHeader title="Analysis">
+        <PeriodPicker />
+      </PageHeader>
       <ErrorNote error={q.error} />
 
       {/* Headline: the money-weighted return and the few numbers that frame it. */}
@@ -162,25 +163,9 @@ export function Analysis() {
         title="Net worth over time"
         note="Month-end values: units held on each date × that week's price; deposits and bonds by their terms. Holdings without trade history count from their first statement."
       >
-        <div role="radiogroup" aria-label="Range" className="mb-2 flex gap-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              role="radio"
-              aria-checked={range === r.key}
-              onClick={() => setRange(r.key)}
-              className={
-                'rounded px-2.5 py-0.5 text-[13px] transition-colors ' +
-                (range === r.key ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-sheet')
-              }
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
         {hist && (
           <AreaStack
-            key={range}
+            key={period}
             dates={hist.dates}
             series={hist.series}
             label="Net worth by type over time"
@@ -421,14 +406,16 @@ export function Analysis() {
       >
         <Treemap
           label="Holdings by value, coloured by return"
-          items={a.treemap.map((t, i) => ({
-            key: `${t.name}-${i}`,
+          items={a.treemap.map((t) => ({
+            key: String(t.instrumentId),
             name: t.name,
             value: t.valueInr,
             gainPct: t.gainPct
           }))}
           format={(v) => money(v)}
+          onSelect={(key) => setOpen((holdings.data ?? []).find((r) => String(r.instrumentId) === key) ?? null)}
         />
+        <p className="mt-2 text-[13px] text-ink-muted">Click a tile to open that holding.</p>
       </Section>
 
       {a.movers.length > 0 && (
@@ -449,6 +436,7 @@ export function Analysis() {
           />
         </Section>
       )}
+      {open && <HoldingDetail row={open} onClose={() => setOpen(null)} />}
     </>
   )
 }

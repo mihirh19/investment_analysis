@@ -3,7 +3,8 @@ import { PLATFORM_LABELS, type AssetClass, type ManualTxnInput, type Platform } 
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { Button, Field, Input, Select } from '../components/ui'
 import { useAddManual, useDeleteTransaction, usePersons, useTransactions } from '../lib/api'
-import { money, shortDate, units } from '../lib/format'
+import { financialYear, money, shortDate, units } from '../lib/format'
+import { DataTable } from '../components/DataTable'
 import { ASSET_LABELS, TXN_LABELS } from '../lib/labels'
 import { scopePersonId, useScope } from '../lib/scope'
 
@@ -41,54 +42,80 @@ export function Activity() {
       )}
 
       {(txns.data ?? []).length > 0 && (
-        <table className="w-full text-[15px]">
-          <thead className="sticky top-0 bg-paper">
-            <tr className="border-b border-rule-strong text-left text-[13px] text-ink-muted">
-              <th className="py-1.5 font-medium">Date</th>
-              <th className="py-1.5 font-medium">Holding</th>
-              <th className="py-1.5 font-medium">Entry</th>
-              <th className="num py-1.5 font-medium">Units</th>
-              <th className="num py-1.5 font-medium">Price</th>
-              <th className="num py-1.5 font-medium">Amount</th>
-              <th className="py-1.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {txns.data!.map((t) => (
-              <tr key={t.id} className="border-b border-rule align-top">
-                <td className="num py-2 pr-4 text-left">{shortDate(t.date)}</td>
-                <td className="py-2 pr-4">
+        <DataTable
+          id="activity"
+          rows={txns.data!}
+          rowKey={(t) => String(t.id)}
+          initialSort={{ key: 'date', desc: true }}
+          filterPlaceholder="Filter by holding, account, entry or source"
+          csvName="activity"
+          groups={[
+            { key: 'holding', label: 'Holding', value: (t) => t.instrumentName },
+            { key: 'account', label: 'Account', value: (t) => t.accountName },
+            { key: 'type', label: 'Entry', value: (t) => TXN_LABELS[t.type] },
+            { key: 'year', label: 'Financial year', value: (t) => financialYear(t.date) }
+          ]}
+          columns={[
+            { key: 'date', header: 'Date', value: (t) => t.date, render: (t) => shortDate(t.date), className: 'whitespace-nowrap' },
+            {
+              key: 'holding',
+              header: 'Holding',
+              always: true,
+              value: (t) => t.instrumentName,
+              render: (t) => (
+                <>
                   <div className="leading-snug">{t.instrumentName}</div>
                   <div className="condensed text-[13px] text-ink-muted">
                     <span className="mr-3">{t.accountName}</span>
                     {sourceLabel(t.source)}
                   </div>
-                </td>
-                <td className="py-2">{TXN_LABELS[t.type]}</td>
-                <td className="num py-2">{t.quantity ? units(t.quantity) : ''}</td>
-                <td className="num py-2">{t.price !== null ? money(t.price, t.currency, 2) : ''}</td>
-                <td className={`num py-2 ${t.amount > 0 ? 'text-gain' : ''}`}>{money(t.amount, t.currency, 2)}</td>
-                <td className="py-1 pl-2 text-right">
-                  {t.source === 'MANUAL' && (
-                    <Button
-                      variant="danger"
-                      className="px-2 py-0.5 text-[13px]"
-                      disabled={del.isPending}
-                      onClick={() => {
-                        if (confirm(`Delete this ${TXN_LABELS[t.type].toLowerCase()} of ${t.instrumentName}?`))
-                          del.mutate(t.id)
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </>
+                </>
+              )
+            },
+            { key: 'account', header: 'Account', hidden: true, value: (t) => t.accountName },
+            { key: 'source', header: 'Source', hidden: true, value: (t) => sourceLabel(t.source) },
+            { key: 'type', header: 'Entry', value: (t) => TXN_LABELS[t.type] },
+            { key: 'units', header: 'Units', align: 'right', value: (t) => t.quantity || null, render: (t) => (t.quantity ? units(t.quantity) : '') },
+            {
+              key: 'price',
+              header: 'Price',
+              align: 'right',
+              value: (t) => t.price,
+              render: (t) => (t.price !== null ? money(t.price, t.currency, 2) : '')
+            },
+            { key: 'currency', header: 'Currency', hidden: true, value: (t) => t.currency },
+            {
+              key: 'amount',
+              header: 'Amount',
+              align: 'right',
+              value: (t) => t.amount,
+              render: (t) => <span className={t.amount > 0 ? 'text-gain' : ''}>{money(t.amount, t.currency, 2)}</span>
+            },
+            {
+              key: 'actions',
+              header: '',
+              always: true,
+              sortable: false,
+              noCsv: true,
+              value: () => null,
+              render: (t) =>
+                t.source === 'MANUAL' ? (
+                  <Button
+                    variant="danger"
+                    className="px-2 py-0.5 text-[13px]"
+                    disabled={del.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (confirm(`Delete this ${TXN_LABELS[t.type].toLowerCase()} of ${t.instrumentName}?`)) del.mutate(t.id)
+                    }}
+                  >
+                    Delete
+                  </Button>
+                ) : null
+            }
+          ]}
+        />
+      )}    </>
   )
 }
 
