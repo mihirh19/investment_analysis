@@ -136,6 +136,8 @@ export interface HoldingRow {
   dayChangeInr: number | null
   /** Where the buy price came from; null when it isn't known. */
   costSource: CostSource | null
+  /** First bought on, when known without a trade history (INDmoney, or typed in). */
+  heldSince?: string | null
 }
 
 /**
@@ -330,7 +332,14 @@ export interface NpsHoldingInput {
 }
 
 export type ImportKind =
-  'CAS_PDF' | 'ZERODHA_TRADEBOOK' | 'GROWW_ORDERS' | 'GENERIC_TRADES' | 'BROKER_HOLDINGS' | 'FUND_PORTFOLIO' | 'MANUAL'
+  | 'CAS_PDF'
+  | 'ZERODHA_TRADEBOOK'
+  | 'GROWW_ORDERS'
+  | 'GENERIC_TRADES'
+  | 'BROKER_HOLDINGS'
+  | 'INDMONEY_US'
+  | 'FUND_PORTFOLIO'
+  | 'MANUAL'
 
 export interface ImportRequest {
   kind: ImportKind
@@ -552,7 +561,13 @@ export interface FundsReport {
     }[]
   }
   /** Companies reached through more than one route, largest first. */
-  companies: { name: string; isin: string | null; valueInr: number; directInr: number; sources: { label: string; valueInr: number }[] }[]
+  companies: {
+    name: string
+    isin: string | null
+    valueInr: number
+    directInr: number
+    sources: { label: string; valueInr: number }[]
+  }[]
   byHouse: { name: string; valueInr: number; funds: string[] }[]
   byCategory: { group: string; name: string; valueInr: number; funds: string[] }[]
   notes: string[]
@@ -606,6 +621,12 @@ export interface OpenLot {
   kind: TaxKind
   /** First day a sale would be long-term (null: never, e.g. debt funds bought after Mar 2023). */
   longTermFrom: string | null
+  /**
+   * Set when there is no trade history and the lot is built from what is known instead:
+   * HELD_SINCE a first-bought date (INDmoney, or typed in); OVER_A_YEAR / WITHIN_A_YEAR the
+   * broker's long-term quantity, dated conservatively.
+   */
+  estimatedFrom?: 'HELD_SINCE' | 'OVER_A_YEAR' | 'WITHIN_A_YEAR'
 }
 
 export interface TaxYearSummary {
@@ -693,7 +714,12 @@ export interface PerformanceReport {
   maxDrawdown: { depth: number; peak: string; trough: string; recovered: string | null } | null
   /** Trailing 12-month return at each date (null for the first 11 months). */
   rolling12: (number | null)[]
-  trailing: { key: '1Y' | '3Y' | '5Y' | 'ALL'; years: number; twr: number | null; benchmarks: Record<string, number | null> }[]
+  trailing: {
+    key: '1Y' | '3Y' | '5Y' | 'ALL'
+    years: number
+    twr: number | null
+    benchmarks: Record<string, number | null>
+  }[]
   years: PerformanceYear[]
   benchmarks: {
     key: string
@@ -804,7 +830,10 @@ export interface RequestApi {
   /** Yearly risk-free rate (0.07 = 7%) for the Sharpe and Sortino ratios. */
   setRiskFreeRate(rate: number): Promise<ApiResult<null>>
   /** Target allocation, drift and suggested trades for new money (and sales, if allowed). */
-  getRebalance(personId: number | undefined, opts: { newMoneyInr: number; allowSells: boolean }): Promise<ApiResult<RebalanceReport>>
+  getRebalance(
+    personId: number | undefined,
+    opts: { newMoneyInr: number; allowSells: boolean }
+  ): Promise<ApiResult<RebalanceReport>>
   /** Saves the target allocation for a person, or the family when personId is null; null targets removes it. */
   setTargets(personId: number | null, targets: Targets | null): Promise<ApiResult<null>>
   /** Your own average buy price for a holding (null removes it). */
@@ -813,6 +842,7 @@ export interface RequestApi {
     accountId: number
     instrumentId: number
     avgCost: number | null
+    heldSince?: string | null
   }): Promise<ApiResult<null>>
 
   getDisclosureStatus(): Promise<ApiResult<DisclosureStatus[]>>

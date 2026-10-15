@@ -20,6 +20,8 @@ export interface BrokerHoldingRow {
   quantity: number | null
   avgCost: number | null
   invested: number | null
+  /** Units held over a year (Zerodha's "Quantity Long Term"). */
+  longTermQty: number | null
 }
 
 const NAME = [
@@ -101,6 +103,7 @@ export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
       const iInv = col(headers, INVESTED)
       if ((iIsin < 0 && iName < 0) || (iAvg < 0 && iInv < 0)) continue
       const iQty = col(headers, QTY)
+      const iLong = headers.findIndex((h) => h === 'quantity long term')
       // Zerodha's export says "Quantity Available"; Groww's "Average buy price".
       if (!platform) {
         if (headers.includes('quantity available') || /zerodha|kite|console|coin/.test(text)) platform = 'ZERODHA'
@@ -129,7 +132,8 @@ export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
           symbol: looksLikeSymbol ? nameRaw : null,
           quantity,
           avgCost: avgCost && avgCost > 0 ? avgCost : null,
-          invested: invested && invested > 0 ? invested : null
+          invested: invested && invested > 0 ? invested : null,
+          longTermQty: iLong >= 0 ? parseNumber(line[iLong]) : null
         })
       }
       break
@@ -224,6 +228,7 @@ export function importBrokerHoldings(
           instrumentId: matches[0].instrumentId,
           avgCost: avg,
           quantity: r.quantity,
+          longTermQty: r.longTermQty,
           asOf,
           source: 'BROKER' as const,
           importBatchId: batch.id
@@ -271,7 +276,13 @@ export function importBrokerHoldings(
 /** A buy price typed in for one holding; null removes it. */
 export function setManualCost(
   db: Db,
-  input: { personId: number; accountId: number; instrumentId: number; avgCost: number | null }
+  input: {
+    personId: number
+    accountId: number
+    instrumentId: number
+    avgCost: number | null
+    heldSince?: string | null
+  }
 ): void {
   const where = and(
     eq(schema.costBasis.personId, input.personId),
@@ -283,7 +294,64 @@ export function setManualCost(
   if (input.avgCost !== null) {
     if (!(input.avgCost > 0)) throw new Error('Enter a buy price above zero')
     db.insert(schema.costBasis)
-      .values({ ...input, avgCost: input.avgCost, source: 'MANUAL', asOf: new Date().toISOString().slice(0, 10) })
+      .values({
+        personId: input.personId,
+        accountId: input.accountId,
+        instrumentId: input.instrumentId,
+        avgCost: input.avgCost,
+        heldSince: input.heldSince ?? null,
+        source: 'MANUAL',
+        asOf: new Date().toISOString().slice(0, 10)
+      })
+      .run()
+  }
+}
+
+/** INDmoney's "Holding Since" and average price for each US holding just imported. */
+export function saveIndmoneyDates(
+  db: Db,
+  personId: number,
+  batchId: number,
+  report: { holdings: { symbol: string; heldSince: string | null; quantity: number; avgCost: number }[]; asOf: string }
+): void {
+  const account = db
+    .select()
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.personId, personId),
+        eq(schema.accounts.platform, 'INDMONEY'),
+        eq(schema.accounts.kind, 'US_BROKER')
+      )
+    )
+    .get()
+  if (!account) return
+  for (const h of report.holdings) {
+    const inst = db
+      .select()
+      .from(schema.instruments)
+      .where(and(eq(schema.instruments.tickerUs, h.symbol), eq(schema.instruments.assetClass, 'EQUITY_US')))
+      .get()
+    if (!inst) continue
+    const key = and(
+      eq(schema.costBasis.personId, personId),
+      eq(schema.costBasis.accountId, account.id),
+      eq(schema.costBasis.instrumentId, inst.id),
+      eq(schema.costBasis.source, 'BROKER')
+    )
+    db.delete(schema.costBasis).where(key).run()
+    db.insert(schema.costBasis)
+      .values({
+        personId,
+        accountId: account.id,
+        instrumentId: inst.id,
+        avgCost: h.avgCost,
+        quantity: h.quantity,
+        heldSince: h.heldSince,
+        asOf: report.asOf,
+        source: 'BROKER',
+        importBatchId: batchId
+      })
       .run()
   }
 }

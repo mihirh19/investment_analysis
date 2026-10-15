@@ -57,6 +57,13 @@
       "when": 1791880903362,
       "tag": "0007_price_daily",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792055825306,
+      "tag": "0008_cost_basis_dates",
+      "breakpoints": true
     }
   ]
 }

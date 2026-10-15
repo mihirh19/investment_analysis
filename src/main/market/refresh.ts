@@ -18,6 +18,7 @@ import { refreshBenchmarks, refreshDaily } from './benchmarks'
 import { refreshGrandfathering } from './grandfather'
 import { refreshDirectPlans } from './directPlans'
 import { refreshMarketCaps } from './marketcap'
+import { reclassifyDemat, tidyListedNames } from '../importers/isin'
 import { syncDisclosures, type DisclosureDeps } from './disclosures'
 import { fromIndustryText, fromNseIndustry, fromYahoo } from './sectors'
 import { yahooDividends, yahooHistory, yahooProfile, yahooQuote, yahooSymbolForIsin, YahooSession } from './yahoo'
@@ -504,6 +505,9 @@ export class MarketData {
         tx.insert(schema.nseListings).values(v).onConflictDoUpdate({ target: schema.nseListings.isin, set: v }).run()
       }
     })
+    // With NSE's list in hand: ETFs a statement filed as funds, and plain company names.
+    reclassifyDemat(this.db)
+    tidyListedNames(this.db)
   }
 
   private async ensureNseList(): Promise<void> {

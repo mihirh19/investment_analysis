@@ -215,6 +215,10 @@ export const costBasis = sqliteTable(
     /** Units the price was given for, when known. */
     quantity: real('quantity'),
     asOf: text('as_of').notNull(),
+    /** First bought on (INDmoney's "Holding Since", or typed in); dates the tax lot. */
+    heldSince: text('held_since'),
+    /** Units held over a year as of asOf (Zerodha's "Quantity Long Term"). */
+    longTermQty: real('long_term_qty'),
     source: text('source').$type<'BROKER' | 'MANUAL'>().notNull(),
     importBatchId: integer('import_batch_id').references(() => importBatches.id, { onDelete: 'cascade' })
   },

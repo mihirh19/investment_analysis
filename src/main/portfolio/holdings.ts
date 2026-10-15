@@ -82,11 +82,12 @@ export function listHoldings(db: Db, personId?: number): HoldingRow[] {
   }
 
   // Buy prices from broker files or typed in (statements from the depositories have none).
-  const basis = new Map<string, { avg: number; source: 'BROKER' | 'MANUAL'; asOf: string }>()
+  const basis = new Map<string, { avg: number; source: 'BROKER' | 'MANUAL'; asOf: string; heldSince: string | null }>()
   for (const b of db.select().from(schema.costBasis).all()) {
     const k = `${b.source}:${b.accountId ? `a${b.accountId}` : `p${b.personId}`}:${b.instrumentId}`
     const prev = basis.get(k)
-    if (!prev || b.asOf > prev.asOf) basis.set(k, { avg: b.avgCost, source: b.source, asOf: b.asOf })
+    if (!prev || b.asOf > prev.asOf)
+      basis.set(k, { avg: b.avgCost, source: b.source, asOf: b.asOf, heldSince: b.heldSince })
   }
   // The newest statement that did print a cost, per account + instrument.
   const earlier = new Map<string, number>()
@@ -102,12 +103,12 @@ export function listHoldings(db: Db, personId?: number): HoldingRow[] {
     accountId: number,
     instrumentId: number,
     snap: { quantity: number; cost: number | null } | undefined
-  ): { avg: number; source: CostSource } | null => {
+  ): { avg: number; source: CostSource; heldSince?: string | null } | null => {
     const typed = basis.get(`MANUAL:a${accountId}:${instrumentId}`) ?? basis.get(`MANUAL:p${personId}:${instrumentId}`)
-    if (typed) return { avg: typed.avg, source: 'MANUAL' }
+    if (typed) return { avg: typed.avg, source: 'MANUAL', heldSince: typed.heldSince }
     if (snap?.cost != null && snap.quantity > EPS) return { avg: snap.cost / snap.quantity, source: 'STATEMENT' }
     const broker = basis.get(`BROKER:a${accountId}:${instrumentId}`) ?? basis.get(`BROKER:p${personId}:${instrumentId}`)
-    if (broker) return { avg: broker.avg, source: 'BROKER' }
+    if (broker) return { avg: broker.avg, source: 'BROKER', heldSince: broker.heldSince }
     const old = earlier.get(`${accountId}:${instrumentId}`)
     return old !== undefined ? { avg: old, source: 'EARLIER' } : null
   }
@@ -129,6 +130,7 @@ export function listHoldings(db: Db, personId?: number): HoldingRow[] {
     let invested: number | null = fifo.invested
     let costFromLots = true
     let costSource: CostSource | null = fifo.invested !== null && txns.length > 0 ? 'TRADES' : null
+    let heldSince: string | null = null
     let tradesQuantity: number | null = null
 
     if (snap) {
@@ -142,6 +144,7 @@ export function listHoldings(db: Db, personId?: number): HoldingRow[] {
         avgCost = c?.avg ?? null
         invested = avgCost !== null ? avgCost * quantity : null
         costSource = c?.source ?? null
+        heldSince = c?.heldSince ?? null
         costFromLots = false
       }
     }
@@ -231,7 +234,8 @@ export function listHoldings(db: Db, personId?: number): HoldingRow[] {
       investedInr,
       unrealizedPnlInr: marketValueInr !== null && investedInr !== null ? marketValueInr - investedInr : null,
       dayChangeInr: dayChange !== null && fxRate ? dayChange * fxRate : null,
-      costSource: invested !== null ? costSource : null
+      costSource: invested !== null ? costSource : null,
+      heldSince
     })
   }
 

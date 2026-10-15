@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { PLATFORM_LABELS, type Platform, type TxnType } from '@shared/types'
 import { emptyBundle, rowHash, type ImportBundle, type NormAccount, type NormInstrument } from './bundle'
-import { dematClass } from './isin'
+import { dematClass, isEtfName } from './isin'
 import { parseDate, parseNumber } from './parse'
 
 // ---- casparser JSON (by_alias) — see tools/casparser and casparser/types.py ----
@@ -359,6 +359,9 @@ function mapDepository(j: DepositoryCas): ImportBundle {
     }
     for (const mf of a.mutual_funds) {
       const instr = mfInstrument(mf.name ?? mf.isin, mf.isin, mf.amfi, mf.type)
+      // CDSL lists ETF units (NIFTYBEES, MOM100) with the demat account's mutual funds; they trade
+      // like shares and are priced live, as the broker shows them.
+      if (isEtfName(instr.name)) instr.assetClass = 'ETF'
       addInstr(instr)
       pushSnapshot(acct.key, instr.key, mf.balance, mf.nav, mf.value, mf.total_cost)
     }

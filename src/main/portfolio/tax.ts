@@ -180,6 +180,78 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
     }
   }
 
+  // ---------- opening lots for holdings with no trade history ----------
+  // A statement plus a broker's holdings file give units and average cost but not dates. When the
+  // date is known (INDmoney's "Holding Since", or typed in) the holding becomes one lot from that
+  // date; when the broker says how many units are over a year old (Zerodha's "Quantity Long Term"),
+  // those are dated a year and a day before the file and the rest today, so they are never shown
+  // as long-term too early.
+  const dates = new Map<
+    string,
+    { heldSince: string | null; longTermQty: number | null; asOf: string; manual: boolean }
+  >()
+  for (const b of db.select().from(schema.costBasis).all()) {
+    if (!b.heldSince && b.longTermQty === null) continue
+    for (const k of [b.accountId ? `a${b.accountId}:${b.instrumentId}` : `p${b.personId}:${b.instrumentId}`]) {
+      const prev = dates.get(k)
+      const manual = b.source === 'MANUAL'
+      if (!prev || (manual && !prev.manual) || (manual === prev.manual && b.asOf > prev.asOf))
+        dates.set(k, { heldSince: b.heldSince, longTermQty: b.longTermQty, asOf: b.asOf, manual })
+    }
+  }
+  for (const row of rows) {
+    const k = `${row.accountId}:${row.instrumentId}`
+    if (lotPairs.has(k) || !accountById.has(row.accountId)) continue
+    const inst = instruments.get(row.instrumentId)
+    const cls = inst ? taxClassOf(inst) : null
+    if (!inst || !cls || row.investedInr === null || row.marketValueInr === null || row.quantity <= 0) continue
+    const d = dates.get(`a${row.accountId}:${row.instrumentId}`) ?? dates.get(`p${row.personId}:${row.instrumentId}`)
+    if (!d) continue
+    const parts: { units: number; date: string; from: NonNullable<OpenLot['estimatedFrom']> }[] = []
+    if (d.heldSince) parts.push({ units: row.quantity, date: d.heldSince, from: 'HELD_SINCE' })
+    else if (d.longTermQty !== null) {
+      const long = Math.min(row.quantity, Math.max(0, d.longTermQty))
+      if (long > 1e-9) parts.push({ units: long, date: addDays(d.asOf, -366), from: 'OVER_A_YEAR' })
+      if (row.quantity - long > 1e-9) parts.push({ units: row.quantity - long, date: d.asOf, from: 'WITHIN_A_YEAR' })
+    }
+    if (parts.length === 0) continue
+    lotPairs.add(k)
+    const fmvPerUnit = fmv.get(row.instrumentId) ?? null
+    for (const p of parts) {
+      const share = p.units / row.quantity
+      const value = row.marketValueInr * share
+      let cost = row.investedInr * share
+      const tr = treatment(cls, p.date, today)
+      // Grandfathering needs a real pre-2018 date; an estimated "over a year" date never qualifies.
+      if (cls === 'EQUITY' && tr.term === 'LT' && p.from === 'HELD_SINCE' && p.date <= GRANDFATHER_DATE) {
+        if (fmvPerUnit === null) missingFmv.add(inst.name)
+        else cost = grandfatheredCost(cost, fmvPerUnit * p.units, value)
+      }
+      lots.push({
+        personId: row.personId,
+        personName: row.personName,
+        accountName: row.accountName,
+        accountId: row.accountId,
+        instrumentId: row.instrumentId,
+        name: inst.name,
+        taxClass: cls,
+        buyDate: p.date,
+        units: p.units,
+        costInr: cost,
+        valueInr: value,
+        gainInr: value - cost,
+        term: tr.term,
+        kind: tr.kind,
+        longTermFrom: tr.longTermFrom,
+        estimatedFrom: p.from
+      })
+    }
+  }
+  if (lots.some((l) => l.estimatedFrom === 'OVER_A_YEAR'))
+    warnings.push(
+      'Some holdings have no trade history, so their purchase dates are estimated from the broker\'s long-term quantity (shown as "over a year"). Units bought before Feb 2018 may owe less tax than shown: import the broker\'s tradebook for exact dates, or enter the date a holding was first bought.'
+    )
+
   // ---------- each person's financial years ----------
   const groups = new Map<string, RealizedGain[]>()
   for (const g of realized) {
@@ -215,7 +287,12 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
   const peopleInScope = [...new Set(accounts.map((a) => a.personId))]
   const exemptionLeft = peopleInScope.map((pid) => {
     const y = years.find((x) => x.personId === pid && x.current)
-    return { personId: pid, personName: persons.get(pid) ?? '', left: Math.max(0, limit - (y?.exemptionUsed ?? 0)), limit }
+    return {
+      personId: pid,
+      personName: persons.get(pid) ?? '',
+      left: Math.max(0, limit - (y?.exemptionUsed ?? 0)),
+      limit
+    }
   })
   const harvest: HarvestIdea[] = []
   for (const e of exemptionLeft) {

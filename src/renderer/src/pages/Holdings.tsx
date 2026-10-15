@@ -93,7 +93,24 @@ export function Holdings() {
 
   const exportCsv = () =>
     downloadCsv('holdings.csv', [
-      ['Holding', 'Symbol', 'ISIN', 'Type', 'Person', 'Account', 'Units', 'Avg cost', 'Price', 'Currency', 'Price source', 'Value (INR)', 'Invested (INR)', 'Gain (INR)', 'Return', 'Day change (INR)'],
+      [
+        'Holding',
+        'Symbol',
+        'ISIN',
+        'Type',
+        'Person',
+        'Account',
+        'Units',
+        'Avg cost',
+        'Price',
+        'Currency',
+        'Price source',
+        'Value (INR)',
+        'Invested (INR)',
+        'Gain (INR)',
+        'Return',
+        'Day change (INR)'
+      ],
       ...groups.flatMap((g) =>
         g.rows.map((r) => [
           r.instrumentName,
@@ -196,7 +213,7 @@ export function Holdings() {
       )}
 
       {groups.length > 0 && (
-        <table className="w-full text-[15px]">
+        <table className="w-full text-[15px] [&_.num]:pl-4 [&_.num]:whitespace-nowrap">
           <thead className="sticky top-0 z-10 bg-paper">
             <tr className="border-b border-rule-strong text-left text-[13px] text-ink-muted">
               <SortHeader k="name">Holding</SortHeader>
@@ -217,7 +234,10 @@ export function Holdings() {
                 <tr className="border-b border-rule-strong">
                   <th colSpan={5} className="pt-6 pb-1.5 text-left">
                     {color && (
-                      <span className="mr-2 inline-block size-2.5 rounded-[2px] align-middle" style={{ background: color }} />
+                      <span
+                        className="mr-2 inline-block size-2.5 rounded-[2px] align-middle"
+                        style={{ background: color }}
+                      />
                     )}
                     <span className="wide text-[16px] font-semibold">{label}</span>
                     <span className="ml-2 text-[13px] font-normal text-ink-muted">{rows.length}</span>

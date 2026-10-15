@@ -41,8 +41,13 @@ function useInvalidateAll() {
 export function useSetBuyPrice() {
   const invalidate = useInvalidateAll()
   return useMutation({
-    mutationFn: (input: { personId: number; accountId: number; instrumentId: number; avgCost: number | null }) =>
-      unwrap(api().setBuyPrice(input)),
+    mutationFn: (input: {
+      personId: number
+      accountId: number
+      instrumentId: number
+      avgCost: number | null
+      heldSince?: string | null
+    }) => unwrap(api().setBuyPrice(input)),
     onSuccess: invalidate
   })
 }
@@ -166,14 +171,16 @@ export const useRebalance = (personId: number | undefined, opts: { newMoneyInr: 
 export function useSetTargets() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (v: { personId: number | null; targets: Targets | null }) => unwrap(api().setTargets(v.personId, v.targets)),
+    mutationFn: (v: { personId: number | null; targets: Targets | null }) =>
+      unwrap(api().setTargets(v.personId, v.targets)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rebalance'] })
   })
 }
 
 export const useHealth = (personId?: number) =>
   useQuery({ queryKey: ['health', personId ?? 'all'], queryFn: () => unwrap(api().getHealth(personId)) })
-export const useTheme = () => useQuery({ queryKey: ['theme'], queryFn: () => unwrap(api().getTheme()), staleTime: Infinity })
+export const useTheme = () =>
+  useQuery({ queryKey: ['theme'], queryFn: () => unwrap(api().getTheme()), staleTime: Infinity })
 export function useSetTheme() {
   const qc = useQueryClient()
   return useMutation({

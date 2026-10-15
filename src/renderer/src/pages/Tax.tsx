@@ -6,7 +6,14 @@ import { PageSkeleton } from '../components/Skeleton'
 import { StackedColumns } from '../components/viz'
 import { DataTable, downloadCsv } from '../components/DataTable'
 import { useTax } from '../lib/api'
-import { compactMoney, money as money2, shortDate, signedMoney as signed2, toneClass, units as fmtUnits } from '../lib/format'
+import {
+  compactMoney,
+  money as money2,
+  shortDate,
+  signedMoney as signed2,
+  toneClass,
+  units as fmtUnits
+} from '../lib/format'
 import { stagger } from '../lib/motion'
 import { scopePersonId, useScope } from '../lib/scope'
 
@@ -19,11 +26,24 @@ const KIND_LABELS: Record<TaxKind, string> = {
 
 // Whole rupees throughout: tax figures don't need paise.
 const money = (v: number | null | undefined) => money2(v, 'INR', 0)
-const signedMoney = (v: number | null | undefined) => (v !== null && v !== undefined && Math.abs(v) < 0.5 ? money(0) : signed2(v === null || v === undefined ? v : Math.round(v)))
+const signedMoney = (v: number | null | undefined) =>
+  v !== null && v !== undefined && Math.abs(v) < 0.5
+    ? money(0)
+    : signed2(v === null || v === undefined ? v : Math.round(v))
 
 const rate = (r: number | null) => (r === null ? 'slab' : `${+(r * 100).toFixed(1)}%`)
 
-function Section({ id, title, note, children }: { id: string; title: string; note?: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  id,
+  title,
+  note,
+  children
+}: {
+  id: string
+  title: string
+  note?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <section aria-labelledby={id} className="mt-14">
       <h2 id={id} className="wide text-[19px] font-semibold">
@@ -84,7 +104,6 @@ function export112A(fy: string, person: string, sales: RealizedGain[]) {
   ])
 }
 
-
 // ---------------- page ----------------
 
 export function Tax() {
@@ -109,13 +128,13 @@ export function Tax() {
       <ErrorNote error={q.error} />
       <p className="max-w-[86ch] text-[14px] text-ink-muted">
         Capital gains worked out from your trade history, sale by sale, oldest units first (as the tax rules require).
-        These are estimates to plan with, not a tax return: rates are before the 4% cess and any surcharge, gains at your
-        slab rate are shown but not taxed here, and older losses carried forward aren't included.
+        These are estimates to plan with, not a tax return: rates are before the 4% cess and any surcharge, gains at
+        your slab rate are shown but not taxed here, and older losses carried forward aren't included.
       </p>
       {!hasData ? (
         <p className="py-8 text-ink-muted">
-          No trades yet. Import a Zerodha tradebook, Groww orders or a CAS with mutual fund transactions to see your gains
-          by holding period.
+          No trades yet. Import a Zerodha tradebook, Groww orders or a CAS with mutual fund transactions to see your
+          gains by holding period.
         </p>
       ) : (
         <TaxBody t={t} family={scope === 'family'} />
@@ -131,7 +150,7 @@ export function Tax() {
         <Section
           id="estimate-only"
           title="Not included: no purchase history"
-          note="These came only from statements or a broker's holdings file, so their buy dates are unknown and the gains can't be split into short and long term. Import the tradebook for these accounts to include them."
+          note="These came only from statements, so their buy dates are unknown and the gains can't be split into short and long term. Import the tradebook for these accounts, import the broker's holdings file (Zerodha's says which units are over a year old), or open a holding and enter when it was first bought."
         >
           <table className="w-full text-[15px]">
             <thead>
@@ -163,7 +182,8 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
   const fys = useMemo(() => [...new Set(t.years.map((y) => y.fy))].sort().reverse(), [t])
   const [fy, setFy] = useState<string>(fys.includes(t.currentFy) ? t.currentFy : (fys[0] ?? t.currentFy))
   const thisYear = t.years.filter((y) => y.current)
-  const sum = (k: 'shortTermGain' | 'longTermGain' | 'fixedRateTax' | 'slabGain') => thisYear.reduce((s, y) => s + y[k], 0)
+  const sum = (k: 'shortTermGain' | 'longTermGain' | 'fixedRateTax' | 'slabGain') =>
+    thisYear.reduce((s, y) => s + y[k], 0)
   const left = t.exemptionLeft.reduce((s, e) => s + e.left, 0)
   const limit = t.exemptionLeft.reduce((s, e) => s + e.limit, 0)
 
@@ -184,11 +204,17 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
   return (
     <>
       <section aria-label={`This financial year, ${t.currentFy}`} className="mt-8">
-        <h2 className="mb-3 text-[15px] font-semibold text-ink-muted">This financial year ({t.currentFy}), sales so far</h2>
+        <h2 className="mb-3 text-[15px] font-semibold text-ink-muted">
+          This financial year ({t.currentFy}), sales so far
+        </h2>
         <dl className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
           {(
             [
-              ['Short-term gains', signedMoney(sum('shortTermGain')), `${money(sum('slabGain'))} of it at your slab rate`],
+              [
+                'Short-term gains',
+                signedMoney(sum('shortTermGain')),
+                `${money(sum('slabGain'))} of it at your slab rate`
+              ],
               ['Long-term gains', signedMoney(sum('longTermGain')), 'after setting off losses'],
               [
                 'Tax-free long-term left',
@@ -314,8 +340,12 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
                         {family && <span className="ml-2 text-[12px] text-ink-muted">{h.personName}</span>}
                       </td>
                       <td className="num py-1.5">{fmtUnits(h.units)}</td>
-                      <td className={`num py-1.5 ${h.st ? 'text-loss' : 'text-ink-muted'}`}>{h.st ? signedMoney(h.st) : '—'}</td>
-                      <td className={`num py-1.5 ${h.lt ? 'text-loss' : 'text-ink-muted'}`}>{h.lt ? signedMoney(h.lt) : '—'}</td>
+                      <td className={`num py-1.5 ${h.st ? 'text-loss' : 'text-ink-muted'}`}>
+                        {h.st ? signedMoney(h.st) : '—'}
+                      </td>
+                      <td className={`num py-1.5 ${h.lt ? 'text-loss' : 'text-ink-muted'}`}>
+                        {h.lt ? signedMoney(h.lt) : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -327,7 +357,11 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
         </div>
       </Section>
 
-      <Section id="by-year" title="Gains by financial year" note="Realized gains after setting off that year's losses, before the exemption.">
+      <Section
+        id="by-year"
+        title="Gains by financial year"
+        note="Realized gains after setting off that year's losses, before the exemption."
+      >
         {chartYears.length > 0 && (
           <StackedColumns
             label="Realized gains by financial year"
@@ -380,7 +414,11 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
         </div>
       </Section>
 
-      <Section id="unrealized" title="If you sold everything today" note="Gains on the units you still hold, split by how long each lot has been held.">
+      <Section
+        id="unrealized"
+        title="If you sold everything today"
+        note="Gains on the units you still hold, split by how long each lot has been held."
+      >
         <dl className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
           {(
             [
@@ -404,7 +442,11 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
         </details>
       </Section>
 
-      <Section id="sales" title="Sales" note="Each sale, matched to the purchases it used up. Units bought before 1 Feb 2018 use the 31 Jan 2018 price where that is higher (grandfathering).">
+      <Section
+        id="sales"
+        title="Sales"
+        note="Each sale, matched to the purchases it used up. Units bought before 1 Feb 2018 use the 31 Jan 2018 price where that is higher (grandfathering)."
+      >
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-[14px]">
             Financial year
@@ -424,7 +466,13 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
             <button
               key={p}
               type="button"
-              onClick={() => export112A(fy, p, sales.filter((s) => s.personName === p))}
+              onClick={() =>
+                export112A(
+                  fy,
+                  p,
+                  sales.filter((s) => s.personName === p)
+                )
+              }
               className="rounded border border-rule-strong px-3 py-1 text-[14px] hover:bg-sheet"
             >
               Schedule 112A{family ? ` for ${p}` : ''} (CSV)
@@ -450,10 +498,28 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
           columns={[
             { key: 'holding', header: 'Holding', always: true, value: (s) => s.name },
             { key: 'isin', header: 'ISIN', hidden: true, value: (s) => s.isin },
-            { key: 'person', header: 'Person', hidden: !family, value: (s) => s.personName, className: 'text-ink-muted' },
+            {
+              key: 'person',
+              header: 'Person',
+              hidden: !family,
+              value: (s) => s.personName,
+              className: 'text-ink-muted'
+            },
             { key: 'account', header: 'Account', hidden: true, value: (s) => s.accountName },
-            { key: 'bought', header: 'Bought', value: (s) => s.buyDate, render: (s) => shortDate(s.buyDate), className: 'whitespace-nowrap' },
-            { key: 'sold', header: 'Sold', value: (s) => s.sellDate, render: (s) => shortDate(s.sellDate), className: 'whitespace-nowrap' },
+            {
+              key: 'bought',
+              header: 'Bought',
+              value: (s) => s.buyDate,
+              render: (s) => shortDate(s.buyDate),
+              className: 'whitespace-nowrap'
+            },
+            {
+              key: 'sold',
+              header: 'Sold',
+              value: (s) => s.sellDate,
+              render: (s) => shortDate(s.sellDate),
+              className: 'whitespace-nowrap'
+            },
             { key: 'units', header: 'Units', align: 'right', value: (s) => s.units, render: (s) => fmtUnits(s.units) },
             {
               key: 'cost',
@@ -472,8 +538,22 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
                 </>
               )
             },
-            { key: 'actual', header: 'Actual cost', hidden: true, align: 'right', value: (s) => Math.round(s.actualCostInr), render: (s) => money(s.actualCostInr) },
-            { key: 'proceeds', header: 'Sale value', align: 'right', sum: true, value: (s) => Math.round(s.proceedsInr), render: (s) => money(s.proceedsInr) },
+            {
+              key: 'actual',
+              header: 'Actual cost',
+              hidden: true,
+              align: 'right',
+              value: (s) => Math.round(s.actualCostInr),
+              render: (s) => money(s.actualCostInr)
+            },
+            {
+              key: 'proceeds',
+              header: 'Sale value',
+              align: 'right',
+              sum: true,
+              value: (s) => Math.round(s.proceedsInr),
+              render: (s) => money(s.proceedsInr)
+            },
             {
               key: 'gain',
               header: 'Gain',
@@ -495,7 +575,15 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
   )
 }
 
-function LotTable({ lots, family, showLongFrom = false }: { lots: OpenLot[]; family: boolean; showLongFrom?: boolean }) {
+function LotTable({
+  lots,
+  family,
+  showLongFrom = false
+}: {
+  lots: OpenLot[]
+  family: boolean
+  showLongFrom?: boolean
+}) {
   return (
     <table className="w-full text-[14px]">
       <thead>
@@ -513,7 +601,15 @@ function LotTable({ lots, family, showLongFrom = false }: { lots: OpenLot[]; fam
           <tr key={i} className="border-b border-rule">
             <td className="py-1.5">{l.name}</td>
             {family && <td className="py-1.5 text-ink-muted">{l.personName}</td>}
-            <td className="py-1.5 whitespace-nowrap">{shortDate(l.buyDate)}</td>
+            <td className="py-1.5 whitespace-nowrap">
+              {l.estimatedFrom === 'OVER_A_YEAR'
+                ? 'Over a year ago'
+                : l.estimatedFrom === 'WITHIN_A_YEAR'
+                  ? 'In the last year'
+                  : l.estimatedFrom === 'HELD_SINCE'
+                    ? `Since ${shortDate(l.buyDate)}`
+                    : shortDate(l.buyDate)}
+            </td>
             <td className="num py-1.5">{fmtUnits(l.units)}</td>
             <td className={`num py-1.5 ${toneClass(l.gainInr)}`}>{signedMoney(l.gainInr)}</td>
             <td className="py-1.5 text-[13px] text-ink-muted">

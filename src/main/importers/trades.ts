@@ -288,3 +288,95 @@ export function mapGenericTrades(rows: Row[], platform: Platform): ImportBundle 
   b.instruments.push(...instruments.values())
   return b
 }
+
+// ---------------- INDmoney US stocks (DriveWealth reports) ----------------
+
+/**
+ * INDmoney's US reports are .xls files with an "Account Details" block above the table:
+ * ORDER_BOOK (every buy and sell: symbol, execution time, quantity, price $, brokerage $) and
+ * HOLDINGS_BOOK (symbol, "Holding Since", quantity, average price $). Which one a file is, if either.
+ */
+export function indmoneyReportKind(data: Buffer): 'ORDERS' | 'HOLDINGS' | null {
+  try {
+    const wb = XLSX.read(data, { type: 'buffer', sheetRows: 12 })
+    if (wb.SheetNames.includes('ORDER_BOOK')) return 'ORDERS'
+    if (wb.SheetNames.includes('HOLDINGS_BOOK')) return 'HOLDINGS'
+  } catch {
+    /* not a spreadsheet */
+  }
+  return null
+}
+
+/** The table under the account block: rows keyed by normalized header. */
+function indmoneyTable(data: Buffer, sheet: string, first: string): { rows: Row[]; asOf: string | null } {
+  const wb = XLSX.read(data, { type: 'buffer', raw: true })
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet], { header: 1, defval: '', raw: true })
+  const h = grid.findIndex((r) => normalizeHeader(r[0]) === first || r.some((c) => normalizeHeader(c) === first))
+  if (h < 0) throw new Error(`This INDmoney report has no "${first}" table`)
+  const headers = grid[h].map(normalizeHeader)
+  const rows: Row[] = []
+  for (const line of grid.slice(h + 1)) {
+    if (!line.some((c) => String(c).trim())) continue
+    if (/^disclaimer/i.test(String(line[0]))) break
+    rows.push(Object.fromEntries(headers.map((k, i) => [k, line[i]])))
+  }
+  const dateRow = grid.slice(0, h).find((r) => /holdings as on|period to/i.test(String(r[0])))
+  return { rows, asOf: dateRow ? parseDate(dateRow[1]) : null }
+}
+
+/** INDmoney order report → US buys and sells. */
+export function mapIndmoneyOrders(data: Buffer): ImportBundle {
+  const { rows } = indmoneyTable(data, 'ORDER_BOOK', 'stock symbol')
+  const generic: Row[] = rows
+    .filter((r) => /^(buy|sell)$/i.test(str(r['transaction type'])))
+    .map((r) => ({
+      date: r['order execution time'] || r['order placed time'],
+      type: str(r['transaction type']).toUpperCase(),
+      symbol: r['stock symbol'],
+      name: r['stock name'],
+      quantity: r['quantity'],
+      price: r['price'],
+      fees: r['brokerage'] ?? 0,
+      currency: 'USD',
+      market: 'US'
+    }))
+  return mapGenericTrades(generic, 'INDMONEY')
+}
+
+export interface IndmoneyHolding {
+  symbol: string
+  heldSince: string | null
+  quantity: number
+  avgCost: number
+}
+
+/** INDmoney holdings report → units and cost on the report date, plus each holding's start date. */
+export function mapIndmoneyHoldings(data: Buffer): { bundle: ImportBundle; holdings: IndmoneyHolding[]; asOf: string } {
+  const { rows, asOf } = indmoneyTable(data, 'HOLDINGS_BOOK', 'stock symbol')
+  const date = asOf ?? new Date().toISOString().slice(0, 10)
+  const b = emptyBundle()
+  const acct = brokerAccount('INDMONEY', 'US')
+  b.accounts.push(acct)
+  const holdings: IndmoneyHolding[] = []
+  for (const r of rows) {
+    const symbol = str(r['stock symbol']).toUpperCase()
+    const quantity = parseNumber(r['quantity'])
+    const avgCost = parseNumber(r['avg price'] ?? r['average price'])
+    if (!symbol || !quantity || !avgCost) continue
+    const instr = stockInstrument({ isin: null, symbol, exchange: 'NSE', name: '', market: 'US' })
+    b.instruments.push(instr)
+    b.snapshots.push({
+      accountKey: acct.key,
+      instrumentKey: instr.key,
+      date,
+      quantity,
+      price: null,
+      value: null,
+      cost: quantity * avgCost,
+      source: 'INDMONEY_HOLDINGS'
+    })
+    holdings.push({ symbol, heldSince: parseDate(r['holding since']), quantity, avgCost })
+  }
+  if (holdings.length === 0) b.warnings.push('No holdings found in this INDmoney report')
+  return { bundle: b, holdings, asOf: date }
+}

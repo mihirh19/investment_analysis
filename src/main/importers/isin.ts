@@ -27,6 +27,13 @@ export function dematClass(isin: string, name?: string | null): AssetClass {
   return 'EQUITY_IN'
 }
 
+/**
+ * An exchange-traded fund, by name: "NIPPON INDIA ETF NIFTY 50 BEES", "MOTILAL OSWAL NIFTY MIDCAP
+ * 100 ETF". Funds that invest in ETFs ("… ETF FOF", "Fund of Funds") are ordinary mutual funds.
+ */
+export const isEtfName = (name: string) =>
+  /\betf\b|\bbees\b|exchange traded/i.test(name) && !/\bfof\b|fund of funds?|\bfund of fund\b/i.test(name)
+
 const isTrustUnit = (name: string) =>
   /\breit\b|\binvit\b|real estate investment trust|infrastructure investment trust/i.test(name)
 
@@ -55,6 +62,64 @@ export function reclassifyDemat(db: Db): number {
       .set({ assetClass: cls, sector: null, industry: null, metaUpdatedAt: null })
       .where(eq(schema.instruments.id, r.id))
       .run()
+    changed++
+  }
+  // ETF units held in demat that a statement listed with its mutual funds (CDSL does).
+  const etfIsins = new Set(
+    db
+      .select({ isin: schema.nseListings.isin })
+      .from(schema.nseListings)
+      .where(eq(schema.nseListings.kind, 'ETF'))
+      .all()
+      .map((r) => r.isin)
+  )
+  for (const i of db
+    .select({ id: schema.instruments.id, isin: schema.instruments.isin, name: schema.instruments.name })
+    .from(schema.instruments)
+    .where(eq(schema.instruments.assetClass, 'MF'))
+    .all()) {
+    if (!(isEtfName(i.name) || (i.isin && etfIsins.has(i.isin)))) continue
+    db.update(schema.instruments)
+      .set({ assetClass: 'ETF', metaUpdatedAt: null })
+      .where(eq(schema.instruments.id, i.id))
+      .run()
+    changed++
+  }
+  return changed
+}
+
+/**
+ * Statement names carry corporate-action notes and fund-house prefixes ("AFTER SUB-DIVISION GRASIM
+ * INDUSTRIES LIMITED # NEW EQ SH WITH FV RE 2/-", "NIPPON LIFE INDIA AM LTD#NIPPON INDIA MF-…").
+ * Shares take NSE's listed name; funds and ETFs their AMFI scheme name.
+ */
+const NOISY_NAME =
+  /after (sub[\s-]?division|split|bonus)|new eq(uity)?\s+sh|equity shares|#|\bfv\b|face value|\bre\.?\s*\d|\brs\.?\s*\d/i
+
+export function tidyListedNames(db: Db): number {
+  let changed = 0
+  const listed = new Map(
+    db
+      .select({ isin: schema.nseListings.isin, name: schema.nseListings.name })
+      .from(schema.nseListings)
+      .where(eq(schema.nseListings.kind, 'EQ'))
+      .all()
+      .map((l) => [l.isin, l.name])
+  )
+  for (const i of db
+    .select({
+      id: schema.instruments.id,
+      isin: schema.instruments.isin,
+      name: schema.instruments.name,
+      schemeName: schema.instruments.schemeName,
+      assetClass: schema.instruments.assetClass
+    })
+    .from(schema.instruments)
+    .where(isNotNull(schema.instruments.isin))
+    .all()) {
+    const plain = i.assetClass === 'MF' || i.assetClass === 'ETF' ? i.schemeName : listed.get(i.isin!)
+    if (!plain || plain === i.name || !NOISY_NAME.test(i.name)) continue
+    db.update(schema.instruments).set({ name: plain }).where(eq(schema.instruments.id, i.id)).run()
     changed++
   }
   return changed

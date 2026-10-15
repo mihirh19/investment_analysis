@@ -18,7 +18,7 @@ import type {
   Theme,
   Transaction
 } from '@shared/types'
-import { PLATFORM_LABELS } from '@shared/types'
+import { PLATFORM_LABELS, type ImportKind } from '@shared/types'
 import * as assets from './assets'
 import * as manual from './manualAssets'
 import { historyFor } from './market/extra'
@@ -33,8 +33,8 @@ import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/
 import { computeAnalysis } from './portfolio/analysis'
 import { schema, type Db } from './db'
 import { importAmcPortfolio } from './importers/amcPortfolio'
-import { importBrokerHoldings, setManualCost } from './importers/brokerHoldings'
-import { reclassifyDemat } from './importers/isin'
+import { importBrokerHoldings, saveIndmoneyDates, setManualCost } from './importers/brokerHoldings'
+import { reclassifyDemat, tidyListedNames } from './importers/isin'
 import { persistBundle, rowHash, type ImportBundle } from './importers/bundle'
 import { CasHelperError, mapCasJson, runCasparser } from './importers/cas'
 import {
@@ -44,7 +44,10 @@ import {
   mapGenericTrades,
   mapGrowwOrders,
   mapZerodhaTradebook,
-  readTableFile
+  readTableFile,
+  indmoneyReportKind,
+  mapIndmoneyHoldings,
+  mapIndmoneyOrders
 } from './importers/trades'
 import { mfapiHistory, npsHistory, npsSchemes } from './market/funds'
 import type { FetchFn } from './market/http'
@@ -82,6 +85,7 @@ export function createServices(deps: ServiceDeps) {
   const { db } = deps
   // Statements read by older versions recorded bonds and REIT units as shares.
   reclassifyDemat(db)
+  tidyListedNames(db)
 
   function getSetting(key: string): string | null {
     return db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value ?? null
@@ -238,8 +242,17 @@ export function createServices(deps: ServiceDeps) {
     async runImport(req: ImportRequest): Promise<ImportResult> {
       const fileName = basename(req.filePath)
       let bundle: ImportBundle
+      let indmoneyHoldings: ReturnType<typeof mapIndmoneyHoldings> | null = null
 
-      switch (req.kind) {
+      // INDmoney's reports are recognised whichever import was chosen.
+      const kind: ImportKind =
+        /\.xlsx?$/i.test(req.filePath) &&
+        req.kind !== 'FUND_PORTFOLIO' &&
+        indmoneyReportKind(readFileSync(req.filePath))
+          ? 'INDMONEY_US'
+          : req.kind
+
+      switch (kind) {
         case 'CAS_PDF': {
           let password = req.password ?? ''
           if (!password) {
@@ -287,6 +300,19 @@ export function createServices(deps: ServiceDeps) {
         }
         case 'BROKER_HOLDINGS':
           return importBrokerHoldings(db, { personId: req.personId, fileName, data: readFileSync(req.filePath) })
+        case 'INDMONEY_US': {
+          const data = readFileSync(req.filePath)
+          const report = indmoneyReportKind(data)
+          if (report === 'ORDERS') bundle = mapIndmoneyOrders(data)
+          else if (report === 'HOLDINGS') {
+            indmoneyHoldings = mapIndmoneyHoldings(data)
+            bundle = indmoneyHoldings.bundle
+          } else
+            throw new Error(
+              'This is not an INDmoney order or holdings report. In INDmoney: US Stocks → Reports, download "Holdings" and "Orders" (Excel).'
+            )
+          break
+        }
         case 'MANUAL':
           throw new Error('Manual entries are added from their own screens, not imported')
       }
@@ -294,7 +320,13 @@ export function createServices(deps: ServiceDeps) {
       if (bundle.transactions.length === 0 && bundle.snapshots.length === 0) {
         throw new Error(['Nothing to import was found in this file.', ...bundle.warnings.slice(0, 5)].join(' '))
       }
-      return persistBundle(db, { personId: req.personId, kind: req.kind, fileName, bundle })
+      const result = persistBundle(db, { personId: req.personId, kind, fileName, bundle })
+      if (indmoneyHoldings) saveIndmoneyDates(db, req.personId, result.batchId, indmoneyHoldings)
+      // New holdings get today's prices and NAVs now, not at the next scheduled refresh.
+      reclassifyDemat(db)
+      tidyListedNames(db)
+      void deps.market?.refresh({ full: true })
+      return result
     },
 
     listImports(): ImportBatch[] {
@@ -441,7 +473,13 @@ export function createServices(deps: ServiceDeps) {
       setSetting(RISK_FREE_KEY, String(rate))
       return null
     },
-    setBuyPrice(input: { personId: number; accountId: number; instrumentId: number; avgCost: number | null }): null {
+    setBuyPrice(input: {
+      personId: number
+      accountId: number
+      instrumentId: number
+      avgCost: number | null
+      heldSince?: string | null
+    }): null {
       setManualCost(db, input)
       return null
     },

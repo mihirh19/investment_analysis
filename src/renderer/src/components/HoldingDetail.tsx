@@ -208,12 +208,22 @@ function BuyPrice({ row: r }: { row: HoldingRow }) {
   const save = useSetBuyPrice()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
+  const [since, setSince] = useState('')
   if (!PRICED.includes(r.assetClass) || r.costSource === 'TRADES' || r.platform === 'MANUAL') return null
   const known = r.avgCost !== null && r.costSource !== null
   const submit = (avgCost: number | null) =>
-    save.mutate({ personId: r.personId, accountId: r.accountId, instrumentId: r.instrumentId, avgCost }, {
-      onSuccess: () => setEditing(false)
-    })
+    save.mutate(
+      {
+        personId: r.personId,
+        accountId: r.accountId,
+        instrumentId: r.instrumentId,
+        avgCost,
+        heldSince: avgCost !== null && since ? since : null
+      },
+      {
+        onSuccess: () => setEditing(false)
+      }
+    )
 
   return (
     <section aria-label="Buy price" className="mt-6 rounded-md border border-rule bg-sheet px-4 py-3 text-[14px]">
@@ -222,11 +232,19 @@ function BuyPrice({ row: r }: { row: HoldingRow }) {
           <p>
             Average buy price <span className="num font-medium">{money(r.avgCost, r.currency, 2)}</span>
             <span className="text-ink-muted">, from {COST_SOURCE_LABELS[r.costSource!]}</span>
+            {r.heldSince ? (
+              <span className="text-ink-muted">. First bought {shortDate(r.heldSince)}</span>
+            ) : (
+              <span className="block text-[13px] text-ink-muted">
+                No purchase date: add when it was first bought so tax treats it as long or short term.
+              </span>
+            )}
           </p>
           <button
             className="shrink-0 text-stamp hover:underline"
             onClick={() => {
               setValue(String(r.avgCost))
+              setSince(r.heldSince ?? '')
               setEditing(true)
             }}
           >
@@ -251,7 +269,7 @@ function BuyPrice({ row: r }: { row: HoldingRow }) {
               to fill in every holding at once.
             </p>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="buy-price" className="text-ink-muted">
               Average buy price ({r.currency === 'INR' ? '₹' : r.currency})
             </label>
@@ -264,6 +282,17 @@ function BuyPrice({ row: r }: { row: HoldingRow }) {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               className="w-36"
+            />
+            <label htmlFor="held-since" className="ml-2 text-ink-muted">
+              First bought on
+            </label>
+            <Input
+              id="held-since"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              className="w-40"
             />
             <Button type="submit" disabled={save.isPending || !(Number(value) > 0)}>
               Save

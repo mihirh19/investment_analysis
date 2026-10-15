@@ -10,6 +10,7 @@ const FILE_FILTERS: Record<ImportKind | 'BACKUP', Electron.FileFilter[]> = {
   GENERIC_TRADES: [{ name: 'Trades file', extensions: ['csv', 'xlsx', 'xls'] }],
   FUND_PORTFOLIO: [{ name: 'Fund portfolio disclosure', extensions: ['xlsx', 'xls', 'xlsb', 'csv'] }],
   BROKER_HOLDINGS: [{ name: 'Broker holdings file', extensions: ['xlsx', 'xls', 'csv'] }],
+  INDMONEY_US: [{ name: 'INDmoney US report', extensions: ['xls', 'xlsx'] }],
   MANUAL: [],
   BACKUP: [{ name: 'Family Portfolio backup', extensions: ['fpbackup', 'db'] }]
 }

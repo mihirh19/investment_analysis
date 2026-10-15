@@ -29,9 +29,16 @@ const KINDS: { kind: ImportKind; title: string; what: string; where: string }[] 
     where: 'Groww → Stocks → Reports → Order history. Download the Excel file.'
   },
   {
+    kind: 'INDMONEY_US',
+    title: 'INDmoney US stocks',
+    what: 'US shares and ETFs bought through INDmoney. The holdings report gives units, average price and the date each was first bought (for tax); the order report gives every buy and sell. Import both.',
+    where:
+      'INDmoney app or web → US Stocks → Reports. Download the Holdings report and the Order report (Excel, .xls) for the full period.'
+  },
+  {
     kind: 'GENERIC_TRADES',
     title: 'Trades file',
-    what: 'US stocks from INDmoney, or any broker without a supported export.',
+    what: 'Any broker without a supported export.',
     where: 'A CSV or Excel file with the columns shown below.'
   },
   {
