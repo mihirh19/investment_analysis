@@ -94,6 +94,8 @@ export function registerIpc(services: Services): void {
     checkMail: (email) => services.checkMail(email),
     getForecast: (personId) => services.getForecast(personId),
     savePlan: (plan) => services.savePlan(plan),
+    getSectorInsights: (personId) => services.getSectorInsights(personId),
+    getFundComparisons: (personId) => services.getFundComparisons(personId),
     getPhoneSync: () => services.getPhoneSync(),
     configurePhoneSync: (input) => services.configurePhoneSync(input),
     allowPhoneDrive: (email) => services.allowPhoneDrive(email),

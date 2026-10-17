@@ -20,6 +20,8 @@ import { refreshDirectPlans } from './directPlans'
 import { refreshMarketCaps } from './marketcap'
 import { refreshResidex, storedResidexCities } from './residex'
 import { refreshCpi } from './cpi'
+import { refreshSchemeFacts } from './amfiData'
+import { refreshNifty500, refreshSectorIndices } from './sectorIndices'
 
 const HOUSING_KEY = 'residex:lastFetch'
 
@@ -66,6 +68,8 @@ type SourceKey =
   | 'caps'
   | 'housing'
   | 'inflation'
+  | 'fundfacts'
+  | 'sectorindices'
 
 const SOURCE_LABELS: Record<SourceKey, string> = {
   stocks: 'Stock & ETF prices (Yahoo Finance)',
@@ -84,7 +88,9 @@ const SOURCE_LABELS: Record<SourceKey, string> = {
   disclosures: 'Fund portfolios (fund house monthly disclosures)',
   caps: 'Large, mid & small cap bands (AMFI)',
   housing: 'Home prices (NHB RESIDEX)',
-  inflation: 'Inflation by category (MoSPI consumer price index)'
+  inflation: 'Inflation by category (MoSPI consumer price index)',
+  fundfacts: 'Fund returns, size and expense ratios (AMFI)',
+  sectorindices: 'Sector indices: returns and P/E history (NSE)'
 }
 
 const MINUTE = 60_000
@@ -224,6 +230,14 @@ export class MarketData {
           // Monthly at most; the built-in figures stand in until a download succeeds.
           await this.guard('inflation', async () => {
             await refreshCpi(this.db, this.f)
+          })
+          // Weekly at most (each checks its own age).
+          await this.guard('fundfacts', async () => {
+            await refreshSchemeFacts(this.db, this.f)
+          })
+          await this.guard('sectorindices', async () => {
+            await refreshNifty500(this.db, this.f)
+            await refreshSectorIndices(this.db, this.f)
           })
           await this.guard('caps', async () => {
             if (!(await refreshMarketCaps(this.db, this.f))) throw new Error("AMFI's market-cap list could not be read")

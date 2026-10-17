@@ -59,6 +59,8 @@ export const API_METHODS = [
   'checkMail',
   'getForecast',
   'savePlan',
+  'getSectorInsights',
+  'getFundComparisons',
   'getPhoneSync',
   'configurePhoneSync',
   'allowPhoneDrive',

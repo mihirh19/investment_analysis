@@ -13,6 +13,7 @@ import type { VehicleDocRead, VehicleInput, VehicleView } from './vehicles'
 import type { GoogleAccountView, GoogleSetup } from './mail'
 import type { Forecast, Plan } from './plan'
 import type { PhoneSyncStatus } from './phone'
+import type { FundComparisons, SectorInsights } from './insights'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
 
@@ -582,6 +583,9 @@ export interface FundsReport {
       overlap: number
       sharedCount: number
       shared: { name: string; isin: string | null; weightA: number; weightB: number }[]
+      /** Share of each portfolio's weight in companies both hold (all of them, not only those listed). */
+      sharedWeightA: number
+      sharedWeightB: number
     }[]
   }
   /** Companies reached through more than one route, largest first. */
@@ -891,6 +895,11 @@ export interface RequestApi {
   /** The money forecast with inflation by spending category (person, or family when omitted). */
   getForecast(personId?: number): Promise<ApiResult<Forecast>>
   savePlan(plan: Plan): Promise<ApiResult<null>>
+
+  /** Your sectors against the Nifty 500, each sector index's record, and the funds that track it. */
+  getSectorInsights(personId?: number): Promise<ApiResult<SectorInsights>>
+  /** Pairs of your funds that hold many of the same companies, with AMFI's facts side by side. */
+  getFundComparisons(personId?: number): Promise<ApiResult<FundComparisons>>
 
   /** The phone app's link through Google Drive. */
   getPhoneSync(): Promise<ApiResult<PhoneSyncStatus>>

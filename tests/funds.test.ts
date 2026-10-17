@@ -199,3 +199,40 @@ describe('computeFunds', () => {
     expect(r.notes.some((n) => n.includes('Regular plan') && n.includes('500'))).toBe(true)
   })
 })
+
+describe('overlapping funds side by side', () => {
+  it('pairs funds a quarter or more alike, with AMFI facts for the plan held', async () => {
+    const { a, b } = seed()
+    const facts = (name: string, terRegular: number, terDirect: number) => ({
+      name,
+      category: 'Flexi Cap Fund',
+      categoryGroup: 'Equity',
+      benchmark: 'Nifty 500 TRI',
+      risk: 'Very High',
+      aumCr: 5000,
+      navDate: '15-Oct-2026',
+      r1y: { regular: 5, direct: 6, benchmark: 4 },
+      r3y: { regular: 14, direct: 15, benchmark: 13 },
+      r5y: { regular: null, direct: null, benchmark: null },
+      r10y: { regular: null, direct: null, benchmark: null },
+      terRegular,
+      terDirect
+    })
+    db.insert(schema.settings)
+      .values({
+        key: 'amfi:schemes',
+        value: JSON.stringify({ at: 'x', date: '15-Oct-2026', schemes: [facts('Alpha Flexi Cap Fund', 1.6, 0.6), facts('Beta Flexi Cap Fund', 1.8, 0.7)] })
+      })
+      .run()
+    const { computeFundComparisons } = await import('../src/main/portfolio/insights')
+    const r = computeFundComparisons(db, 1)
+    expect(r.pairs).toHaveLength(1) // "Your shares" is not a fund to compare
+    const [fa, fb] = r.pairs[0].funds
+    expect(r.pairs[0].overlap).toBeCloseTo(0.5)
+    expect(fa).toMatchObject({ instrumentId: a.id, plan: 'DIRECT', ter: 0.6, r3y: 15, matched: true })
+    expect(fb).toMatchObject({ instrumentId: b.id, plan: 'REGULAR', ter: 1.8, r3y: 14 })
+    // Alpha: X Bank 0.5 and Y Tech 0.3 are shared, so 20% is its own; Beta: 20% too.
+    expect(fa.uniqueShare).toBeCloseTo(0.2)
+    expect(fb.uniqueShare).toBeCloseTo(0.2)
+  })
+})

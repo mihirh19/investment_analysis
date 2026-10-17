@@ -259,7 +259,15 @@ export function computeFunds(db: Db, personId?: number): FundsReport {
         .filter(([k]) => portfolios[b].w.has(k))
         .map(([k, va]) => ({ name: va.name, isin: va.isin, weightA: va.weight, weightB: portfolios[b].w.get(k)!.weight }))
         .sort((x, y) => Math.min(y.weightA, y.weightB) - Math.min(x.weightA, x.weightB))
-      pairs.push({ a: portfolios[a].id, b: portfolios[b].id, overlap: matrix[a][b]!, sharedCount: shared.length, shared: shared.slice(0, 20) })
+      pairs.push({
+        a: portfolios[a].id,
+        b: portfolios[b].id,
+        overlap: matrix[a][b]!,
+        sharedCount: shared.length,
+        shared: shared.slice(0, 20),
+        sharedWeightA: shared.reduce((s, x) => s + x.weightA, 0),
+        sharedWeightB: shared.reduce((s, x) => s + x.weightB, 0)
+      })
     }
   pairs.sort((x, y) => y.overlap - x.overlap)
 

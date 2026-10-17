@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { CapBand, DebtItem, ExposureReport } from '@shared/types'
 import { HBars, StackBar } from '../components/charts'
 import { Drill, type DrillRow } from '../components/Drill'
+import { SectorInsightsSection } from '../components/SectorInsights'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { openExternal, useExposure, useSyncDisclosures } from '../lib/api'
 import { compactMoney, money, shortDate } from '../lib/format'
@@ -190,6 +191,8 @@ export function Exposure() {
           </p>
         )}
       </section>
+
+      <SectorInsightsSection personId={scopePersonId(scope)} />
 
       <MarketCap e={e} equityTotal={equityTotal} cap={cap} onCap={(c) => toggle(cap, c, setCap)} pct={pct} />
 

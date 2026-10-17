@@ -36,6 +36,7 @@ import { computeProperties } from './portfolio/property'
 import * as vehicles from './vehicles'
 import { createMail } from './mailSync'
 import { createPhoneSync } from './phoneSync'
+import { computeFundComparisons, computeSectorInsights } from './portfolio/insights'
 import { applyPhoneEntry, buildPhoneSnapshot } from './phoneData'
 import { computeForecast, savePlan } from './portfolio/forecast'
 import type { Plan } from '@shared/plan'
@@ -642,6 +643,11 @@ export function createServices(deps: ServiceDeps) {
     checkMail: (email?: string) => mail.check(email),
     /** For the background timer. */
     mailDue: () => mail.due(),
+
+    // ---------------- sector and fund facts ----------------
+
+    getSectorInsights: (personId?: number) => computeSectorInsights(db, personId),
+    getFundComparisons: (personId?: number) => computeFundComparisons(db, personId),
 
     // ---------------- phone app ----------------
 

@@ -268,6 +268,13 @@ export function useSavePlan() {
   })
 }
 
+// ---------------- sector and fund facts ----------------
+
+export const useSectorInsights = (personId?: number) =>
+  useQuery({ queryKey: ['sectorInsights', personId ?? 'all'], queryFn: () => unwrap(api().getSectorInsights(personId)) })
+export const useFundComparisons = (personId?: number) =>
+  useQuery({ queryKey: ['fundComparisons', personId ?? 'all'], queryFn: () => unwrap(api().getFundComparisons(personId)) })
+
 // ---------------- phone app ----------------
 
 export const usePhoneSync = () =>

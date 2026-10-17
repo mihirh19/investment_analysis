@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { FundPlan, FundsReport } from '@shared/types'
 import { HBars } from '../components/charts'
 import { Heatmap } from '../components/chart/extra'
+import { FundComparisonsSection } from '../components/FundComparisons'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { PageSkeleton } from '../components/Skeleton'
 import { useFunds } from '../lib/api'
@@ -73,12 +74,12 @@ export function Funds() {
     <div className="[&_td+td]:pl-4 [&_th+th]:pl-4">
       <PageHeader title="Funds" />
       <ErrorNote error={q.error} />
-      <FundsBody r={r} family={scope === 'family'} />
+      <FundsBody r={r} family={scope === 'family'} personId={scopePersonId(scope)} />
     </div>
   )
 }
 
-function FundsBody({ r, family }: { r: FundsReport; family: boolean }) {
+function FundsBody({ r, family, personId }: { r: FundsReport; family: boolean; personId?: number }) {
   const { portfolios, matrix, pairs } = r.overlap
   const fundPairs = pairs.filter((p) => p.a !== 0)
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null)
@@ -187,6 +188,8 @@ function FundsBody({ r, family }: { r: FundsReport; family: boolean }) {
           </p>
         )}
       </Section>
+
+      <FundComparisonsSection personId={personId} />
 
       <Section id="list" title="Every fund" note="Regular plans pay the distributor from the fund's returns every year. The cost shown is last year's return gap against the Direct plan of the same scheme, on today's value.">
         <div className="overflow-x-auto">
