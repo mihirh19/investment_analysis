@@ -187,7 +187,18 @@ export function createMail(d: MailDeps) {
       if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(clientId))
         throw new Error('The client ID ends in .apps.googleusercontent.com; copy it from Google Cloud → Credentials.')
       if (clientSecret.length < 10) throw new Error('Paste the client secret too (it starts with GOCSPX-).')
+      const before = client()
       d.setSetting(CLIENT_KEY, d.encrypt(JSON.stringify({ clientId, clientSecret, web: !!input.web })))
+      // A sign-in belongs to the client it was made with: a new client means signing in again.
+      if (before && before.clientId !== clientId)
+        store(
+          load().map((a) => ({
+            ...a,
+            status: 'RECONNECT' as const,
+            message: 'The Google sign-in client changed: click “Sign in again”.',
+            scopes: []
+          }))
+        )
       return this.setup()
     },
 

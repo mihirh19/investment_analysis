@@ -165,7 +165,7 @@ export async function accessToken(client: GoogleClient, refreshToken: string, f:
     })
   })
   const body = (await res.json()) as { access_token?: string; error?: string; error_description?: string }
-  if (body.error === 'invalid_grant')
+  if (body.error === 'invalid_grant' || body.error === 'unauthorized_client')
     throw new GoogleReconnectError('Google no longer accepts this sign-in (it was removed, the password changed, or it went unused for six months). Connect the account again.')
   if (!res.ok || !body.access_token) throw new Error(`Google: ${body.error_description ?? body.error ?? res.status}`)
   return body.access_token

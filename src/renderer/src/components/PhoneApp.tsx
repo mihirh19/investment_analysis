@@ -74,7 +74,7 @@ export function PhoneApp() {
         <Step n={1} state={step1 ? 'done' : 'now'} title="Google sign-in with a Web application client">
           {!google.configured
             ? 'Set it up in Google accounts above, choosing a Web application client.'
-            : 'Your sign-in client is a Desktop app one, which the phone can’t use. Change it above to a Web application client (Change it → follow the steps), then connect your account again.'}
+            : 'The app has your sign-in client saved as a Desktop app one, which the phone can’t use. In Google accounts above, click “Change it” and paste a Web application client’s ID and secret with the box ticked (if yours already is a Web application client, paste the same one again). Then sign the account in again.'}
         </Step>
         <Step n={2} state={step2 ? 'done' : step1 ? 'now' : 'later'} title="The Google account whose Drive carries it">
           {accounts.length === 0 ? (

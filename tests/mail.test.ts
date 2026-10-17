@@ -138,3 +138,18 @@ describe('statements from Gmail', () => {
     expect(mail.setup().accounts.map((a) => a.email)).toEqual(['me@gmail.com'])
   })
 })
+
+describe('changing the sign-in client', () => {
+  it('asks every account to sign in again', async () => {
+    const g = fakeGoogle({ 'me@gmail.com': [] })
+    const { mail } = setup(g)
+    mail.saveClient(CLIENT)
+    g.signInAs('me@gmail.com')
+    await mail.connect(1)
+    mail.saveClient({ ...CLIENT, web: true }) // same client, now marked Web: nothing to redo
+    expect(mail.setup().accounts[0].status).not.toBe('RECONNECT')
+    expect(mail.setup().webClient).toBe(true)
+    mail.saveClient({ clientId: '999-web.apps.googleusercontent.com', clientSecret: 'GOCSPX-other-secret', web: true })
+    expect(mail.setup().accounts[0]).toMatchObject({ status: 'RECONNECT', message: expect.stringMatching(/Sign in again/) })
+  })
+})
