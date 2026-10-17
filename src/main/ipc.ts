@@ -62,6 +62,8 @@ export function registerIpc(services: Services): void {
     getMetalPrices: () => services.getMetalPrices(),
     setGoldPremium: (pct) => services.setGoldPremium(pct),
     getAnalysis: (personId) => services.getAnalysis(personId),
+    getProperties: (personId) => services.getProperties(personId),
+    getHousingCities: () => services.getHousingCities(),
     getSparklines: (ids) => services.getSparklines(ids),
     listBenchmarks: (since) => services.listBenchmarks(since),
     getPerformance: (personId) => services.getPerformance(personId),

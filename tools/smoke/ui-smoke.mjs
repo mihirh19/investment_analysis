@@ -86,6 +86,7 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Rebalance',
     'Holdings',
     'Other assets',
+    'Property & rent',
     'Sectors & exposure',
     'Funds',
     'Dividends',
@@ -121,6 +122,18 @@ await clickText('button', 'Add an asset')
 await ok('open add-asset form')
 await clickText('button', 'Sovereign Gold Bond')
 await ok('switch asset kind in form')
+await nav('Property & rent')
+await sleep(1500)
+const rentGrid = await ev(`document.querySelectorAll('[aria-label="Rent by month"] li').length`)
+if (!(rentGrid > 0)) {
+  failures++
+  console.log('FAIL property page shows the rent months'.padEnd(46), rentGrid)
+}
+await clickText('button', 'Record rent')
+await ok('open record-rent form')
+await clickText('button', 'Add a property')
+await sleep(800)
+await ok('open add-property form')
 await nav('Analysis')
 await sleep(2500)
 await ok('analysis with charts')

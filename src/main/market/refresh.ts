@@ -18,6 +18,23 @@ import { refreshBenchmarks, refreshDaily } from './benchmarks'
 import { refreshGrandfathering } from './grandfather'
 import { refreshDirectPlans } from './directPlans'
 import { refreshMarketCaps } from './marketcap'
+import { refreshResidex, storedResidexCities } from './residex'
+
+const HOUSING_KEY = 'residex:lastFetch'
+
+/** Cities of the properties on record. */
+function propertyCities(db: Db): number[] {
+  const ids: number[] = []
+  for (const a of db.select({ metaJson: schema.accounts.metaJson }).from(schema.accounts).all()) {
+    try {
+      const m = JSON.parse(a.metaJson ?? 'null')?.meta
+      if (m?.kind === 'PROPERTY' && m.cityId) ids.push(Number(m.cityId))
+    } catch {
+      /* not a hand-kept asset */
+    }
+  }
+  return ids
+}
 import { reclassifyDemat, tidyListedNames } from '../importers/isin'
 import { syncDisclosures, type DisclosureDeps } from './disclosures'
 import { fromIndustryText, fromNseIndustry, fromYahoo } from './sectors'
@@ -46,6 +63,7 @@ type SourceKey =
   | 'direct'
   | 'disclosures'
   | 'caps'
+  | 'housing'
 
 const SOURCE_LABELS: Record<SourceKey, string> = {
   stocks: 'Stock & ETF prices (Yahoo Finance)',
@@ -62,7 +80,8 @@ const SOURCE_LABELS: Record<SourceKey, string> = {
   fmv2018: 'Prices on 31 Jan 2018 (tax on older shares and funds)',
   direct: 'Direct-plan NAVs (what Regular plans cost you)',
   disclosures: 'Fund portfolios (fund house monthly disclosures)',
-  caps: 'Large, mid & small cap bands (AMFI)'
+  caps: 'Large, mid & small cap bands (AMFI)',
+  housing: 'Home prices (NHB RESIDEX)'
 }
 
 const MINUTE = 60_000
@@ -187,6 +206,18 @@ export class MarketData {
           await this.guard('daily', () => refreshDaily(this.db, this.f))
           await this.guard('fmv2018', () => refreshGrandfathering(this.db, this.f))
           await this.guard('direct', () => refreshDirectPlans(this.db, this.f))
+          await this.guard('housing', async () => {
+            const cities = [...new Set([...propertyCities(this.db), ...storedResidexCities(this.db)])]
+            const last = this.db.select().from(schema.settings).where(eq(schema.settings.key, HOUSING_KEY)).get()?.value
+            if (cities.length === 0 || (last && Date.now() - Date.parse(last) < 7 * 86400000)) return
+            await refreshResidex(this.db, cities, this.f)
+            const at = nowIso()
+            this.db
+              .insert(schema.settings)
+              .values({ key: HOUSING_KEY, value: at })
+              .onConflictDoUpdate({ target: schema.settings.key, set: { value: at } })
+              .run()
+          })
           await this.guard('caps', async () => {
             if (!(await refreshMarketCaps(this.db, this.f))) throw new Error("AMFI's market-cap list could not be read")
           })

@@ -234,4 +234,71 @@ describe('holdings with no trade history still get tax lots', () => {
     const lot = computeTax(db, 1, '2026-10-11').lots.find((l) => l.name === 'MSFT')!
     expect([lot.buyDate, lot.term]).toEqual(['2024-01-10', 'LT'])
   })
+
+  it('dates Coin mutual funds from Zerodha’s MF tradebook, and says what to import for the rest', async () => {
+    const cas: DepositoryCas = {
+      statement_period: { from: '01-Sep-2026', to: '30-Sep-2026' },
+      file_type: 'CDSL',
+      accounts: [
+        {
+          name: 'ZERODHA BROKING LIMITED',
+          type: 'CDSL Demat Account',
+          dp_id: '1',
+          client_id: '2',
+          equities: [
+            {
+              name: 'SUZLON ENERGY LIMITED',
+              isin: 'INE040H01021',
+              num_shares: '100',
+              price: '40',
+              value: '4000',
+              symbol: null,
+              exchange: null
+            }
+          ],
+          mutual_funds: [
+            {
+              name: 'Parag Parikh Flexi Cap Fund - Direct Plan - Growth',
+              isin: 'INF879O01027',
+              amfi: null,
+              type: null,
+              balance: '10',
+              nav: '90',
+              value: '900',
+              total_cost: null,
+              folio: null
+            }
+          ]
+        }
+      ],
+      nps: null
+    }
+    persistBundle(db, { personId: 1, kind: 'CAS_PDF', fileName: 'sep.pdf', bundle: mapCasJson(cas) })
+    const file = join(dir, 'tradebook-MF.csv')
+    writeFileSync(
+      file,
+      'symbol,isin,trade_date,exchange,segment,series,trade_type,quantity,price,trade_id\n' +
+        'PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN,INF879O01027,2023-05-10,,MF,,buy,6,55,T1\n' +
+        'PARAG PARIKH FLEXI CAP FUND - DIRECT PLAN,INF879O01027,2026-02-10,,MF,,buy,4,80,T2\n'
+    )
+    const r = await svc.runImport({ kind: 'ZERODHA_TRADEBOOK', personId: 1, filePath: file })
+    expect(r.transactionsAdded).toBe(2)
+    const tax = computeTax(db, 1, '2026-10-15')
+    expect(tax.lots.filter((l) => l.name.startsWith('Parag')).map((l) => [l.buyDate, l.units, l.term])).toEqual([
+      ['2023-05-10', 6, 'LT'],
+      ['2026-02-10', 4, 'ST']
+    ])
+    // Suzlon has no dates yet: the row says which Zerodha file adds them.
+    expect(tax.estimateOnly.find((e) => e.name.startsWith('SUZLON'))!.fix).toMatch(/Zerodha holdings file/)
+  })
+})
+
+describe('the date a holdings statement is as on', () => {
+  it('reads the common ways brokers write it', async () => {
+    const { statementDate } = await import('../src/main/importers/brokerHoldings')
+    expect(statementDate('equity holdings statement as on 2026-10-15')).toBe('2026-10-15')
+    expect(statementDate('holdings as on 15-10-2026')).toBe('2026-10-15')
+    expect(statementDate('portfolio as of 15 oct 2026')).toBe('2026-10-15')
+    expect(statementDate('holdings statement')).toBeNull()
+  })
 })

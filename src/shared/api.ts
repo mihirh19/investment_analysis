@@ -40,6 +40,8 @@ export const API_METHODS = [
   'getMetalPrices',
   'setGoldPremium',
   'getAnalysis',
+  'getProperties',
+  'getHousingCities',
   'getSparklines',
   'listBenchmarks',
   'getPerformance',

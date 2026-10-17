@@ -209,3 +209,16 @@ export const useDisclosureStatus = () =>
   useQuery({ queryKey: ['disclosures'], queryFn: () => unwrap(api().getDisclosureStatus()) })
 export const useSyncDisclosures = () => useWrite((force?: boolean) => api().syncDisclosures(force))
 export const openExternal = (url: string) => unwrap(api().openExternal(url))
+
+// ---------------- property ----------------
+
+export const useProperties = (personId?: number) =>
+  useQuery({ queryKey: ['properties', personId ?? 'all'], queryFn: () => unwrap(api().getProperties(personId)) })
+export const useHousingCities = (enabled = true) =>
+  useQuery({
+    queryKey: ['housingCities'],
+    queryFn: () => unwrap(api().getHousingCities()),
+    enabled,
+    staleTime: Infinity,
+    retry: 1
+  })

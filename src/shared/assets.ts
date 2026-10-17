@@ -112,11 +112,165 @@ export interface MetalMeta extends Common {
 export interface PropertyMeta extends Common {
   kind: 'PROPERTY'
   propertyType: 'RESIDENTIAL' | 'COMMERCIAL' | 'LAND' | 'OTHER'
+  /** What kind of home or place it is. */
+  subtype?: PropertySubtype
   purchasePrice: number
   purchaseDate: string
+  /** Stamp duty, registration, brokerage and other buying costs (part of the cost for tax). */
+  buyingCosts?: number
   /** Optional yearly growth used between your own estimates, in percent. */
   appreciation?: number
+  /** Legacy single rent figure; tenancies below supersede it. */
   monthlyRent?: number
+
+  /** Where it is: a RESIDEX city (for the live price), and the locality in words. */
+  cityId?: number
+  cityName?: string
+  locality?: string
+  /** Carpet area in sq ft (what RESIDEX size bands use). */
+  carpetAreaSqft?: number
+  /** Built-up or plot area in sq ft, for reference. */
+  builtUpAreaSqft?: number
+  /**
+   * How today's value is worked out: INDEX grows your last estimate (or the purchase) with the
+   * city's price index; AREA is carpet area × the city's average price per sq ft, adjusted by
+   * premium; MANUAL uses only your own estimates (with appreciation, if set).
+   */
+  valuation?: 'INDEX' | 'AREA' | 'MANUAL'
+  /** For AREA: how much above (+) or below (−) the city average this locality is, in percent. */
+  premiumPct?: number
+  /** Government guideline value (Jantri) and when it was looked up. */
+  jantriValue?: number
+  jantriDate?: string
+
+  tenancies?: Tenancy[]
+  rentPayments?: RentPayment[]
+  expenses?: PropertyExpense[]
+}
+
+export const PROPERTY_SUBTYPES = [
+  'FLAT',
+  'TENEMENT',
+  'BUNGALOW',
+  'ROW_HOUSE',
+  'SHOP',
+  'OFFICE',
+  'PLOT',
+  'LAND',
+  'OTHER'
+] as const
+export type PropertySubtype = (typeof PROPERTY_SUBTYPES)[number]
+
+/** One letting: who, how much, from when to when. */
+export interface Tenancy {
+  id: string
+  tenant: string
+  startDate: string
+  /** Agreement end (usually 11 months); null while open-ended. */
+  endDate?: string | null
+  monthlyRent: number
+  /** Day of the month rent is due. */
+  dueDay?: number
+  deposit?: number
+  phone?: string
+}
+
+export interface RentPayment {
+  id: string
+  /** When the money came in. */
+  date: string
+  /** The month it pays for, YYYY-MM. */
+  forMonth: string
+  amount: number
+  tenancyId?: string
+  note?: string
+}
+
+export const PROPERTY_EXPENSE_KINDS = ['PROPERTY_TAX', 'MAINTENANCE', 'REPAIR', 'INSURANCE', 'LOAN_INTEREST', 'OTHER'] as const
+export type PropertyExpenseKind = (typeof PROPERTY_EXPENSE_KINDS)[number]
+
+export interface PropertyExpense {
+  id: string
+  date: string
+  kind: PropertyExpenseKind
+  amount: number
+  note?: string
+}
+
+export type RentStatus = 'PAID' | 'PART' | 'DUE' | 'OVERDUE'
+
+/** One property as the Property page shows it. */
+export interface PropertyView {
+  accountId: number
+  personId: number
+  personName: string
+  meta: PropertyMeta
+  value: number | null
+  invested: number
+  gain: number | null
+  /** Yearly growth of the value since purchase (rent not included). */
+  cagr: number | null
+  /** XIRR including rent received and expenses paid. */
+  totalReturn: number | null
+  mode: 'INDEX' | 'AREA' | 'MANUAL'
+  /** How the value was worked out, in words. */
+  valuationNote: string
+  /** Your latest own estimate, if any. */
+  lastEstimate: { date: string; value: number } | null
+  market: (PropertyMarket & { latest: { date: string; close: number } | null; yoyPct: number | null }) | null
+  /** Carpet area × the city's average price for this size of home. */
+  areaCheck: { pricePerSqft: number; value: number } | null
+  rent: {
+    current: Tenancy | null
+    /** This financial year's due months, through next month. */
+    months: (RentDueMonth & { status: RentStatus })[]
+    overdue: number
+    overdueMonths: number
+    receivedThisFy: number
+    receivedLast12m: number
+    /** Days until the current agreement ends (negative once ended). */
+    endsInDays: number | null
+    /** True while rent is assumed (no payments recorded yet). */
+    assumed: boolean
+  } | null
+  /** This financial year, as for "Income from house property". */
+  fy: {
+    label: string
+    rentReceived: number
+    propertyTax: number
+    otherExpenses: number
+    loanInterest: number
+    /** Rent − property tax − 30% standard deduction − loan interest (let-out property). */
+    taxableIncome: number | null
+  }
+  yield: { gross: number; net: number } | null
+}
+
+export interface RentDueMonth {
+  month: string
+  dueDate: string
+  amount: number
+  paid: number
+  tenancyId: string
+  tenant: string
+}
+
+/** A city NHB RESIDEX reports home prices for. */
+export interface HousingCity {
+  id: number
+  name: string
+  state: string
+}
+
+/** A property's place in its city's housing market, for the Property page. */
+export interface PropertyMarket {
+  cityId: number
+  cityName: string
+  /** Size band used for this home, and the city's price per sq ft in it by quarter. */
+  band: 'ALL' | 'LT60' | '60TO110' | 'GT110'
+  series: { date: string; close: number }[]
+  /** Overall city price per sq ft by quarter, for comparison. */
+  cityAll: { date: string; close: number }[]
 }
 
 export interface CryptoMeta extends Common {

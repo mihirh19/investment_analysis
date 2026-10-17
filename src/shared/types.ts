@@ -1,6 +1,14 @@
 // Types shared by the main process (Node) and the renderer (React).
 
-import type { AnalysisReport, DisclosureStatus, ManualAssetInput, ManualAssetView, MetalPrices } from './assets'
+import type {
+  AnalysisReport,
+  DisclosureStatus,
+  HousingCity,
+  ManualAssetInput,
+  ManualAssetView,
+  MetalPrices,
+  PropertyView
+} from './assets'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
 
@@ -670,7 +678,14 @@ export interface TaxReport {
   /** Lots at a loss: selling books a loss that can be set off against gains. */
   losses: OpenLot[]
   /** Holdings without a purchase-by-purchase history: gains here are estimates with no holding period. */
-  estimateOnly: { personName: string; name: string; valueInr: number; gainInr: number | null }[]
+  estimateOnly: {
+    personName: string
+    name: string
+    valueInr: number
+    gainInr: number | null
+    /** Which file would date this holding's purchases. */
+    fix: string
+  }[]
   warnings: string[]
 }
 
@@ -815,6 +830,10 @@ export interface RequestApi {
   getMetalPrices(): Promise<ApiResult<MetalPrices>>
   setGoldPremium(pct: number): Promise<ApiResult<MetalPrices>>
   getAnalysis(personId?: number): Promise<ApiResult<AnalysisReport>>
+  /** Flats, houses, shops and land with live values, rent and this year's figures. */
+  getProperties(personId?: number): Promise<ApiResult<PropertyView[]>>
+  /** Cities with official home price data (NHB RESIDEX). */
+  getHousingCities(): Promise<ApiResult<HousingCity[]>>
   /** Last ~13 weekly closes per instrument, for sparklines. */
   getSparklines(instrumentIds: number[]): Promise<ApiResult<Record<number, number[]>>>
   /** Weekly benchmark closes in rupees since a date (all stored history when omitted). */

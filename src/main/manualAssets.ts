@@ -5,6 +5,7 @@ import type { AssetClass, HoldingRow, Platform } from '@shared/types'
 import { schema, type Db } from './db'
 import { todayIso } from './portfolio/dates'
 import { engineFor, type PriceBook } from './portfolio/engines'
+import { residexKey, type SizeBand } from './market/residex'
 
 const CLASS_BY_KIND: Record<ManualKind, AssetClass> = {
   DEPOSIT: 'FD',
@@ -40,6 +41,17 @@ function seriesLookup(points: { date: string; close: number }[]) {
   }
 }
 
+/** Value on a date between dated points; null before the first, the last after the last. */
+export function interpolate(points: { date: string; close: number }[], date: string): number | null {
+  if (points.length === 0 || date < points[0].date) return null
+  const i = points.findIndex((p) => p.date > date)
+  if (i === -1) return points[points.length - 1].close
+  const a = points[i - 1]
+  const b = points[i]
+  const t = (Date.parse(date) - Date.parse(a.date)) / (Date.parse(b.date) - Date.parse(a.date))
+  return a.close + (b.close - a.close) * t
+}
+
 export function loadPriceBook(db: Db): PriceBook {
   const live = new Map(
     db
@@ -64,9 +76,27 @@ export function loadPriceBook(db: Db): PriceBook {
   const today = todayIso()
   const at = (key: string, date?: string) =>
     !date || date >= today ? (live.get(key) ?? hist(key)(today)) : (hist(key)(date) ?? null)
+  // City home prices by quarter, read between quarters by straight line.
+  const housing = new Map<string, { date: string; close: number }[]>()
+  const housingPoints = (cityId: number, band: SizeBand) => {
+    const key = residexKey(cityId, band)
+    if (!housing.has(key))
+      housing.set(
+        key,
+        db
+          .select({ date: schema.priceHistory.date, close: schema.priceHistory.close })
+          .from(schema.priceHistory)
+          .where(eq(schema.priceHistory.key, key))
+          .orderBy(asc(schema.priceHistory.date))
+          .all()
+      )
+    return housing.get(key)!
+  }
   return {
     metal: (m, date) => at(m === 'GOLD' ? 'XAU' : 'XAG', date),
-    crypto: (sym, date) => at(`CRYPTO:${sym.toUpperCase()}`, date)
+    crypto: (sym, date) => at(`CRYPTO:${sym.toUpperCase()}`, date),
+    housing: (cityId, band, date) => interpolate(housingPoints(cityId, band), date),
+    housingStart: (cityId, band) => housingPoints(cityId, band)[0]?.date ?? null
   }
 }
 
@@ -142,6 +172,24 @@ function validate(m: ManualMeta): void {
     case 'PROPERTY':
       positive(m.purchasePrice, 'Purchase price')
       date(m.purchaseDate, 'Purchase date')
+      for (const t of m.tenancies ?? []) {
+        if (!t.tenant?.trim()) throw new Error('Enter the tenant’s name')
+        positive(t.monthlyRent, 'Monthly rent')
+        date(t.startDate, 'Tenancy start')
+        if (t.endDate) {
+          date(t.endDate, 'Tenancy end')
+          if (t.endDate < t.startDate) throw new Error('The tenancy ends before it starts')
+        }
+      }
+      for (const p of m.rentPayments ?? []) {
+        positive(p.amount, 'Rent received')
+        date(p.date, 'Date received')
+        if (!/^\d{4}-\d{2}$/.test(p.forMonth)) throw new Error('Choose the month the rent is for')
+      }
+      for (const e of m.expenses ?? []) {
+        positive(e.amount, 'Expense amount')
+        date(e.date, 'Expense date')
+      }
       break
     case 'CRYPTO':
       if (!/^[A-Za-z0-9]{2,10}$/.test(m.symbol ?? '')) throw new Error('Enter the coin ticker, e.g. BTC')

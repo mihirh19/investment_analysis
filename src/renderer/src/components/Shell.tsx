@@ -13,6 +13,7 @@ const NAV: { title: string; items: { to: string; label: string; end?: boolean }[
       { to: '/', label: 'Overview', end: true },
       { to: '/holdings', label: 'Holdings' },
       { to: '/other-assets', label: 'Other assets' },
+      { to: '/property', label: 'Property & rent' },
       { to: '/retirement', label: 'EPF & NPS' },
       { to: '/insurance', label: 'Insurance' },
       { to: '/dividends', label: 'Dividends' }

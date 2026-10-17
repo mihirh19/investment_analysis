@@ -360,6 +360,15 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
   }
 
   // ---------- holdings without lots ----------
+  // Holdings already given a price by a broker's holdings file (imported before it was read for dates).
+  const brokerFiles = new Set(
+    db
+      .select()
+      .from(schema.costBasis)
+      .all()
+      .filter((b) => b.source === 'BROKER' && b.accountId)
+      .map((b) => `${b.accountId}:${b.instrumentId}`)
+  )
   const estimateOnly = rows
     .filter((r) => {
       const a = accountById.get(r.accountId)
@@ -370,7 +379,8 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
       personName: r.personName,
       name: r.instrumentName,
       valueInr: r.marketValueInr ?? 0,
-      gainInr: r.marketValueInr !== null && r.investedInr !== null ? r.marketValueInr - r.investedInr : null
+      gainInr: r.marketValueInr !== null && r.investedInr !== null ? r.marketValueInr - r.investedInr : null,
+      fix: fixFor(r, accountById.get(r.accountId)!, brokerFiles.has(`${r.accountId}:${r.instrumentId}`))
     }))
     .sort((a, b) => b.valueInr - a.valueInr)
 
@@ -396,4 +406,31 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
     estimateOnly,
     warnings
   }
+}
+
+/** What to import so a holding gets dated lots, by where it is held. */
+function fixFor(
+  r: { assetClass: string; platform: string; tradesQuantity: number | null },
+  account: { kind: string },
+  hadBrokerFile: boolean
+): string {
+  const zerodha = r.platform === 'ZERODHA'
+  if (r.tradesQuantity !== null)
+    return 'Trades imported don’t add up to the units held: import the missing years of the tradebook.'
+  if (account.kind === 'US_BROKER')
+    return r.platform === 'INDMONEY'
+      ? 'INDmoney holdings report (it has “Holding Since”) and order report.'
+      : 'The broker’s order history, or enter when it was first bought.'
+  if (account.kind === 'MF_FOLIO')
+    return 'A Detailed CAS “since inception” from camsonline.com or mfcentral.com (lists every purchase).'
+  if (r.assetClass === 'MF')
+    return zerodha
+      ? 'Zerodha Console → Reports → Tradebook → Mutual funds, every year since first bought.'
+      : 'The broker’s mutual fund order history, or a Detailed CAS since inception.'
+  if (zerodha)
+    return hadBrokerFile
+      ? 'Import the Zerodha holdings file again (this version reads its long-term quantity), or the tradebook for every year.'
+      : 'Zerodha holdings file (long-term quantity) or Console → Reports → Tradebook → Equity, every year.'
+  if (r.platform === 'GROWW') return 'Groww order history (Stocks → Reports), every year since first bought.'
+  return 'The broker’s trade history, or open the holding and enter when it was first bought.'
 }

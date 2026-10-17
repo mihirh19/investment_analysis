@@ -281,7 +281,7 @@ describe('broker trade files', () => {
     return svc.runImport({ kind: 'ZERODHA_TRADEBOOK', personId: ME, filePath: file }).then((r) => {
       expect(r.transactionsAdded).toBe(3)
       expect(r.accountsCreated).toBe(0)
-      expect(r.warnings.join(' ')).toMatch(/non-equity/)
+      expect(r.warnings.join(' ')).toMatch(/F&O, currency or commodity rows were skipped/)
 
       const infy = svc.listHoldings(ME).find((h) => h.isin === 'INE009A01021')!
       expect(infy.quantity).toBe(15)

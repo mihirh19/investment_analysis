@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   COMPOUNDING,
   COUPON_FREQUENCIES,
@@ -442,6 +443,7 @@ function AssetRow({
   onEdit: () => void
 }) {
   const del = useDeleteManual()
+  const navigate = useNavigate()
   // Payout deposits (SCSS, POMIS, monthly-interest FDs) hand their interest over instead of growing.
   const paysOut = a.meta.kind === 'DEPOSIT' && a.meta.payout !== 'CUMULATIVE'
   const gain = !paysOut && a.value !== null && a.invested !== null ? a.value - a.invested : null
@@ -559,6 +561,9 @@ function AssetRow({
             </dl>
             {ENTRY_KINDS.includes(a.meta.kind) && <Entries a={a} />}
             <div className="mt-4 flex gap-3">
+              {a.meta.kind === 'PROPERTY' && (
+                <Button onClick={() => navigate('/property')}>Rent, city price and tax</Button>
+              )}
               <Button variant="quiet" onClick={onEdit}>
                 Edit
               </Button>
@@ -664,7 +669,11 @@ function AssetForm({ asset, onDone }: { asset: ManualAssetView | null; onDone: (
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const meta = toMeta(kind, v)
+    // Keep what this form doesn't show, such as a property's city, tenancies, rent and expenses.
+    const shown = new Set(FIELDS[kind].map((f) => f.key))
+    const kept =
+      asset && asset.meta.kind === kind ? Object.fromEntries(Object.entries(asset.meta).filter(([k]) => !shown.has(k))) : {}
+    const meta = { ...kept, ...toMeta(kind, v) } as ManualMeta
     save.mutate([{ accountId: asset?.accountId, personId, meta }], {
       onSuccess: (id) => {
         const cv = Number(v.currentValue)

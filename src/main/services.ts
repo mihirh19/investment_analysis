@@ -31,6 +31,8 @@ import { computeRebalance, saveTargets } from './portfolio/rebalance'
 import { computeHealth } from './portfolio/health'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
+import { computeProperties } from './portfolio/property'
+import { refreshResidex, residexCities, storedResidexCities } from './market/residex'
 import { schema, type Db } from './db'
 import { importAmcPortfolio } from './importers/amcPortfolio'
 import { importBrokerHoldings, saveIndmoneyDates, setManualCost } from './importers/brokerHoldings'
@@ -432,6 +434,9 @@ export function createServices(deps: ServiceDeps) {
       const id = manual.saveManualAsset(db, input)
       // Gold, silver and coins need a live price straight away.
       if (['METAL', 'SGB', 'CRYPTO'].includes(input.meta.kind)) await deps.market?.refresh({ quotes: true })
+      // A property in a new city: fetch that city's home prices now (a failure leaves the value as entered).
+      if (input.meta.kind === 'PROPERTY' && input.meta.cityId && !storedResidexCities(db).includes(input.meta.cityId))
+        await refreshResidex(db, [input.meta.cityId], deps.fetch).catch(() => null)
       return id
     },
     deleteManualAsset(accountId: number): null {
@@ -458,6 +463,8 @@ export function createServices(deps: ServiceDeps) {
       return manual.getMetalPrices(db)
     },
     getAnalysis: (personId?: number) => computeAnalysis(db, personId),
+    getProperties: (personId?: number) => computeProperties(db, personId),
+    getHousingCities: () => residexCities(db, deps.fetch),
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),
     getFunds: (personId?: number) => computeFunds(db, personId),

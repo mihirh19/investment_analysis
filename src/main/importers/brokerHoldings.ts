@@ -84,10 +84,13 @@ const col = (headers: string[], names: string[]) => {
 export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
   platform: Platform | null
   rows: BrokerHoldingRow[]
+  /** The date the statement is as on ("Equity Holdings Statement as on 2026-10-15"), if it says. */
+  asOf: string | null
 } {
   const wb = XLSX.read(data, { type: 'buffer' })
   const rows: BrokerHoldingRow[] = []
   let platform: Platform | null = null
+  let asOf: string | null = null
   for (const sheet of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet], { header: 1, defval: '', raw: true })
     const text = grid
@@ -95,6 +98,7 @@ export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
       .map((r) => r.join(' '))
       .join(' ')
       .toLowerCase()
+    asOf ??= statementDate(text)
     for (let r = 0; r < Math.min(grid.length, 60); r++) {
       const headers = grid[r].map(normalizeHeader)
       const iIsin = headers.findIndex((h) => h === 'isin' || h.startsWith('isin'))
@@ -139,14 +143,32 @@ export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
       break
     }
   }
-  return { platform, rows }
+  return { platform, rows, asOf }
+}
+
+const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+/** "as on 2026-10-15", "as on 15-10-2026", "as of 15 Oct 2026" → 2026-10-15. */
+export function statementDate(text: string): string | null {
+  const m = text.match(/as (?:on|of)\s*:?\s*([0-9a-z ,/-]{8,20})/i)
+  if (!m) return null
+  const t = m[1].trim()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  let y: number, mo: number, d: number
+  let x: RegExpMatchArray | null
+  if ((x = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) [y, mo, d] = [+x[1], +x[2], +x[3]]
+  else if ((x = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/))) [y, mo, d] = [+x[3], +x[2], +x[1]]
+  else if ((x = t.match(/^(\d{1,2})[ -]([a-z]{3})[a-z]*[ ,-]+(\d{4})/i)) && MON.includes(x[2].toLowerCase()))
+    [y, mo, d] = [+x[3], MON.indexOf(x[2].toLowerCase()) + 1, +x[1]]
+  else return null
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2000) return null
+  return `${y}-${pad(mo)}-${pad(d)}`
 }
 
 export function importBrokerHoldings(
   db: Db,
   opts: { personId: number; fileName: string; data: Buffer; asOf?: string }
 ): ImportResult {
-  const { platform, rows } = parseBrokerHoldings(opts.data)
+  const { platform, rows, asOf: statedOn } = parseBrokerHoldings(opts.data)
   if (rows.length === 0)
     throw new Error(
       'No holdings with a buy price found. Expected columns like "ISIN" or "Symbol", "Quantity" and "Average price" (or "Invested value").'
@@ -168,7 +190,9 @@ export function importBrokerHoldings(
       .all()
       .map((l) => [l.symbol.toUpperCase(), l.isin])
   )
-  const asOf = opts.asOf ?? new Date().toISOString().slice(0, 10)
+  // Long-term quantities are as on the statement's date, not the day it is imported.
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const asOf = opts.asOf ?? (statedOn && statedOn <= todayIso ? statedOn : todayIso)
 
   // Which held instrument a row is: by ISIN, then ticker, then name.
   const find = (r: BrokerHoldingRow) => {

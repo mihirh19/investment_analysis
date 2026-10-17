@@ -36,9 +36,19 @@ See [PLAN.md](PLAN.md) for the research, roadmap and design decisions.
 | Crypto | Yahoo (SYM-USD × USD→INR), CoinGecko fallback | With stock prices |
 | Weekly price history (net worth chart, sparklines) | All of the above, 5 years | Daily, only stale series |
 | Fund houses (for MFs/ETFs) | AMFI NAVAll.txt section headers, falling back to mfapi.in `meta.fund_house` | With NAVs |
+| Home prices for property (₹ per sq ft by city and carpet-area band) | [NHB RESIDEX](https://residex.nhbonline.org.in), the National Housing Bank's quarterly index from bank and housing-finance valuations, about 50 cities (Gujarat: Ahmedabad, Gandhinagar, Rajkot, Surat, Vadodara). The FY 2017-18 base series (from June 2018) is joined to the FY 2024-25 one | Weekly; a new city downloads when a property is saved |
 | Monthly portfolio disclosures (stocks inside your funds and ETFs) | AMFI's directory, then each fund house's own page (see below) | Daily check; downloads only when a newer month appears |
 
 Prices only update while the app is running. When it starts it refreshes everything. Renamed tickers (e.g. TATAMOTORS → TMPV after the demerger) are followed automatically through NSE's ISIN list. If a source is down, the last known price is used and **Settings & backup** shows which source failed.
+
+### Property & rent
+
+Each home, flat, tenement, shop or plot gets its own section.
+
+- **Value.** Pick its RESIDEX city and one of three ways. *Grow with city prices* takes your latest estimate (or the price paid) and moves it with the city's price per sq ft for that size of home. *Carpet area × city price* uses the city's average for the size band, plus or minus a locality premium. *Only my estimates* uses what you type in, with an optional yearly growth rate; this suits land. Before the series starts (mid-2018), the yearly growth rate bridges the gap. The page also shows the area-based figure as a cross-check, and the Jantri value if you enter it (look it up on GARVI). These are city-level estimates, not a valuation of your particular home.
+- **Rent.** Add the tenancy (tenant, rent, due day, deposit, agreement dates; 11 months by default) and record rent as it arrives. Each month of the financial year shows paid, part paid, due or overdue. Click a month to record it, or mark every overdue month received at once. The agreement's end date is flagged 45 days ahead. Until a tenancy is added, a plain monthly rent figure is assumed to arrive.
+- **Expenses and tax.** Property tax, maintenance, repairs, insurance and home-loan interest feed the net yield and the year's *Income from house property*: rent less property tax, less the 30% standard deduction, less loan interest.
+- **Returns.** Value growth a year (CAGR), XIRR including rent and expenses, and gross and net rental yield over the last 12 months.
 
 ### Sectors & exposure: equity, market cap and debt
 
@@ -116,6 +126,8 @@ src/main/            Electron main process
   assets.ts          EPF, insurance and hand-entered NPS
   manualAssets.ts    deposits, PPF/SSY, bonds, SGB, gold/silver, property, crypto, cash, other
   portfolio/engines  valuation maths per asset kind (compounding, payouts, coupons, maturities)
+  portfolio/property property page: city market, rent months, house-property income (rent.ts: rent maths)
+  market/residex     NHB RESIDEX city list and price series
   portfolio/analysis XIRR, net worth history, income, upcoming cash flows, liquidity, concentration
   services.ts        everything the UI can ask for; ipc.ts exposes it as window.api
 src/preload/         typed, sandboxed bridge

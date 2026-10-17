@@ -150,7 +150,7 @@ export function Tax() {
         <Section
           id="estimate-only"
           title="Not included: no purchase history"
-          note="These came only from statements, so their buy dates are unknown and the gains can't be split into short and long term. Import the tradebook for these accounts, import the broker's holdings file (Zerodha's says which units are over a year old), or open a holding and enter when it was first bought."
+          note="A CAS gives units and value, and a holdings file gives the buy price, but neither says when each unit was bought, which decides short or long term. The file that adds the dates is shown for each holding. Or open a holding and enter when it was first bought."
         >
           <table className="w-full text-[15px]">
             <thead>
@@ -159,15 +159,17 @@ export function Tax() {
                 {scope === 'family' && <Th>Person</Th>}
                 <Th num>Value</Th>
                 <Th num>Gain, if the buy price is known</Th>
+                <Th>What to import</Th>
               </tr>
             </thead>
             <tbody>
-              {t.estimateOnly.slice(0, 30).map((e, i) => (
+              {t.estimateOnly.slice(0, 60).map((e, i) => (
                 <tr key={i} className="border-b border-rule">
                   <td className="py-1.5">{e.name}</td>
                   {scope === 'family' && <td className="py-1.5 text-ink-muted">{e.personName}</td>}
                   <td className="num py-1.5">{money(e.valueInr)}</td>
                   <td className={`num py-1.5 ${toneClass(e.gainInr)}`}>{signedMoney(e.gainInr)}</td>
+                  <td className="max-w-[44ch] py-1.5 pl-6 text-[13px] text-ink-muted">{e.fix}</td>
                 </tr>
               ))}
             </tbody>

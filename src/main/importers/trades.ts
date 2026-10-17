@@ -3,7 +3,7 @@ import XLSX from 'xlsx'
 import { PLATFORM_LABELS, type AssetClass, type Platform, type TxnType } from '@shared/types'
 import { emptyBundle, makeOccurrenceKeyer, type ImportBundle, type NormAccount, type NormInstrument } from './bundle'
 import { normalizeHeader, parseDate, parseNumber } from './parse'
-import { dematClass } from './isin'
+import { dematClass, isEtfName } from './isin'
 
 export type Row = Record<string, unknown>
 
@@ -104,7 +104,9 @@ export function mapZerodhaTradebook(rows: Row[]): ImportBundle {
 
   rows.forEach((row, i) => {
     const segment = str(row['segment']).toUpperCase()
-    if (segment && segment !== 'EQ') {
+    // EQ: stocks and ETFs. MF: Coin mutual funds (symbol is the scheme name).
+    const isFund = segment === 'MF'
+    if (segment && segment !== 'EQ' && !isFund) {
       skippedSegments++
       return
     }
@@ -118,7 +120,16 @@ export function mapZerodhaTradebook(rows: Row[]): ImportBundle {
       return
     }
     const isin = str(row['isin']).toUpperCase() || null
-    const instr = stockInstrument({ isin, symbol, exchange: str(row['exchange']), market: 'IN' })
+    const instr: NormInstrument = isFund
+      ? {
+          // Keyed like the CAS's fund entries, so the trades join the same holding.
+          key: isin ? `ISIN:${isin}` : `NAME:${symbol}`,
+          isin,
+          name: str(row['symbol']),
+          assetClass: isEtfName(symbol) ? 'ETF' : 'MF',
+          currency: 'INR'
+        }
+      : stockInstrument({ isin, symbol, exchange: str(row['exchange']), market: 'IN' })
     if (!instruments.has(instr.key)) instruments.set(instr.key, instr)
 
     const sign = side === 'buy' ? 1 : -1
@@ -139,7 +150,7 @@ export function mapZerodhaTradebook(rows: Row[]): ImportBundle {
     })
   })
 
-  if (skippedSegments) b.warnings.push(`${skippedSegments} non-equity rows (F&O/currency/commodity) were skipped`)
+  if (skippedSegments) b.warnings.push(`${skippedSegments} F&O, currency or commodity rows were skipped`)
   b.instruments.push(...instruments.values())
   return b
 }

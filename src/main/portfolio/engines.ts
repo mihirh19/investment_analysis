@@ -17,11 +17,20 @@ import type {
 import type { PriceSource } from '@shared/types'
 import { addMonths, addYears, financialYearOf, maxDate, minDate, yearsBetween } from './dates'
 import { estimateEpfBalance } from './epf'
+import { sizeBandOf, type SizeBand } from '../market/residex'
+import { expensesBetween, rentDues, rentFlows, rentIncome, rentMonths, recordsPayments } from './rent'
 
 /** Live and historical prices the engines need: INR per gram of pure metal, INR per coin. */
 export interface PriceBook {
   metal(metal: 'GOLD' | 'SILVER', date?: string): number | null
   crypto(symbol: string, date?: string): number | null
+  /**
+   * A city's average home price per sq ft (NHB RESIDEX) on a date, between quarters by straight
+   * line; null before the series starts. After the latest quarter it stays at that quarter.
+   */
+  housing?(cityId: number, band: SizeBand, date: string): number | null
+  /** First quarter of a city's series. */
+  housingStart?(cityId: number, band: SizeBand): string | null
 }
 
 export interface Flow {
@@ -403,38 +412,77 @@ function marketLike(start: string, cost: number, valueAt: (date?: string) => num
 
 // ---------------- property, cash, other (valued from entries) ----------------
 
-function property(m: PropertyMeta, entries: { date: string; value: number }[], today: string): Engine {
+/** How a property is valued: the city's price index, its area at the city average, or your estimates. */
+export function propertyMode(m: PropertyMeta): 'INDEX' | 'AREA' | 'MANUAL' {
+  if (m.valuation) return m.valuation
+  return m.cityId ? 'INDEX' : 'MANUAL'
+}
+
+function property(m: PropertyMeta, entries: { date: string; value: number }[], today: string, book: PriceBook): Engine {
+  const band = sizeBandOf(m.carpetAreaSqft)
+  const city = m.cityId
+  // The home's size band if the city reports it, else the city as a whole.
+  const px = (date: string) =>
+    city && book.housing ? (book.housing(city, band, date) ?? (band !== 'ALL' ? book.housing(city, 'ALL', date) : null)) : null
+  const seriesStart = () =>
+    city && book.housingStart ? (book.housingStart(city, band) ?? book.housingStart(city, 'ALL')) : null
+  const mode = propertyMode(m)
+  const grow = (value: number, from: string, to: string) =>
+    m.appreciation && to > from ? value * (1 + m.appreciation / 100) ** yearsBetween(from, to) : value
+
   const valueOn = (date: string) => {
     if (date < m.purchaseDate) return 0
+    const priceNow = px(date)
+    if (mode === 'AREA' && m.carpetAreaSqft && priceNow) return m.carpetAreaSqft * priceNow * (1 + (m.premiumPct ?? 0) / 100)
     const base = entryOn(entries, date) ?? { date: m.purchaseDate, value: m.purchasePrice }
-    return m.appreciation ? base.value * (1 + m.appreciation / 100) ** yearsBetween(base.date, date) : base.value
+    if (mode !== 'MANUAL' && priceNow) {
+      const priceThen = px(base.date)
+      if (priceThen) return (base.value * priceNow) / priceThen
+      // Bought before the city series starts: your growth rate (if any) up to its first quarter.
+      const first = seriesStart()
+      const priceFirst = first ? px(first) : null
+      if (first && priceFirst) return (grow(base.value, base.date, first) * priceNow) / priceFirst
+    }
+    return grow(base.value, base.date, date)
   }
-  const rentDates = (from: string, to: string) =>
-    m.monthlyRent
-      ? schedule(addMonths(m.purchaseDate, -1), today, 1).filter((d) => d >= m.purchaseDate && within(d, from, to))
-      : []
   const latestEntry = entryOn(entries, today)
+  const indexed = mode !== 'MANUAL' && px(today) !== null
+  const expected = (from: string, to: string) => rentDues(m, from, to).filter((d) => d.dueDate > from)
   return {
     start: m.purchaseDate,
     valueOn,
     current: () => ({
       value: valueOn(today),
-      source: m.appreciation ? 'ESTIMATE' : latestEntry ? 'MANUAL' : 'STATEMENT',
+      source: indexed || m.appreciation ? 'ESTIMATE' : latestEntry ? 'MANUAL' : 'STATEMENT',
       prevValue: null
     }),
-    invested: () => m.purchasePrice,
+    invested: () => m.purchasePrice + (m.buyingCosts ?? 0),
     flows: () => [
-      { date: m.purchaseDate, amount: -m.purchasePrice },
-      ...rentDates(m.purchaseDate, today).map((d) => ({ date: d, amount: m.monthlyRent! }))
+      { date: m.purchaseDate, amount: -(m.purchasePrice + (m.buyingCosts ?? 0)) },
+      ...rentFlows(m, today),
+      ...(m.expenses ?? []).filter((e) => e.date <= today).map((e) => ({ date: e.date, amount: -e.amount }))
     ],
-    events: (from, to) =>
-      rentDates(from, to).map((d) => ({ date: d, label: 'Rent', amount: m.monthlyRent!, kind: 'RENT' as const })),
-    incomeBetween: (from, to) => ({ interest: 0, rent: rentDates(from, to).length * (m.monthlyRent ?? 0) }),
+    // Rent still to come: the months not yet paid.
+    events: (from, until) => {
+      // Open-ended tenancies would run forever: look a year ahead at most.
+      const to = until < addYears(today, 1) ? until : addYears(today, 1)
+      const unpaid = recordsPayments(m)
+        ? new Set(rentMonths(m, from, to, today).filter((x) => x.status !== 'PAID').map((x) => `${x.tenancyId}|${x.month}`))
+        : null
+      return expected(from, to)
+        .filter((d) => !unpaid || unpaid.has(`${d.tenancyId}|${d.month}`))
+        .map((d) => ({ date: d.dueDate, label: d.tenant ? `Rent from ${d.tenant}` : 'Rent', amount: d.amount, kind: 'RENT' as const }))
+    },
+    // Rent counts as it arrives: up to today, never the rest of the period.
+    incomeBetween: (from, to) => ({ interest: 0, rent: rentIncome(m, from, to < today ? to : today) }),
     maturity: () => null,
     liquidity: () => ({ bucket: 'ILLIQUID', lockedUntil: null }),
     projection: () => (m.appreciation ? yearlyPoints(today, addYears(today, 10), valueOn) : [])
   }
 }
+
+/** Expenses of a property in (from, to], for reports. */
+export const propertyExpenses = expensesBetween
 
 function cash(m: CashMeta, entries: { date: string; value: number }[], today: string): Engine {
   const valueOn = (date: string) => entryOn(entries, date)?.value ?? 0
@@ -497,7 +545,7 @@ export function engineFor(
     case 'CRYPTO':
       return crypto(meta, book)
     case 'PROPERTY':
-      return property(meta, sorted, today)
+      return property(meta, sorted, today, book)
     case 'CASH':
       return cash(meta, sorted, today)
     case 'OTHER':
