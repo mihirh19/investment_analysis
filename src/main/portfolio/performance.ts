@@ -19,9 +19,10 @@ import {
 import { xirr, type CashFlow } from './xirr'
 
 /**
- * Performance of the holdings whose every rupee in and out is on record (trades, deposits): the same
- * set the XIRR covers. Statement-only holdings have no dated purchases, so a period return for them
- * would mistake new money for growth; they are left out and reported as coverage.
+ * Performance of the holdings with dated money in and out: a full trade history, deposits and the
+ * like, and holdings known from statements, which are measured from their first statement (counted
+ * as bought then, at that day's value, with later changes in units as buys and sells). Only what
+ * has no dated record at all (EPF, insurance, a holding with no price) is left out.
  */
 export function computePerformance(db: Db, personId?: number): PerformanceReport {
   const ctx = loadContext(db, personId)
@@ -30,6 +31,13 @@ export function computePerformance(db: Db, personId?: number): PerformanceReport
   const covered = ctx.items.filter((i) => i.own && i.flows && i.row.marketValueInr !== null)
   const totalValueInr = ctx.items.reduce((s, i) => s + valueOf(i), 0)
   const coveredValueInr = covered.reduce((s, i) => s + valueOf(i), 0)
+  const fromStatements = covered.filter((i) => i.since)
+  const fromStatementsInr = fromStatements.reduce((s, i) => s + valueOf(i), 0)
+  const statementsSince = fromStatements.map((i) => i.since!).sort()[0] ?? null
+  const longEnough = (i: Item) => {
+    const first = i.own!.map((f) => f.date).sort()[0]
+    return !!first && Date.parse(ctx.today) - Date.parse(first) >= 90 * 86400000
+  }
 
   const pairs = new Set(covered.map((i) => `${i.row.accountId}:${i.row.instrumentId}`))
   const hist = buildHistory(db, ctx.accounts, ctx.txnsByPair, ctx.engines, ctx.fx, ctx.today, pairs)
@@ -140,10 +148,11 @@ export function computePerformance(db: Db, personId?: number): PerformanceReport
       name: i.row.instrumentName,
       personName: i.row.personName,
       platform: i.row.platform,
-      xirr: xirr(i.flows!),
+      xirr: longEnough(i) ? xirr(i.flows!) : null,
       valueInr: valueOf(i),
       gainInr:
-        i.row.marketValueInr !== null && i.row.investedInr !== null ? i.row.marketValueInr - i.row.investedInr : null
+        i.row.marketValueInr !== null && i.row.investedInr !== null ? i.row.marketValueInr - i.row.investedInr : null,
+      since: i.since
     }))
     .filter((h) => h.valueInr > 0)
     .sort((a, b) => b.valueInr - a.valueInr)
@@ -152,6 +161,8 @@ export function computePerformance(db: Db, personId?: number): PerformanceReport
   return {
     coverage: totalValueInr > 0 ? coveredValueInr / totalValueInr : 0,
     coveredValueInr,
+    fromStatementsInr,
+    statementsSince,
     totalValueInr,
     dates,
     values,

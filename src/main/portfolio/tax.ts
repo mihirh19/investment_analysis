@@ -86,6 +86,27 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
   const warnings: string[] = []
   const missingFmv = new Set<string>()
   const lotPairs = new Set<string>()
+  let beforeTrades = false
+
+  // ---------- what brokers say about holding periods ----------
+  // A statement plus a broker's holdings file give units and average cost but not dates. When the
+  // date is known (INDmoney's "Holding Since", or typed in) the holding becomes one lot from that
+  // date; when the broker says how many units are over a year old (Zerodha's "Quantity Long Term"),
+  // those are dated a year and a day before the file and the rest today, so they are never shown
+  // as long-term too early.
+  const dates = new Map<
+    string,
+    { heldSince: string | null; longTermQty: number | null; asOf: string; manual: boolean }
+  >()
+  for (const b of db.select().from(schema.costBasis).all()) {
+    if (!b.heldSince && b.longTermQty === null) continue
+    for (const k of [b.accountId ? `a${b.accountId}:${b.instrumentId}` : `p${b.personId}:${b.instrumentId}`]) {
+      const prev = dates.get(k)
+      const manual = b.source === 'MANUAL'
+      if (!prev || (manual && !prev.manual) || (manual === prev.manual && b.asOf > prev.asOf))
+        dates.set(k, { heldSince: b.heldSince, longTermQty: b.longTermQty, asOf: b.asOf, manual })
+    }
+  }
 
   for (const [k, pairTxns] of byPair) {
     const [accountId, instrumentId] = k.split(':').map(Number)
@@ -97,16 +118,48 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
     const pid = account.personId
     const personName = persons.get(pid) ?? ''
     const row = rowByPair.get(k)
-    // Lots are only trustworthy when the trades add up to what the statement shows.
-    if (row && row.tradesQuantity !== null) continue
-    if (!pairTxns.some((t) => t.type === 'BUY')) continue
-
+    const rateOn = (date: string, currency: string) => (currency === 'USD' ? (fx.on(date) ?? fx.latest() ?? 0) : 1)
     // Rupees at each trade's own date: cost at the purchase rate, proceeds at the sale rate.
     const inr: FifoTxn[] = pairTxns.map((t) => {
-      const rate = t.currency === 'USD' ? (fx.on(t.date) ?? fx.latest() ?? 0) : 1
+      const rate = rateOn(t.date, t.currency)
       return { date: t.date, type: t.type, quantity: t.quantity, amount: t.amount * rate, fees: t.fees * rate }
     })
-    const fifo = computeFifo(inr)
+
+    // When the trade files don't reach back to the first purchase, the units they don't explain were
+    // bought before the earliest trade on file: one opening lot, dated the day before it, at the
+    // holding's known average cost. Sales use it up first, as FIFO would.
+    let opening: { date: string; units: number } | null = null
+    if (row && row.tradesQuantity !== null) {
+      const missing = row.quantity - pairTxns.reduce((sum, t) => sum + t.quantity, 0)
+      const first = pairTxns.find((t) => t.quantity !== 0)
+      // More traded than held means a sale is missing instead; nothing safe to infer.
+      if (missing <= 1e-6 || !first || row.avgCost === null || row.avgCost <= 0) continue
+      opening = { date: addDays(first.date, -1), units: missing }
+    } else if (!pairTxns.some((t) => t.type === 'BUY')) continue
+
+    const withOpening = (perUnit: number): FifoTxn[] =>
+      opening
+        ? [
+            {
+              date: opening.date,
+              type: 'BUY',
+              quantity: opening.units,
+              amount: opening.units * perUnit * rateOn(opening.date, inst.currency),
+              fees: 0
+            },
+            ...inr
+          ]
+        : inr
+    let fifo = computeFifo(withOpening(row?.avgCost ?? 0))
+    if (opening && row) {
+      // The opening units' cost: what the average cost leaves after the dated lots still held.
+      const left = fifo.openLots.filter((l) => l.date === opening!.date).reduce((a, l) => a + l.quantity, 0)
+      const dated = fifo.openLots.filter((l) => l.date !== opening!.date).reduce((a, l) => a + l.quantity * l.costPerUnit, 0)
+      const rate = rateOn(opening.date, inst.currency)
+      const implied = left > 1e-9 && rate > 0 ? (row.avgCost! * row.quantity * rate - dated) / left / rate : null
+      if (implied !== null && implied > row.avgCost! * 0.25 && implied < row.avgCost! * 4) fifo = computeFifo(withOpening(implied))
+      beforeTrades = true
+    }
     if (fifo.unmatchedSellQuantity > 1e-6)
       warnings.push(
         `${inst.name}: ${+fifo.unmatchedSellQuantity.toFixed(3)} units sold have no matching purchase in the data, so that part of the sale is left out.`
@@ -147,12 +200,16 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
         kind: tr.kind,
         rate: tr.rate,
         fmv2018: s.buyDate <= GRANDFATHER_DATE ? fmvPerUnit : null,
-        grandfathered
+        grandfathered,
+        estimated: opening !== null && s.buyDate === opening.date
       })
     }
 
-    // Open lots, valued at today's price of the holding.
+    // Open lots, valued at today's price of the holding. The broker's own long-term count (Zerodha)
+    // beats an estimate from partial trade files, which can miss a year in between.
     if (!row || row.marketValueInr === null || row.quantity <= 0) continue
+    const brokerSays = dates.get(`a${accountId}:${instrumentId}`) ?? dates.get(`p${pid}:${instrumentId}`)
+    if (opening && brokerSays) continue
     lotPairs.add(k)
     const pricePerUnit = row.marketValueInr / row.quantity
     for (const lot of fifo.openLots) {
@@ -175,30 +232,16 @@ export function computeTax(db: Db, personId?: number, today = todayIso()): TaxRe
         gainInr: value - cost,
         term: tr.term,
         kind: tr.kind,
-        longTermFrom: tr.longTermFrom
+        longTermFrom: tr.longTermFrom,
+        ...(opening && lot.date === opening.date ? { estimatedFrom: 'BEFORE_TRADES' as const } : {})
       })
     }
   }
+  if (beforeTrades)
+    warnings.push(
+      'Some trade files start after the first purchase. Units they don’t cover are taken as bought before the earliest trade on file (shown as "before" a date), at the average cost. If a year is missing in between, import it, or those units can show as long-term too early.'
+    )
 
-  // ---------- opening lots for holdings with no trade history ----------
-  // A statement plus a broker's holdings file give units and average cost but not dates. When the
-  // date is known (INDmoney's "Holding Since", or typed in) the holding becomes one lot from that
-  // date; when the broker says how many units are over a year old (Zerodha's "Quantity Long Term"),
-  // those are dated a year and a day before the file and the rest today, so they are never shown
-  // as long-term too early.
-  const dates = new Map<
-    string,
-    { heldSince: string | null; longTermQty: number | null; asOf: string; manual: boolean }
-  >()
-  for (const b of db.select().from(schema.costBasis).all()) {
-    if (!b.heldSince && b.longTermQty === null) continue
-    for (const k of [b.accountId ? `a${b.accountId}:${b.instrumentId}` : `p${b.personId}:${b.instrumentId}`]) {
-      const prev = dates.get(k)
-      const manual = b.source === 'MANUAL'
-      if (!prev || (manual && !prev.manual) || (manual === prev.manual && b.asOf > prev.asOf))
-        dates.set(k, { heldSince: b.heldSince, longTermQty: b.longTermQty, asOf: b.asOf, manual })
-    }
-  }
   for (const row of rows) {
     const k = `${row.accountId}:${row.instrumentId}`
     if (lotPairs.has(k) || !accountById.has(row.accountId)) continue
@@ -416,7 +459,7 @@ function fixFor(
 ): string {
   const zerodha = r.platform === 'ZERODHA'
   if (r.tradesQuantity !== null)
-    return 'Trades imported don’t add up to the units held: import the missing years of the tradebook.'
+    return 'The trades imported are more than the units held, so a sale is missing: import the tradebook for the missing period.'
   if (account.kind === 'US_BROKER')
     return r.platform === 'INDMONEY'
       ? 'INDmoney holdings report (it has “Holding Since”) and order report.'
@@ -425,7 +468,7 @@ function fixFor(
     return 'A Detailed CAS “since inception” from camsonline.com or mfcentral.com (lists every purchase).'
   if (r.assetClass === 'MF')
     return zerodha
-      ? 'Zerodha Console → Reports → Tradebook → Mutual funds, every year since first bought.'
+      ? 'Zerodha Console → Reports → Tradebook → Mutual funds, at least the last 12 months (older units are then dated before it; every year gives exact dates).'
       : 'The broker’s mutual fund order history, or a Detailed CAS since inception.'
   if (zerodha)
     return hadBrokerFile

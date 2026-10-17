@@ -1,9 +1,11 @@
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { ApiResult, ImportKind, RequestApi } from '@shared/types'
 import type { Services } from './services'
 
-const FILE_FILTERS: Record<ImportKind | 'BACKUP', Electron.FileFilter[]> = {
+const FILE_FILTERS: Record<ImportKind | 'BACKUP' | 'DOCUMENT', Electron.FileFilter[]> = {
+  DOCUMENT: [{ name: 'PDF or photo', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'] }],
   CAS_PDF: [{ name: 'CAS statement (PDF)', extensions: ['pdf'] }],
   ZERODHA_TRADEBOOK: [{ name: 'Zerodha tradebook', extensions: ['csv', 'xlsx', 'xls'] }],
   GROWW_ORDERS: [{ name: 'Groww order history', extensions: ['xlsx', 'xls', 'csv'] }],
@@ -20,6 +22,7 @@ type Handlers = { [K in keyof RequestApi]: (...args: Parameters<RequestApi[K]>) 
 const focused = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
 
 export function registerIpc(services: Services): void {
+  rmSync(join(app.getPath('temp'), 'family-portfolio-documents'), { recursive: true, force: true })
   const handlers: Handlers = {
     listPersons: () => services.listPersons(),
     savePerson: (p) => services.savePerson(p),
@@ -53,6 +56,8 @@ export function registerIpc(services: Services): void {
     deletePolicy: (id) => services.deletePolicy(id),
     listNpsSchemes: () => services.listNpsSchemes(),
     addNpsHolding: (input) => services.addNpsHolding(input),
+    addNpsAccount: (input) => services.addNpsAccount(input),
+    removeHolding: (accountId, instrumentId) => services.removeHolding(accountId, instrumentId),
 
     listManualAssets: (personId) => services.listManualAssets(personId),
     saveManualAsset: (input) => services.saveManualAsset(input),
@@ -64,6 +69,36 @@ export function registerIpc(services: Services): void {
     getAnalysis: (personId) => services.getAnalysis(personId),
     getProperties: (personId) => services.getProperties(personId),
     getHousingCities: () => services.getHousingCities(),
+    listVehicles: (personId) => services.listVehicles(personId),
+    saveVehicle: (input) => services.saveVehicle(input),
+    deleteVehicle: (id) => services.deleteVehicle(id),
+    readVehicleDocument: (filePath, password) => services.readVehicleDocument(filePath, password),
+    addVehicleDocument: (vehicleId, kind, filePath) => services.addVehicleDocument(vehicleId, kind, filePath),
+    openDocument: async (id) => {
+      // A temporary decrypted copy for the viewer; the folder is emptied when the app starts.
+      const d = services.getDocument(id)
+      const dir = join(app.getPath('temp'), 'family-portfolio-documents')
+      mkdirSync(dir, { recursive: true })
+      const file = join(dir, `${id}-${d.fileName.replace(/[^\w.\- ]+/g, '_')}`)
+      writeFileSync(file, d.data)
+      const err = await shell.openPath(file)
+      if (err) throw new Error(err)
+      return null
+    },
+    deleteDocument: (id) => services.deleteDocument(id),
+    getGoogleSetup: () => services.getGoogleSetup(),
+    saveGoogleClient: (input) => services.saveGoogleClient(input),
+    connectGoogleAccount: (personId) => services.connectGoogleAccount(personId),
+    setGoogleAccountPerson: (email, personId) => services.setGoogleAccountPerson(email, personId),
+    disconnectGoogleAccount: (email) => services.disconnectGoogleAccount(email),
+    checkMail: (email) => services.checkMail(email),
+    getForecast: (personId) => services.getForecast(personId),
+    savePlan: (plan) => services.savePlan(plan),
+    getPhoneSync: () => services.getPhoneSync(),
+    configurePhoneSync: (input) => services.configurePhoneSync(input),
+    allowPhoneDrive: (email) => services.allowPhoneDrive(email),
+    syncPhone: () => services.syncPhone(),
+    turnOffPhoneSync: () => services.turnOffPhoneSync(),
     getSparklines: (ids) => services.getSparklines(ids),
     listBenchmarks: (since) => services.listBenchmarks(since),
     getPerformance: (personId) => services.getPerformance(personId),

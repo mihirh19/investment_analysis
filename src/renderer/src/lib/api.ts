@@ -1,11 +1,14 @@
 import { useEffect } from 'react'
 import type { ManualAssetInput } from '@shared/assets'
+import type { VehicleInput } from '@shared/vehicles'
+import type { Plan } from '@shared/plan'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ApiResult,
   EpfInput,
   ImportRequest,
   ManualTxnInput,
+  NpsAccountInput,
   NpsHoldingInput,
   Person,
   PolicyInput,
@@ -126,6 +129,9 @@ export const useDeleteEpfEntry = () => useWrite((id: number, date: string) => ap
 export const useSavePolicy = () => useWrite((input: PolicyInput) => api().savePolicy(input))
 export const useDeletePolicy = () => useWrite((id: number) => api().deletePolicy(id))
 export const useAddNps = () => useWrite((input: NpsHoldingInput) => api().addNpsHolding(input))
+export const useAddNpsAccount = () => useWrite((input: NpsAccountInput) => api().addNpsAccount(input))
+export const useRemoveHolding = () =>
+  useWrite((accountId: number, instrumentId: number) => api().removeHolding(accountId, instrumentId))
 
 // ---------------- other assets, analysis ----------------
 
@@ -222,3 +228,52 @@ export const useHousingCities = (enabled = true) =>
     staleTime: Infinity,
     retry: 1
   })
+
+// ---------------- vehicles and documents ----------------
+
+export const useVehicles = (personId?: number) =>
+  useQuery({ queryKey: ['vehicles', personId ?? 'all'], queryFn: () => unwrap(api().listVehicles(personId)) })
+export const useSaveVehicle = () => useWrite((input: VehicleInput) => api().saveVehicle(input))
+export const useDeleteVehicle = () => useWrite((id: number) => api().deleteVehicle(id))
+export const useAddVehicleDocument = () =>
+  useWrite((vehicleId: number, kind: string, filePath: string) => api().addVehicleDocument(vehicleId, kind, filePath))
+export const useDeleteDocument = () => useWrite((id: number) => api().deleteDocument(id))
+export const readVehicleDocument = (filePath: string, password?: string) =>
+  unwrap(api().readVehicleDocument(filePath, password))
+export const openDocument = (id: number) => unwrap(api().openDocument(id))
+export const pickDocument = () => unwrap(api().pickFile('DOCUMENT'))
+
+// ---------------- Google accounts ----------------
+
+export const useGoogleSetup = () =>
+  useQuery({ queryKey: ['googleSetup'], queryFn: () => unwrap(api().getGoogleSetup()) })
+export const useSaveGoogleClient = () =>
+  useWrite((input: { clientId: string; clientSecret: string; web?: boolean }) => api().saveGoogleClient(input))
+export const useConnectGoogle = () => useWrite((personId: number) => api().connectGoogleAccount(personId))
+export const useSetGooglePerson = () =>
+  useWrite((email: string, personId: number) => api().setGoogleAccountPerson(email, personId))
+export const useDisconnectGoogle = () => useWrite((email: string) => api().disconnectGoogleAccount(email))
+export const useCheckMail = () => useWrite((email?: string) => api().checkMail(email))
+
+// ---------------- forecast ----------------
+
+export const useForecast = (personId?: number) =>
+  useQuery({ queryKey: ['forecast', personId ?? 'all'], queryFn: () => unwrap(api().getForecast(personId)) })
+/** Saving the plan only changes the forecast, so only that is fetched again. */
+export function useSavePlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (plan: Plan) => unwrap(api().savePlan(plan)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['forecast'] })
+  })
+}
+
+// ---------------- phone app ----------------
+
+export const usePhoneSync = () =>
+  useQuery({ queryKey: ['phoneSync'], queryFn: () => unwrap(api().getPhoneSync()) })
+export const useConfigurePhone = () =>
+  useWrite((input: { account: string; passphrase?: string }) => api().configurePhoneSync(input))
+export const useAllowPhoneDrive = () => useWrite((email: string) => api().allowPhoneDrive(email))
+export const useSyncPhone = () => useWrite(() => api().syncPhone())
+export const useTurnOffPhone = () => useWrite(() => api().turnOffPhoneSync())

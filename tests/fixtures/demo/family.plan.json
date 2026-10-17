@@ -1,0 +1,112 @@
+{
+  "targetYear": 2060,
+  "retireYear": 2050,
+  "birthYears": {
+    "1": 1996,
+    "2": 1968
+  },
+  "expenses": [
+    {
+      "key": "GROCERY",
+      "monthly": 18000,
+      "inflation": null
+    },
+    {
+      "key": "RENT",
+      "monthly": 0,
+      "inflation": null
+    },
+    {
+      "key": "HEALTH",
+      "monthly": 4000,
+      "inflation": null
+    },
+    {
+      "key": "EDUCATION",
+      "monthly": 12000,
+      "inflation": null
+    },
+    {
+      "key": "TRANSPORT",
+      "monthly": 6000,
+      "inflation": null
+    },
+    {
+      "key": "FUEL_POWER",
+      "monthly": 4500,
+      "inflation": null
+    },
+    {
+      "key": "CLOTHING",
+      "monthly": 3000,
+      "inflation": null
+    },
+    {
+      "key": "HOUSEHOLD",
+      "monthly": 5000,
+      "inflation": null
+    },
+    {
+      "key": "PERSONAL",
+      "monthly": 2000,
+      "inflation": null
+    },
+    {
+      "key": "LEISURE",
+      "monthly": 6000,
+      "inflation": null
+    },
+    {
+      "key": "EMI",
+      "monthly": 0,
+      "inflation": null
+    },
+    {
+      "key": "OTHER",
+      "monthly": 5000,
+      "inflation": null
+    }
+  ],
+  "sips": [
+    {
+      "id": "s1",
+      "personId": 1,
+      "name": "Parag Parikh Flexi Cap",
+      "monthly": 15000,
+      "stepUpPct": 10,
+      "bucket": "EQUITY",
+      "start": "2024-04",
+      "endYear": null
+    },
+    {
+      "id": "s2",
+      "personId": 1,
+      "name": "Nifty Midcap 150 Index",
+      "monthly": 5000,
+      "stepUpPct": 10,
+      "bucket": "EQUITY",
+      "start": "2025-01",
+      "endYear": null
+    },
+    {
+      "id": "s3",
+      "personId": 2,
+      "name": "SBI Gold Fund",
+      "monthly": 3000,
+      "stepUpPct": 0,
+      "bucket": "GOLD",
+      "start": "2023-06",
+      "endYear": 2030
+    }
+  ],
+  "goals": [
+    {
+      "id": "g1",
+      "name": "Child's engineering degree",
+      "costToday": 1500000,
+      "year": 2045,
+      "category": "EDUCATION",
+      "fromPortfolio": true
+    }
+  ]
+}

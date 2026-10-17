@@ -1,0 +1,54 @@
+# Publishes the phone app (phone/) to GitHub Pages: https://mihirh19.github.io/investment_analysis/
+# Only the app's code is published; data never leaves the person's own devices and Google Drive.
+# One-time: Settings → Pages → Source: GitHub Actions. Optionally Settings → Secrets and variables
+# → Actions → Variables → GOOGLE_CLIENT_ID (the Web application client ID) to build it in.
+name: Phone app
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'phone/**'
+      - 'src/shared/**'
+      - 'src/renderer/src/lib/**'
+      - 'src/renderer/src/styles.css'
+      - 'package-lock.json'
+      - '.github/workflows/phone.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The desktop app's native modules and Electron download aren't needed for the phone build.
+      - run: npm ci --ignore-scripts
+      - run: npm run phone:build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-phone
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

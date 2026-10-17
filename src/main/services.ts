@@ -12,6 +12,7 @@ import type {
   ImportResult,
   ManualTxnInput,
   MarketStatus,
+  NpsAccountInput,
   Person,
   PricePoint,
   Targets,
@@ -32,13 +33,21 @@ import { computeHealth } from './portfolio/health'
 import { fillSchemeNames, getDisclosureStatus, syncDisclosures } from './market/disclosures'
 import { computeAnalysis } from './portfolio/analysis'
 import { computeProperties } from './portfolio/property'
+import * as vehicles from './vehicles'
+import { createMail } from './mailSync'
+import { createPhoneSync } from './phoneSync'
+import { applyPhoneEntry, buildPhoneSnapshot } from './phoneData'
+import { computeForecast, savePlan } from './portfolio/forecast'
+import type { Plan } from '@shared/plan'
+import { readVehicleDocument } from './importers/vehicleDocs'
+import type { VehicleInput } from '@shared/vehicles'
 import { refreshResidex, residexCities, storedResidexCities } from './market/residex'
 import { schema, type Db } from './db'
 import { importAmcPortfolio } from './importers/amcPortfolio'
 import { importBrokerHoldings, saveIndmoneyDates, setManualCost } from './importers/brokerHoldings'
 import { reclassifyDemat, tidyListedNames } from './importers/isin'
 import { persistBundle, rowHash, type ImportBundle } from './importers/bundle'
-import { CasHelperError, mapCasJson, runCasparser } from './importers/cas'
+import { CasHelperError, mapCasJson, runCasparser, runPdfText } from './importers/cas'
 import {
   GENERIC_HEADERS,
   GROWW_HEADERS,
@@ -51,7 +60,7 @@ import {
   mapIndmoneyHoldings,
   mapIndmoneyOrders
 } from './importers/trades'
-import { mfapiHistory, npsHistory, npsSchemes } from './market/funds'
+import { mfapiHistory, npsHistory, npsLatest, npsSchemes } from './market/funds'
 import type { FetchFn } from './market/http'
 import { yahooHistory } from './market/yahoo'
 import { listDividends } from './portfolio/dividends'
@@ -76,6 +85,8 @@ export interface ServiceDeps {
   /** Swaps in a verified backup and restarts the app (Electron-specific). */
   replaceDatabase?(filePath: string, key: string): void
   fetch?: FetchFn
+  /** Opens a page in the person's browser (Google sign-in). */
+  openUrl?(url: string): void | Promise<void>
 }
 
 const RANGE_DAYS = { '1mo': 31, '6mo': 183, '1y': 366, '5y': 1827 } as const
@@ -99,7 +110,38 @@ export function createServices(deps: ServiceDeps) {
       .run()
   }
 
-  return {
+  // Statements fetched from connected Google accounts go through the same importer as a picked file.
+  const mail = createMail({
+    getSetting,
+    setSetting,
+    encrypt: deps.encrypt,
+    decrypt: deps.decrypt,
+    fetch: deps.fetch,
+    openUrl: deps.openUrl,
+    personName: (id) => db.select().from(schema.persons).where(eq(schema.persons.id, id)).get()?.name ?? '',
+    async importCas(personId, filePath) {
+      const r = await services.runImport({ kind: 'CAS_PDF', personId, filePath })
+      return r.snapshotsAdded || r.transactionsAdded
+        ? `Imported: ${r.snapshotsAdded} holdings, ${r.transactionsAdded} transactions.`
+        : 'Already up to date.'
+    }
+  })
+
+  // The phone app: encrypted copies through the chosen account's Google Drive.
+  const phone = createPhoneSync({
+    getSetting,
+    setSetting,
+    encrypt: deps.encrypt,
+    decrypt: deps.decrypt,
+    fetch: deps.fetch,
+    tokenFor: (email) => mail.tokenFor(email, { drive: true }),
+    hasDrive: (email) => mail.hasDrive(email),
+    clientInfo: () => mail.clientInfo(),
+    buildSnapshot: (applied) => buildPhoneSnapshot(db, applied, deps.market?.getStatus().lastRefresh ?? null),
+    apply: (entry) => applyPhoneEntry(db, entry)
+  })
+
+  const services = {
     getTheme(): Theme {
       const v = getSetting(THEME_KEY)
       return v === 'light' || v === 'dark' ? v : 'system'
@@ -426,6 +468,18 @@ export function createServices(deps: ServiceDeps) {
       await deps.market?.refresh({ full: true })
       return null
     },
+    async addNpsAccount(input: NpsAccountInput): Promise<string[]> {
+      const added = await assets.addNpsAccount(db, input, {
+        schemes: () => npsSchemes(deps.fetch),
+        latest: (code) => npsLatest(code, deps.fetch)
+      })
+      await deps.market?.refresh({ funds: true })
+      return added
+    },
+    removeHolding(accountId: number, instrumentId: number): null {
+      assets.removeHolding(db, accountId, instrumentId)
+      return null
+    },
 
     // ---------------- deposits, bonds, gold, property, crypto, cash, other ----------------
 
@@ -465,6 +519,34 @@ export function createServices(deps: ServiceDeps) {
     getAnalysis: (personId?: number) => computeAnalysis(db, personId),
     getProperties: (personId?: number) => computeProperties(db, personId),
     getHousingCities: () => residexCities(db, deps.fetch),
+
+    // ---------------- vehicles and documents ----------------
+
+    listVehicles: (personId?: number) => vehicles.listVehicles(db, personId),
+    saveVehicle: (input: VehicleInput) => vehicles.saveVehicle(db, input),
+    deleteVehicle(id: number): null {
+      vehicles.deleteVehicle(db, id)
+      return null
+    },
+    async readVehicleDocument(filePath: string, password?: string) {
+      if (!/\.pdf$/i.test(filePath))
+        throw new Error('Only PDFs can be read for now. Keep the photo as a document and type the details in.')
+      try {
+        return readVehicleDocument(await runPdfText(deps.casparserExe, filePath, password ?? ''))
+      } catch (e) {
+        if (e instanceof CasHelperError && e.code === 'wrong_password')
+          throw new Error(password ? 'That password did not open the PDF.' : 'This PDF has a password. Enter it to read it.')
+        throw e
+      }
+    },
+    addVehicleDocument(vehicleId: number, kind: string, filePath: string): number {
+      return vehicles.addDocument(db, { type: 'VEHICLE', id: vehicleId }, kind, basename(filePath), readFileSync(filePath))
+    },
+    getDocument: (id: number) => vehicles.getDocument(db, id),
+    deleteDocument(id: number): null {
+      vehicles.deleteDocument(db, id)
+      return null
+    },
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),
     getFunds: (personId?: number) => computeFunds(db, personId),
@@ -548,8 +630,42 @@ export function createServices(deps: ServiceDeps) {
       if (!deps.replaceDatabase) throw new Error('Restore is not available here')
       deps.replaceDatabase(filePath, key)
       return null
+    },
+
+    // ---------------- Google accounts (statements from Gmail) ----------------
+
+    getGoogleSetup: () => mail.setup(),
+    saveGoogleClient: (input: { clientId: string; clientSecret: string; web?: boolean }) => mail.saveClient(input),
+    connectGoogleAccount: (personId: number) => mail.connect(personId),
+    setGoogleAccountPerson: (email: string, personId: number) => mail.setPerson(email, personId),
+    disconnectGoogleAccount: (email: string) => mail.disconnect(email),
+    checkMail: (email?: string) => mail.check(email),
+    /** For the background timer. */
+    mailDue: () => mail.due(),
+
+    // ---------------- phone app ----------------
+
+    getPhoneSync: () => phone.status(),
+    configurePhoneSync: (input: { account: string; passphrase?: string }) => phone.configure(input),
+    /** Signs the account in again, this time allowing the hidden Drive folder. */
+    async allowPhoneDrive(email: string) {
+      const acct = mail.setup().accounts.find((a) => a.email === email)
+      await mail.connect(acct?.personId ?? 1, { drive: true })
+      return phone.status()
+    },
+    syncPhone: () => phone.sync(),
+    turnOffPhoneSync: () => phone.turnOff(),
+    phoneSyncEnabled: () => phone.enabled(),
+
+    // ---------------- forecast ----------------
+
+    getForecast: (personId?: number) => computeForecast(db, personId),
+    savePlan(plan: Plan): null {
+      savePlan(db, plan)
+      return null
     }
   }
+  return services
 }
 
 export type Services = ReturnType<typeof createServices>

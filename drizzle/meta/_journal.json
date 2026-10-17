@@ -64,6 +64,13 @@
       "when": 1792055825306,
       "tag": "0008_cost_basis_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792211490540,
+      "tag": "0009_life_admin",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import type {
   EpfAccountView,
   EpfInput,
+  NpsAccountInput,
   NpsHoldingInput,
   PolicyInput,
   PolicyView,
@@ -327,4 +328,123 @@ export function addNpsHolding(db: Db, input: NpsHoldingInput): void {
     .set({ npsCode: input.schemeCode })
     .where(and(eq(schema.instruments.name, input.schemeName), eq(schema.instruments.assetClass, 'NPS')))
     .run()
+}
+
+// ---------------- NPS the way a POP shows it ----------------
+
+/** Pension fund managers, by the word their scheme names share. */
+export const NPS_MANAGERS: { key: string; name: string; match: RegExp }[] = [
+  { key: 'SBI', name: 'SBI Pension Funds', match: /\bSBI\b/ },
+  { key: 'LIC', name: 'LIC Pension Fund', match: /\bLIC\b/ },
+  { key: 'UTI', name: 'UTI Retirement Solutions', match: /\bUTI\b/ },
+  { key: 'HDFC', name: 'HDFC Pension Fund', match: /\bHDFC\b/ },
+  { key: 'ICICI', name: 'ICICI Prudential Pension Fund', match: /\bICICI\b/ },
+  { key: 'KOTAK', name: 'Kotak Mahindra Pension Fund', match: /\bKOTAK\b/ },
+  { key: 'ABSL', name: 'Aditya Birla Sun Life Pension', match: /\bBIRLA\b/ },
+  { key: 'TATA', name: 'Tata Pension Fund', match: /\bTATA\b/ },
+  { key: 'AXIS', name: 'Axis Pension Fund (Max Life)', match: /\bAXIS\b|\bMAX\b/ },
+  { key: 'DSP', name: 'DSP Pension Fund', match: /\bDSP\b/ }
+]
+
+/**
+ * The npsnav scheme for a manager, asset class (E, C, G, A) and tier, bought through a POP (a
+ * broker like Zerodha Coin, or a bank), directly (eNPS) or under the government sector. Each has
+ * its own NAV, so the plain name (POP) must not be mistaken for the DIRECT or GS one.
+ */
+export function pickNpsScheme(
+  schemes: { code: string; name: string }[],
+  q: { manager: string; letter: string; tier: 'I' | 'II'; route: 'POP' | 'DIRECT' | 'GS' }
+): { code: string; name: string } | null {
+  const mgr = NPS_MANAGERS.find((m) => m.key === q.manager)
+  if (!mgr) return null
+  const re = new RegExp(String.raw`SCHEME\s*-?\s*${q.letter}\s*-\s*TIER\s*-?\s*${q.tier}(?![I\w])`, 'i')
+  const fits = schemes.filter((s) => {
+    const n = s.name.toUpperCase()
+    if (!mgr.match.test(n) || !re.test(n)) return false
+    if (/TAX SAVER|SURAKSHIT|VATSALYA|SANCHAY|ADVANTAGE|LITE|ATAL|SWAVALAMBAN/.test(n)) return false
+    const direct = /\bDIRECT\b/.test(n)
+    const gs = /\bGS\b|GOVT|GOVERNMENT|CENTRAL|STATE/.test(n)
+    return q.route === 'DIRECT' ? direct : q.route === 'GS' ? gs : !direct && !gs
+  })
+  return fits.sort((a, b) => a.name.length - b.name.length)[0] ?? null
+}
+
+/**
+ * Adds an NPS account from what a POP's screen shows (current value and amount invested per
+ * scheme). Units are worked out from the latest NAV, so the value then moves with each day's NAV.
+ */
+export async function addNpsAccount(
+  db: Db,
+  input: NpsAccountInput,
+  market: {
+    schemes(): Promise<{ code: string; name: string }[]>
+    latest(code: string): Promise<{ nav: number; date: string }>
+  }
+): Promise<string[]> {
+  const rows = input.rows.filter((r) => r.value > 0)
+  if (rows.length === 0) throw new Error('Enter the current value of at least one scheme')
+  const schemes = await market.schemes()
+  const pran = input.pran?.replace(/\s+/g, '') || null
+  const added: string[] = []
+  for (const r of rows) {
+    const s = pickNpsScheme(schemes, { manager: input.manager, letter: r.letter, tier: input.tier, route: input.route })
+    if (!s) throw new Error(`No ${input.manager} scheme ${r.letter} – Tier ${input.tier} found for that route`)
+    const { nav, date } = await market.latest(s.code)
+    const units = r.value / nav
+    persistBundle(db, {
+      personId: input.personId,
+      kind: 'MANUAL',
+      fileName: `NPS: ${s.name}`,
+      bundle: {
+        accounts: [
+          { key: 'A', platform: 'NPS', kind: 'NPS', name: pran ? `NPS · ${pran}` : 'NPS', externalId: pran, currency: 'INR' }
+        ],
+        instruments: [{ key: 'I', isin: null, name: s.name, assetClass: 'NPS', currency: 'INR' }],
+        transactions: [],
+        snapshots: [
+          {
+            accountKey: 'A',
+            instrumentKey: 'I',
+            date,
+            quantity: units,
+            price: nav,
+            value: r.value,
+            cost: r.invested && r.invested > 0 ? r.invested : null,
+            source: 'MANUAL'
+          }
+        ],
+        warnings: []
+      }
+    })
+    db.update(schema.instruments)
+      .set({ npsCode: s.code })
+      .where(and(eq(schema.instruments.name, s.name), eq(schema.instruments.assetClass, 'NPS')))
+      .run()
+    added.push(s.name)
+  }
+  return added
+}
+
+/**
+ * Removes one holding (an account's units of one instrument): its statements and trades here.
+ * The account goes too once it holds nothing else. A statement imported again brings it back.
+ */
+export function removeHolding(db: Db, accountId: number, instrumentId: number): void {
+  db.transaction((tx) => {
+    const pair = (t: typeof schema.holdingSnapshots | typeof schema.transactions) =>
+      and(eq(t.accountId, accountId), eq(t.instrumentId, instrumentId))
+    tx.delete(schema.holdingSnapshots).where(pair(schema.holdingSnapshots)).run()
+    tx.delete(schema.transactions).where(pair(schema.transactions)).run()
+    tx.delete(schema.costBasis)
+      .where(and(eq(schema.costBasis.accountId, accountId), eq(schema.costBasis.instrumentId, instrumentId)))
+      .run()
+    const left =
+      tx.select().from(schema.holdingSnapshots).where(eq(schema.holdingSnapshots.accountId, accountId)).get() ??
+      tx.select().from(schema.transactions).where(eq(schema.transactions.accountId, accountId)).get()
+    const account = tx.select().from(schema.accounts).where(eq(schema.accounts.id, accountId)).get()
+    if (!left && account && account.kind === 'NPS' && account.platform === 'NPS') {
+      tx.delete(schema.costBasis).where(eq(schema.costBasis.accountId, accountId)).run()
+      tx.delete(schema.accounts).where(eq(schema.accounts.id, accountId)).run()
+    }
+  })
 }

@@ -13,3 +13,6 @@ resources/bin/
 *.db-*
 tests/fixtures/private/
 *.tsbuildinfo
+
+# Phone app build
+dist-phone/

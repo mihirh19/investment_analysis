@@ -8,7 +8,7 @@ import { registerIpc } from './ipc'
 import { decryptSecret, encryptSecret, loadOrCreateDbKey, writeDbKey } from './keystore'
 import { MarketData } from './market/refresh'
 import { renderLinks } from './market/render'
-import { createServices } from './services'
+import { createServices, type Services } from './services'
 
 function resourcePath(...parts: string[]): string {
   // Packaged: files listed under extraResources sit next to app.asar.
@@ -65,6 +65,7 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(async () => {
     let market: MarketData
+    let services: Services
     try {
       const userData = app.getPath('userData')
       const keyFile = join(userData, 'db.key')
@@ -95,7 +96,7 @@ if (!app.requestSingleInstanceLock()) {
         fetch,
         { renderLinks }
       )
-      const services = createServices({
+      services = createServices({
         db,
         casparserExe: app.isPackaged
           ? join(process.resourcesPath, 'bin', 'casparser.exe')
@@ -105,6 +106,7 @@ if (!app.requestSingleInstanceLock()) {
         market,
         dbKey: key,
         applyTheme: (t) => (nativeTheme.themeSource = t),
+        openUrl: (url) => shell.openExternal(url),
         replaceDatabase(filePath, newKey) {
           market.stop()
           sqlite.close()
@@ -126,6 +128,28 @@ if (!app.requestSingleInstanceLock()) {
     }
     createWindow()
     market.start()
+    // Connected Gmail accounts are checked for new statements a minute after start, then every 12 hours.
+    const checkMail = () => {
+      if (services.mailDue())
+        void services
+          .checkMail()
+          .then(() => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send(MARKET_UPDATED)))
+          .catch(() => null)
+    }
+    setTimeout(checkMail, 60_000)
+    setInterval(checkMail, 30 * 60_000)
+    // The phone app's copy: entries from the phone come in, fresh figures go out (only when changed).
+    const syncPhone = () => {
+      if (services.phoneSyncEnabled())
+        void services
+          .syncPhone()
+          .then((s) => {
+            if (s.lastApplied) BrowserWindow.getAllWindows().forEach((w) => w.webContents.send(MARKET_UPDATED))
+          })
+          .catch(() => null)
+    }
+    setTimeout(syncPhone, 90_000)
+    setInterval(syncPhone, 10 * 60_000)
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })

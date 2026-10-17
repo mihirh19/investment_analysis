@@ -23,6 +23,8 @@ import { Funds } from './pages/Funds'
 import { Rebalance } from './pages/Rebalance'
 import { OtherAssets } from './pages/OtherAssets'
 import { Property } from './pages/Property'
+import { Vehicles } from './pages/Vehicles'
+import { Forecast } from './pages/Forecast'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } } })
 
@@ -51,6 +53,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="rebalance" element={<Rebalance />} />
               <Route path="other-assets" element={<OtherAssets />} />
               <Route path="property" element={<Property />} />
+              <Route path="vehicles" element={<Vehicles />} />
+              <Route path="forecast" element={<Forecast />} />
             </Route>
           </Routes>
         </HashRouter>

@@ -10,15 +10,43 @@ export const US_WITHHOLDING = 0.25
 type Txn = typeof schema.transactions.$inferSelect
 type Snap = { date: string; quantity: number }
 
+const dayBefore = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
+
+/**
+ * For trade files that start after the first purchase but reach back further than any statement:
+ * the units they don't explain (held already before the earliest trade on file), counted from the
+ * day before it. Sized against the latest statement, so trades plus this opening position always
+ * end at what the statement shows. Null when the trades already explain everything, when they
+ * add up to more than is held (a sale is missing), or when a statement goes back further anyway.
+ */
+export function openingFromTrades(txns: Txn[], snaps: Snap[]): { date: string; units: number } | null {
+  const unitTxns = txns.filter((t) => t.quantity !== 0).sort((a, b) => a.date.localeCompare(b.date))
+  if (unitTxns.length === 0 || snaps.length === 0) return null
+  if (!hasUnmatchedSells(unitTxns) && tradesAgreeWithSnapshots(unitTxns, snaps)) return null
+  const sorted = [...snaps].sort((a, b) => a.date.localeCompare(b.date))
+  const latest = sorted[sorted.length - 1]
+  const units = latest.quantity - unitTxns.filter((t) => t.date <= latest.date).reduce((s, t) => s + t.quantity, 0)
+  const date = dayBefore(unitTxns[0].date)
+  if (units < -1e-6 || date >= sorted[0].date) return null
+  return { date, units: Math.max(0, units) }
+}
+
 /**
  * Units held at the close of the day before `exDate`. Trades are used when they cover the
- * position from its first purchase; otherwise statement snapshots (unknown before the first one).
+ * position from its first purchase, or when they reach back further than the statements (with
+ * the units they don't explain held from the day before the first trade); otherwise statement
+ * snapshots (unknown before the first one).
  */
 export function unitsHeldBefore(exDate: string, txns: Txn[], snaps: Snap[]): number | null {
   const unitTxns = txns.filter((t) => t.quantity !== 0)
   const tradesComplete = unitTxns.length > 0 && !hasUnmatchedSells(unitTxns)
   if (tradesComplete && (snaps.length === 0 || tradesAgreeWithSnapshots(unitTxns, snaps))) {
     return unitTxns.filter((t) => t.date < exDate).reduce((s, t) => s + t.quantity, 0)
+  }
+  const opening = openingFromTrades(txns, snaps)
+  if (opening) {
+    if (exDate <= opening.date) return opening.units > 0 ? null : 0
+    return opening.units + unitTxns.filter((t) => t.date < exDate).reduce((s, t) => s + t.quantity, 0)
   }
   const before = snaps.filter((s) => s.date < exDate)
   if (before.length === 0) return null

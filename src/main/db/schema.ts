@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type { AccountKind, AssetClass, ImportKind, Platform, Relation, TxnType } from '@shared/types'
 
 const createdAt = () =>
@@ -307,3 +307,32 @@ export const nseListings = sqliteTable('nse_listings', {
   kind: text('kind').$type<'EQ' | 'ETF'>().notNull(),
   updatedAt: text('updated_at').notNull()
 })
+
+// ---------------- life admin: vehicles and documents ----------------
+
+/** A car, bike or other vehicle. Details, insurance, PUC and running costs live in meta_json. */
+export const vehicles = sqliteTable('vehicles', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personId: integer('person_id')
+    .notNull()
+    .references(() => persons.id),
+  metaJson: text('meta_json').notNull(),
+  createdAt: createdAt()
+})
+
+/** Files kept inside the encrypted database: RC, insurance policies, PUC certificates and the like. */
+export const documents = sqliteTable(
+  'documents',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    /** What it belongs to, e.g. VEHICLE 3. */
+    ownerType: text('owner_type').$type<'VEHICLE' | 'PROPERTY' | 'PERSON'>().notNull(),
+    ownerId: integer('owner_id').notNull(),
+    kind: text('kind').notNull(),
+    fileName: text('file_name').notNull(),
+    mime: text('mime').notNull(),
+    data: blob('data', { mode: 'buffer' }).notNull(),
+    createdAt: createdAt()
+  },
+  (t) => [index('documents_owner').on(t.ownerType, t.ownerId)]
+)

@@ -32,6 +32,8 @@ const signedMoney = (v: number | null | undefined) =>
     : signed2(v === null || v === undefined ? v : Math.round(v))
 
 const rate = (r: number | null) => (r === null ? 'slab' : `${+(r * 100).toFixed(1)}%`)
+/** The day after an ISO date (an opening lot is dated the day before the first trade on file). */
+const addDay = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
 
 function Section({
   id,
@@ -610,7 +612,9 @@ function LotTable({
                   ? 'In the last year'
                   : l.estimatedFrom === 'HELD_SINCE'
                     ? `Since ${shortDate(l.buyDate)}`
-                    : shortDate(l.buyDate)}
+                    : l.estimatedFrom === 'BEFORE_TRADES'
+                      ? `Before ${shortDate(addDay(l.buyDate))}`
+                      : shortDate(l.buyDate)}
             </td>
             <td className="num py-1.5">{fmtUnits(l.units)}</td>
             <td className={`num py-1.5 ${toneClass(l.gainInr)}`}>{signedMoney(l.gainInr)}</td>

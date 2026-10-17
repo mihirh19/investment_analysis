@@ -9,6 +9,10 @@ import type {
   MetalPrices,
   PropertyView
 } from './assets'
+import type { VehicleDocRead, VehicleInput, VehicleView } from './vehicles'
+import type { GoogleAccountView, GoogleSetup } from './mail'
+import type { Forecast, Plan } from './plan'
+import type { PhoneSyncStatus } from './phone'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
 
@@ -330,6 +334,18 @@ export interface PolicyView extends PolicyInput {
   valueDate: string | null
 }
 
+/** An NPS account as a POP (Zerodha Coin, a bank) shows it: value and amount invested per scheme. */
+export interface NpsAccountInput {
+  personId: number
+  pran?: string
+  /** Pension fund manager key: SBI, LIC, UTI, HDFC, ICICI, KOTAK, ABSL, TATA, AXIS, DSP. */
+  manager: string
+  tier: 'I' | 'II'
+  /** POP: through a broker or bank; DIRECT: eNPS; GS: government sector. */
+  route: 'POP' | 'DIRECT' | 'GS'
+  rows: { letter: 'E' | 'C' | 'G' | 'A'; value: number; invested?: number | null }[]
+}
+
 export interface NpsHoldingInput {
   personId: number
   pran?: string
@@ -608,6 +624,8 @@ export interface RealizedGain {
   /** 31 Jan 2018 value per unit, for units bought before 1 Feb 2018. */
   fmv2018: number | null
   grandfathered: boolean
+  /** The units sold came from before the trade files start, so their cost and date are estimated. */
+  estimated?: boolean
 }
 
 /** A purchase lot still held, valued today. */
@@ -632,9 +650,10 @@ export interface OpenLot {
   /**
    * Set when there is no trade history and the lot is built from what is known instead:
    * HELD_SINCE a first-bought date (INDmoney, or typed in); OVER_A_YEAR / WITHIN_A_YEAR the
-   * broker's long-term quantity, dated conservatively.
+   * broker's long-term quantity, dated conservatively; BEFORE_TRADES units the trade files don't
+   * cover, dated the day before the earliest trade on file.
    */
-  estimatedFrom?: 'HELD_SINCE' | 'OVER_A_YEAR' | 'WITHIN_A_YEAR'
+  estimatedFrom?: 'HELD_SINCE' | 'OVER_A_YEAR' | 'WITHIN_A_YEAR' | 'BEFORE_TRADES'
 }
 
 export interface TaxYearSummary {
@@ -714,6 +733,10 @@ export interface PerformanceReport {
   /** Share of today's value with a complete money trail (the part these figures describe). */
   coverage: number
   coveredValueInr: number
+  /** Part of the covered value measured from its first statement (no full trade history). */
+  fromStatementsInr: number
+  /** The earliest first statement among those, when there are any. */
+  statementsSince: string | null
   totalValueInr: number
   /** Month-end dates; the last one is today. */
   dates: string[]
@@ -754,9 +777,12 @@ export interface PerformanceReport {
       name: string
       personName: string
       platform: string
+      /** Null when the measured period is under three months (too short to annualise). */
       xirr: number | null
       valueInr: number
       gainInr: number | null
+      /** Measured from this statement date instead of the first purchase. */
+      since: string | null
     }[]
   }
 }
@@ -797,7 +823,7 @@ export interface RequestApi {
   }): Promise<ApiResult<(Transaction & { instrumentName: string; accountName: string })[]>>
   addManualTransaction(input: ManualTxnInput): Promise<ApiResult<number>>
   deleteTransaction(id: number): Promise<ApiResult<null>>
-  pickFile(kind: ImportKind | 'BACKUP'): Promise<ApiResult<string | null>>
+  pickFile(kind: ImportKind | 'BACKUP' | 'DOCUMENT'): Promise<ApiResult<string | null>>
   hasSavedCasPassword(personId: number): Promise<ApiResult<boolean>>
   runImport(req: ImportRequest): Promise<ApiResult<ImportResult>>
   listImports(): Promise<ApiResult<ImportBatch[]>>
@@ -821,6 +847,10 @@ export interface RequestApi {
 
   listNpsSchemes(): Promise<ApiResult<{ code: string; name: string }[]>>
   addNpsHolding(input: NpsHoldingInput): Promise<ApiResult<null>>
+  /** Adds the schemes of one NPS account from current values; returns the scheme names matched. */
+  addNpsAccount(input: NpsAccountInput): Promise<ApiResult<string[]>>
+  /** Removes one holding (an NPS scheme added by hand, or anything from a statement). */
+  removeHolding(accountId: number, instrumentId: number): Promise<ApiResult<null>>
 
   listManualAssets(personId?: number): Promise<ApiResult<ManualAssetView[]>>
   saveManualAsset(input: ManualAssetInput): Promise<ApiResult<number>>
@@ -834,6 +864,40 @@ export interface RequestApi {
   getProperties(personId?: number): Promise<ApiResult<PropertyView[]>>
   /** Cities with official home price data (NHB RESIDEX). */
   getHousingCities(): Promise<ApiResult<HousingCity[]>>
+
+  /** Cars and bikes with value, insurance, PUC and service reminders and running costs. */
+  listVehicles(personId?: number): Promise<ApiResult<VehicleView[]>>
+  saveVehicle(input: VehicleInput): Promise<ApiResult<number>>
+  deleteVehicle(id: number): Promise<ApiResult<null>>
+  /** Reads an RC, insurance policy or PUC certificate PDF for the person to confirm. */
+  readVehicleDocument(filePath: string, password?: string): Promise<ApiResult<VehicleDocRead>>
+  /** Keeps a file in the encrypted database, attached to a vehicle. */
+  addVehicleDocument(vehicleId: number, kind: string, filePath: string): Promise<ApiResult<number>>
+  /** Opens a kept document in the default viewer (from a temporary copy). */
+  openDocument(id: number): Promise<ApiResult<null>>
+  deleteDocument(id: number): Promise<ApiResult<null>>
+
+  /** Google accounts connected to fetch statements from Gmail (read-only). */
+  getGoogleSetup(): Promise<ApiResult<GoogleSetup>>
+  /** The person's own OAuth client from Google Cloud (Desktop app type). */
+  saveGoogleClient(input: { clientId: string; clientSecret: string; web?: boolean }): Promise<ApiResult<GoogleSetup>>
+  /** Opens Google sign-in in the browser; resolves once the account is added and first checked. */
+  connectGoogleAccount(personId: number): Promise<ApiResult<GoogleAccountView>>
+  setGoogleAccountPerson(email: string, personId: number): Promise<ApiResult<GoogleSetup>>
+  disconnectGoogleAccount(email: string): Promise<ApiResult<GoogleSetup>>
+  /** Looks for new statements now (all accounts, or one). */
+  checkMail(email?: string): Promise<ApiResult<GoogleAccountView[]>>
+
+  /** The money forecast with inflation by spending category (person, or family when omitted). */
+  getForecast(personId?: number): Promise<ApiResult<Forecast>>
+  savePlan(plan: Plan): Promise<ApiResult<null>>
+
+  /** The phone app's link through Google Drive. */
+  getPhoneSync(): Promise<ApiResult<PhoneSyncStatus>>
+  configurePhoneSync(input: { account: string; passphrase?: string }): Promise<ApiResult<PhoneSyncStatus>>
+  allowPhoneDrive(email: string): Promise<ApiResult<PhoneSyncStatus>>
+  syncPhone(): Promise<ApiResult<PhoneSyncStatus>>
+  turnOffPhoneSync(): Promise<ApiResult<PhoneSyncStatus>>
   /** Last ~13 weekly closes per instrument, for sparklines. */
   getSparklines(instrumentIds: number[]): Promise<ApiResult<Record<number, number[]>>>
   /** Weekly benchmark closes in rupees since a date (all stored history when omitted). */

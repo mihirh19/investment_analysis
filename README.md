@@ -50,6 +50,48 @@ Each home, flat, tenement, shop or plot gets its own section.
 - **Expenses and tax.** Property tax, maintenance, repairs, insurance and home-loan interest feed the net yield and the year's *Income from house property*: rent less property tax, less the 30% standard deduction, less loan interest.
 - **Returns.** Value growth a year (CAGR), XIRR including rent and expenses, and gross and net rental yield over the last 12 months.
 
+### Vehicles
+
+Cars and bikes live on their own page, outside the investment totals (they lose value with age, so they would distort the asset mix and returns).
+
+- **Add from documents.** Pick the RC (DigiLocker or mParivahan PDF), the insurance policy schedule or the PUC certificate and the details fill in: number, make, model, fuel, registration and validity dates, insurer, policy number, cover period, IDV, premium, no-claim bonus. Password-protected PDFs ask for the password. Files are kept inside the encrypted database and open in the default viewer from a temporary copy. A plate number can't be looked up automatically: Parivahan's lookup needs an OTP and a captcha, and the instant-lookup websites are paid services that would receive your number.
+- **What's due.** Insurance (30 days ahead), PUC (15 days; none for an EV; a new vehicle's first is due a year after registration), registration (15 years for a private vehicle), service (every 12 months or 10,000 km for a car, 6 months or 3,000 km for a two-wheeler, or your own interval), and the end of a vehicle loan (with the reminder to remove hypothecation). Links open Parivahan's PUC, Vahan and e-challan pages.
+- **Value.** The latest policy's IDV carried forward with IRDAI's depreciation schedule (5% under six months, then 15/20/30/40/50% to five years, then about 5 points a year), or the ex-showroom price depreciated the same way.
+- **Running costs.** Fuel, service, repairs, tyres, insurance, PUC, tolls, parking and fines by month; cost per km and mileage from odometer readings.
+
+### Statements from Gmail (Google accounts)
+
+Settings → Google accounts connects one or more Gmail accounts, each tied to a person, and checks them every 12 hours while the app runs (and on demand). Today it finds the monthly CAS (NSDL, CDSL, CAMS, KFintech) and imports it with that person's saved CAS password; card and bank statements come next.
+
+- **Sign-in** uses the person's own OAuth client, so there is no server: create a Google Cloud project, enable the Gmail API, set the audience to External and **publish** it (in Testing, Google ends sign-ins after 7 days), then create a *Desktop app* client and paste its ID and secret into Settings. The app stays unverified, so Google shows a warning at sign-in (Advanced → Go to Family Portfolio); unverified apps are limited to 100 users, plenty for a family.
+- **Flow.** Browser consent with PKCE and a one-off listener on `127.0.0.1`; scope `gmail.readonly` only. The refresh token is stored encrypted; disconnecting revokes it.
+- **First check** of an account imports only the newest CAS from the last 60 days; later checks import anything newer, never the same email twice. A statement that fails only for lack of a saved password is retried after you import one CAS by hand with *Remember the password* ticked.
+
+### Forecast & inflation
+
+Projects everything held today, month by month, to a chosen year (2060 by default).
+
+- **Growth.** Each kind of holding grows at its own editable return (shares and equity funds 11%, debt 7%, gold 8%, EPF 8.25%, PPF 7.1%, NPS 9%, property 5%, savings 3%). Funds are sorted by their AMFI category; hybrids are split. A low and a high run, with returns moved by ±2 points (scaled by how volatile each kind is), give the range.
+- **Money going in.** SIPs with a yearly step-up in the month each started, until their last year or retirement; EPF contributions from the EPF page, rising with salary. SIPs seen in the last six months of fund purchases are suggested.
+- **Inflation by category.** Groceries, rent, health, education, transport, power, clothes, household, personal care, leisure, fixed EMIs and the rest, each defaulting to its official rate: the ten-year rise of MoSPI's All-India consumer price index (base 2012, `api.mospi.gov.in/api/cpi/getCPIIndex`, no sign-up needed for a few records), refreshed monthly, with the December 2015–2025 figures built in. Health also offers the private-healthcare cost trend (Aon, 11.5% for 2026), since the CPI health index weights government care heavily. Your spending mix gives a personal inflation rate, used for "today's money by your own costs".
+- **Goals and retirement.** Goals grow with their category's inflation and are paid from the investments in their year. From the retirement year, SIPs and EPF stop and living costs are drawn monthly (never from property); the page shows what retirement needs (a year's costs ÷ the withdrawal rate, 3.5% by default), what is projected, and how long the money lasts. "Costs covered" is the first year the withdrawal rate of the investments pays the year's living costs.
+
+### Returns and tax when the history is partial
+
+Few people have every tradebook back to their first purchase. Two rules keep such holdings in:
+
+- **Tax.** When the trade files don't explain all the units held, the rest are taken as bought the day before the earliest trade on file (shown as "Before …") at the average cost, and sales use them up first (FIFO). With twelve months of tradebook, everything older is correctly long-term. The broker's own long-term count (Zerodha's "Quantity Long Term") still wins for open lots, since a gap between trade files can't be seen.
+- **Performance.** A holding without its full purchase history is measured from the earliest record imported. When trade files reach back further than the statements, that is the day before the first trade: the units the trades don't explain count as held from then, at that day's price, and every trade after counts as itself (the net worth chart and dividends use the same units). Otherwise it is the first statement: counted as bought that day at that day's price, with later changes in units that no trade explains as buys or sells. Holding-level XIRR under three months is shown as too recent. Importing older CAS statements takes the measurement further back.
+
+### Phone app (iPhone, free)
+
+A companion web app in `phone/`, installed from Safari with **Add to Home Screen** (no App Store, no Apple fee), published on GitHub Pages at `https://mihirh19.github.io/investment_analysis/`. It shows net worth, holdings, property and rent, vehicles and what's due, and the forecast, for the family or each person, and records rent received, property expenses, fuel and running costs, PUC and insurance renewals. Statements are still imported on the desktop.
+
+- **Sync without a server.** The desktop writes `fp-snapshot.json` to the hidden app-data folder of one Google account's Drive (scope `drive.appdata`, which can see nothing else in Drive) every 10 minutes while it runs, only when the figures changed. The phone writes each entry as `fp-inbox-*.json`; the desktop applies it through the same checks as its own forms, deletes it, and lists it in the next snapshot so the phone stops showing it as pending. An entry that can't be applied stays in Drive and is reported in Settings.
+- **End-to-end encrypted.** Both directions are sealed with a passphrase chosen in Settings → Phone app: PBKDF2-SHA256 (600,000 rounds) to an AES-256-GCM key, gzip inside (`src/shared/vault.ts`, Web Crypto on both sides). Google stores only ciphertext. The phone can keep the derived key (non-extractable) in IndexedDB; the desktop keeps the passphrase encrypted with the OS key store so it can sync unattended.
+- **One sign-in client for both.** Drive's app folder belongs to the sign-in client, so the desktop and the phone use the same *Web application* client: the desktop signs in through `http://127.0.0.1:53682/` (a fixed loopback port registered with the client), the phone through a full-page redirect to the Pages address (popups are unreliable in Home Screen apps). The client ID reaches the phone in the QR code's link (`?client=…`) or is built in from the repository variable `GOOGLE_CLIENT_ID`. The manifest has no `start_url` on purpose, so the Home Screen icon keeps that link.
+- **Build and publish.** `npm run phone:build` (output `dist-phone/`), `npm run phone:preview`; `.github/workflows/phone.yml` publishes on pushes to `master` (Settings → Pages → Source: GitHub Actions). `FP_PHONE_DEMO=1 npx vitest run tests/phone-demo.test.ts` writes a locked demo snapshot (`dist-phone/demo.json`) for trying the app without Google.
+
 ### Sectors & exposure: equity, market cap and debt
 
 Every fund and ETF is opened up into what it holds, then added to what you hold directly.
@@ -128,6 +170,10 @@ src/main/            Electron main process
   portfolio/engines  valuation maths per asset kind (compounding, payouts, coupons, maturities)
   portfolio/property property page: city market, rent months, house-property income (rent.ts: rent maths)
   market/residex     NHB RESIDEX city list and price series
+  vehicles.ts        vehicles: reminders, IDV value, running costs; encrypted document store
+  importers/vehicleDocs  reads RC, motor policy and PUC text (via casparser.exe --text)
+  google.ts          Google sign-in (loopback + PKCE) and a read-only Gmail client
+  mailSync.ts        connected accounts and statement jobs (CAS today)
   portfolio/analysis XIRR, net worth history, income, upcoming cash flows, liquidity, concentration
   services.ts        everything the UI can ask for; ipc.ts exposes it as window.api
 src/preload/         typed, sandboxed bridge

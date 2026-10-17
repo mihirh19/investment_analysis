@@ -4,7 +4,7 @@ import type { HoldingRow } from '@shared/types'
 import { schema, type Db } from '../db'
 import { loadManualAssets, loadPriceBook } from '../manualAssets'
 import { addDays, addYears, financialYearOf, monthEnds, todayIso } from './dates'
-import { listDividends, unitsHeldBefore, US_WITHHOLDING } from './dividends'
+import { listDividends, openingFromTrades, unitsHeldBefore, US_WITHHOLDING } from './dividends'
 import { engineFor, type Engine } from './engines'
 import { estimateEpfBalance, parseEpfMeta } from './epf'
 import { FxTable } from './fx'
@@ -53,6 +53,64 @@ export interface Item {
   own: CashFlow[] | null
   incomeThisFy: number
   liquidity: Liquidity
+  /**
+   * Set when the flows are rebuilt from statements rather than a full trade history: the date of
+   * the first statement, from which the return is measured (the holding counts as bought then, at
+   * that day's value).
+   */
+  since: string | null
+}
+
+type Snap = typeof schema.holdingSnapshots.$inferSelect
+
+/**
+ * Money in and out for a holding known from statements (and maybe some trades): the first
+ * statement's units count as bought on its date at that day's price, a change in units between
+ * statements that no trade explains as bought or sold on the later statement's date, and trades
+ * after the first statement as themselves. This matches how the net worth history counts its
+ * units, so returns measured from the first statement are consistent with the chart. Returns null
+ * when a price is missing for any of those dates.
+ */
+export function flowsFromStatements(
+  snaps: Snap[],
+  txns: Txn[],
+  priceOn: (date: string, snap: Snap | null) => number | null,
+  fx: FxTable,
+  isUsd: boolean
+): { flows: CashFlow[]; since: string } | null {
+  // Trade files that reach back further than the statements: measured from the day before the
+  // first trade, with the units they don't explain counted as bought then at that day's price.
+  const opening = openingFromTrades(txns, snaps)
+  if (opening) {
+    const price = opening.units > 0 ? priceOn(opening.date, null) : 0
+    if (price !== null) {
+      const rate = isUsd ? (fx.on(opening.date) ?? fx.latest() ?? 0) : 1
+      const flows: CashFlow[] = [
+        ...(opening.units > 0 ? [{ date: opening.date, amount: -opening.units * price * rate }] : []),
+        ...txns.map((t) => ({ date: t.date, amount: txnFlow(t, fx) }))
+      ]
+      return { flows: flows.sort((a, b) => a.date.localeCompare(b.date)), since: opening.date }
+    }
+  }
+  const sorted = [...snaps].sort((a, b) => a.date.localeCompare(b.date))
+  if (sorted.length === 0) return null
+  const flows: CashFlow[] = []
+  let prev: Snap | null = null
+  for (const s of sorted) {
+    const from = prev?.date
+    const traded = from ? txns.filter((t) => t.date > from && t.date <= s.date).reduce((a, t) => a + t.quantity, 0) : 0
+    const delta = s.quantity - ((prev?.quantity ?? 0) + traded)
+    if (Math.abs(delta) > 1e-6) {
+      const price = priceOn(s.date, s)
+      if (price === null) return null
+      const rate = isUsd ? (fx.on(s.date) ?? fx.latest() ?? 0) : 1
+      flows.push({ date: s.date, amount: -delta * price * rate })
+    }
+    prev = s
+  }
+  const since = sorted[0].date
+  for (const t of txns) if (t.date > since) flows.push({ date: t.date, amount: txnFlow(t, fx) })
+  return flows.length ? { flows: flows.sort((a, b) => a.date.localeCompare(b.date)), since } : null
 }
 
 export type Engines = Map<number, { engine: Engine; name: string; personId: number }>
@@ -99,6 +157,35 @@ export function loadContext(db: Db, personId?: number): Context {
     txnsByPair.set(k, [...(txnsByPair.get(k) ?? []), t])
   }
 
+  // Statements, for holdings without a complete trade history.
+  const snapsByPair = new Map<string, Snap[]>()
+  if (accountIds.length)
+    for (const sn of db
+      .select()
+      .from(schema.holdingSnapshots)
+      .where(inArray(schema.holdingSnapshots.accountId, accountIds))
+      .all()) {
+      const k = `${sn.accountId}:${sn.instrumentId}`
+      snapsByPair.set(k, [...(snapsByPair.get(k) ?? []), sn])
+    }
+  const histCache = new Map<number, { date: string; close: number }[]>()
+  const closeOn = (instrumentId: number, date: string): number | null => {
+    if (!histCache.has(instrumentId))
+      histCache.set(
+        instrumentId,
+        db
+          .select({ date: schema.priceHistory.date, close: schema.priceHistory.close })
+          .from(schema.priceHistory)
+          .where(eq(schema.priceHistory.key, `I:${instrumentId}`))
+          .orderBy(asc(schema.priceHistory.date))
+          .all()
+      )
+    let found: number | null = null
+    for (const p of histCache.get(instrumentId)!) if (p.date <= date) found = p.close
+    return found
+  }
+  const accountKind = new Map(accounts.map((a) => [a.id, a.kind]))
+
   const manual = loadManualAssets(db, personId)
   const engines: Engines = new Map()
   for (const m of manual)
@@ -124,22 +211,46 @@ export function loadContext(db: Db, personId?: number): Context {
         flows,
         own: base.length ? base.map((f) => ({ date: f.date, amount: f.amount })) : null,
         incomeThisFy: inc.interest + inc.rent,
-        liquidity: engine.liquidity().bucket
+        liquidity: engine.liquidity().bucket,
+        since: null
       }
     }
     const pairTxns = txnsByPair.get(`${row.accountId}:${row.instrumentId}`) ?? []
     const complete = pairTxns.some((t) => t.type === 'BUY') && row.tradesQuantity === null
     const divs = payments.filter((p) => p.instrumentId === row.instrumentId && p.accountName === row.accountName)
     let own: CashFlow[] | null = null
+    let since: string | null = null
+    const estimatedDivs = divs.filter((p) => p.basis === 'ESTIMATED')
     if (complete) {
       own = [
         ...pairTxns.map((t) => ({ date: t.date, amount: txnFlow(t, fx) })),
-        ...divs.filter((p) => p.basis === 'ESTIMATED').map((p) => ({ date: p.exDate, amount: p.netInr }))
+        ...estimatedDivs.map((p) => ({ date: p.exDate, amount: p.netInr }))
       ]
+    } else if (!['EPF', 'INSURANCE'].includes(accountKind.get(row.accountId) ?? '') && row.marketValueInr !== null) {
+      // Statement-only, or trade files that don't reach back: measured from the first statement.
+      const rebuilt = flowsFromStatements(
+        snapsByPair.get(`${row.accountId}:${row.instrumentId}`) ?? [],
+        pairTxns,
+        (date, sn) =>
+          closeOn(row.instrumentId, date) ??
+          (sn
+            ? (sn.price ?? (sn.value != null && sn.quantity > 0 ? sn.value / sn.quantity : null))
+            : // Before any statement: the price of the first trade on file.
+              (pairTxns.find((t) => t.price != null && t.quantity !== 0)?.price ?? null)),
+        fx,
+        row.currency === 'USD'
+      )
+      if (rebuilt) {
+        own = [
+          ...rebuilt.flows,
+          ...estimatedDivs.filter((p) => p.exDate > rebuilt.since).map((p) => ({ date: p.exDate, amount: p.netInr }))
+        ]
+        since = rebuilt.since
+      }
     }
     const flows = own ? [...own, { date: today, amount: value }] : null
     const incomeThisFy = divs.filter((p) => p.exDate > fyFrom && p.exDate <= today).reduce((s, p) => s + p.netInr, 0)
-    return { row, flows, own, incomeThisFy, liquidity: MARKET_LIQUIDITY[row.assetClass] ?? 'LIQUID' }
+    return { row, flows, own, incomeThisFy, liquidity: MARKET_LIQUIDITY[row.assetClass] ?? 'LIQUID', since }
   })
 
   const persons = new Map(

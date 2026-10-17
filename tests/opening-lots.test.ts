@@ -302,3 +302,64 @@ describe('the date a holdings statement is as on', () => {
     expect(statementDate('holdings statement')).toBeNull()
   })
 })
+
+describe('trade files that start after the first purchase', () => {
+  let dir: string
+  let db: Db
+  let close: () => void
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'fp-partial-'))
+    const o = openDatabase(join(dir, 't.db'), 'e'.repeat(64), resolve('drizzle'))
+    db = o.db
+    close = () => o.sqlite.close()
+  })
+  afterEach(() => {
+    close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('treats units the trades don’t explain as bought before the first trade on file', () => {
+    // The statement: 100 units of an equity fund, average cost ₹50 (₹5,000), worth ₹80 each.
+    // The tradebook only starts in April 2025: bought 30 at ₹70, sold 10 at ₹75.
+    const txn = (date: string, quantity: number, price: number, id: string) => ({
+      accountKey: 'z',
+      instrumentKey: 'f',
+      date,
+      type: (quantity > 0 ? 'BUY' : 'SELL') as 'BUY' | 'SELL',
+      quantity,
+      price,
+      amount: Math.abs(quantity) * price,
+      fees: 0,
+      currency: 'INR',
+      description: null,
+      source: 'ZERODHA_TRADEBOOK',
+      externalId: id
+    })
+    persistBundle(db, {
+      personId: 1,
+      kind: 'CAS_PDF',
+      fileName: 'cas.pdf',
+      bundle: {
+        accounts: [{ key: 'z', platform: 'ZERODHA', kind: 'DEMAT', name: 'Zerodha', externalId: '1', currency: 'INR' }],
+        instruments: [{ key: 'f', isin: 'INF000K01AB1', name: 'Flexi Cap Fund', assetClass: 'MF', mfType: 'EQUITY', currency: 'INR' }],
+        transactions: [txn('2025-04-02', 30, 70, 't1'), txn('2025-09-10', -10, 75, 't2')],
+        snapshots: [
+          { accountKey: 'z', instrumentKey: 'f', date: '2026-09-30', quantity: 100, price: 80, value: 8000, cost: 5000, source: 'CAS' }
+        ],
+        warnings: []
+      }
+    })
+    const tax = computeTax(db, 1, '2026-10-17')
+    expect(tax.estimateOnly).toHaveLength(0)
+    // 80 units from before the files: 10 of them were the ones sold (first in, first out).
+    expect(tax.lots.map((l) => [l.buyDate, l.units, l.estimatedFrom ?? null, l.term])).toEqual([
+      ['2025-04-01', 70, 'BEFORE_TRADES', 'LT'],
+      ['2025-04-02', 30, null, 'LT']
+    ])
+    // Their cost: ₹5,000 for all 100, less ₹2,100 for the 30 dated ones, over the 70 left: ₹41.43.
+    expect(tax.lots[0].costInr).toBeCloseTo(5000 - 2100, 6)
+    expect(tax.realized).toHaveLength(1)
+    expect(tax.realized[0]).toMatchObject({ buyDate: '2025-04-01', units: 10, estimated: true, term: 'ST' })
+    expect(tax.harvest.map((h) => h.name)).toContain('Flexi Cap Fund')
+  })
+})

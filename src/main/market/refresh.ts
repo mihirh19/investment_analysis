@@ -19,6 +19,7 @@ import { refreshGrandfathering } from './grandfather'
 import { refreshDirectPlans } from './directPlans'
 import { refreshMarketCaps } from './marketcap'
 import { refreshResidex, storedResidexCities } from './residex'
+import { refreshCpi } from './cpi'
 
 const HOUSING_KEY = 'residex:lastFetch'
 
@@ -64,6 +65,7 @@ type SourceKey =
   | 'disclosures'
   | 'caps'
   | 'housing'
+  | 'inflation'
 
 const SOURCE_LABELS: Record<SourceKey, string> = {
   stocks: 'Stock & ETF prices (Yahoo Finance)',
@@ -81,7 +83,8 @@ const SOURCE_LABELS: Record<SourceKey, string> = {
   direct: 'Direct-plan NAVs (what Regular plans cost you)',
   disclosures: 'Fund portfolios (fund house monthly disclosures)',
   caps: 'Large, mid & small cap bands (AMFI)',
-  housing: 'Home prices (NHB RESIDEX)'
+  housing: 'Home prices (NHB RESIDEX)',
+  inflation: 'Inflation by category (MoSPI consumer price index)'
 }
 
 const MINUTE = 60_000
@@ -217,6 +220,10 @@ export class MarketData {
               .values({ key: HOUSING_KEY, value: at })
               .onConflictDoUpdate({ target: schema.settings.key, set: { value: at } })
               .run()
+          })
+          // Monthly at most; the built-in figures stand in until a download succeeds.
+          await this.guard('inflation', async () => {
+            await refreshCpi(this.db, this.f)
           })
           await this.guard('caps', async () => {
             if (!(await refreshMarketCaps(this.db, this.f))) throw new Error("AMFI's market-cap list could not be read")

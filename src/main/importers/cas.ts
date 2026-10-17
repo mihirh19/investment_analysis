@@ -105,8 +105,17 @@ export function runCasparser(
   password: string,
   timeoutMs = 120_000
 ): Promise<CasJson> {
+  return runHelper<CasJson>(exePath, [pdfPath], password, timeoutMs)
+}
+
+/** Every page's text from any PDF (RC, insurance policy, card statement), via the same helper. */
+export async function runPdfText(exePath: string, pdfPath: string, password = '', timeoutMs = 60_000): Promise<string[]> {
+  return (await runHelper<{ pages: string[] }>(exePath, ['--text', pdfPath], password, timeoutMs)).pages
+}
+
+function runHelper<T>(exePath: string, args: string[], password: string, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const child = spawn(exePath, [pdfPath], { windowsHide: true })
+    const child = spawn(exePath, args, { windowsHide: true })
     const out: Buffer[] = []
     const err: Buffer[] = []
     const timer = setTimeout(() => {
@@ -123,7 +132,7 @@ export function runCasparser(
     child.on('close', () => {
       clearTimeout(timer)
       const text = Buffer.concat(out).toString('utf8').trim()
-      let payload: { ok: boolean; data?: CasJson; error?: string; message?: string }
+      let payload: { ok: boolean; data?: T; error?: string; message?: string }
       try {
         payload = JSON.parse(text)
       } catch {

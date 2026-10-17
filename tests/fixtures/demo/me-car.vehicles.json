@@ -1,0 +1,105 @@
+[
+  {
+    "regNo": "GJ01KP4321",
+    "type": "CAR",
+    "make": "Maruti Suzuki",
+    "model": "Swift",
+    "variant": "VXi",
+    "fuel": "PETROL",
+    "registrationDate": "2022-03-15",
+    "exShowroomPrice": 640000,
+    "onRoadPrice": 735000,
+    "policies": [
+      {
+        "id": "p1",
+        "insurer": "ICICI Lombard",
+        "policyNumber": "3001/284512367/00/000",
+        "type": "COMPREHENSIVE",
+        "startDate": "2026-03-15",
+        "endDate": "2027-03-14",
+        "idv": 452000,
+        "premium": 13950,
+        "ncbPct": 35
+      }
+    ],
+    "puc": [
+      {
+        "id": "u1",
+        "date": "2025-10-02",
+        "validUntil": "2026-10-01",
+        "certificateNo": "GJ00102450018833"
+      }
+    ],
+    "expenses": [
+      {
+        "id": "s1",
+        "date": "2025-09-20",
+        "kind": "SERVICE",
+        "amount": 7400,
+        "km": 31200,
+        "note": "Second paid service"
+      },
+      {
+        "id": "i1",
+        "date": "2026-03-15",
+        "kind": "INSURANCE",
+        "amount": 13950,
+        "note": "ICICI Lombard"
+      },
+      {
+        "id": "f1",
+        "date": "2026-05-04",
+        "kind": "FUEL",
+        "amount": 3000,
+        "km": 35100,
+        "litres": 31
+      },
+      {
+        "id": "f2",
+        "date": "2026-06-09",
+        "kind": "FUEL",
+        "amount": 3000,
+        "km": 35640,
+        "litres": 31
+      },
+      {
+        "id": "f3",
+        "date": "2026-07-15",
+        "kind": "FUEL",
+        "amount": 3000,
+        "km": 36190,
+        "litres": 31
+      },
+      {
+        "id": "t1",
+        "date": "2026-07-20",
+        "kind": "TOLL",
+        "amount": 840,
+        "note": "Ahmedabad–Vadodara expressway"
+      },
+      {
+        "id": "f4",
+        "date": "2026-08-22",
+        "kind": "FUEL",
+        "amount": 3000,
+        "km": 36760,
+        "litres": 31
+      },
+      {
+        "id": "r1",
+        "date": "2026-09-05",
+        "kind": "TYRES",
+        "amount": 5200,
+        "note": "Two tyres"
+      },
+      {
+        "id": "f5",
+        "date": "2026-09-30",
+        "kind": "FUEL",
+        "amount": 3000,
+        "km": 37300,
+        "litres": 31
+      }
+    ]
+  }
+]

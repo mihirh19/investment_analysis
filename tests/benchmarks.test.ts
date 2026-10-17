@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { openDatabase, schema, type Db } from '../src/main/db'
 import { BENCHMARKS, refreshBenchmarks, refreshDaily, seriesFor, toInr } from '../src/main/market/benchmarks'
 import { FxTable } from '../src/main/portfolio/fx'
@@ -135,10 +135,16 @@ describe('refreshDaily', () => {
   })
 
   it('does not refetch a series that is already current', async () => {
-    await refreshDaily(db, fakeFetch([]))
-    const calls: string[] = []
-    await refreshDaily(db, fakeFetch(calls))
-    expect(calls).toEqual([])
+    // The fake closes run to two days ago: current until 2.5 days have passed, so check in the morning.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(`${iso(0)}T06:00:00Z`) })
+    try {
+      await refreshDaily(db, fakeFetch([]))
+      const calls: string[] = []
+      await refreshDaily(db, fakeFetch(calls))
+      expect(calls).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

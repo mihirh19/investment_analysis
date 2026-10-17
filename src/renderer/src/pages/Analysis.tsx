@@ -129,8 +129,8 @@ export function Analysis() {
             {a.xirr.overall === null ? '—' : `${xirrShown >= 0 ? '' : '−'}${Math.abs(xirrShown).toFixed(1)}%`}
           </div>
           <div className="mt-2 max-w-[44ch] text-[13px] text-ink-muted">
-            Based on {Math.round(a.xirr.coverage * 100)}% of your money: holdings with dated purchases. Statement-only
-            holdings and passbook balances are left out of this figure.
+            Based on {Math.round(a.xirr.coverage * 100)}% of your money. Holdings without their full purchase history
+            are measured from the earliest trade file or statement you imported; EPF and insurance are left out.
           </div>
         </div>
         <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 sm:grid-cols-4">
@@ -161,7 +161,7 @@ export function Analysis() {
       <Section
         id="history"
         title="Net worth over time"
-        note="Month-end values: units held on each date × that week's price; deposits and bonds by their terms. Holdings without trade history count from their first statement."
+        note="Month-end values: units held on each date × that week's price; deposits and bonds by their terms. Holdings without their full trade history count from the earliest trade file or statement imported."
       >
         {hist && (
           <AreaStack

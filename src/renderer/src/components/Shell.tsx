@@ -14,6 +14,7 @@ const NAV: { title: string; items: { to: string; label: string; end?: boolean }[
       { to: '/holdings', label: 'Holdings' },
       { to: '/other-assets', label: 'Other assets' },
       { to: '/property', label: 'Property & rent' },
+      { to: '/vehicles', label: 'Vehicles' },
       { to: '/retirement', label: 'EPF & NPS' },
       { to: '/insurance', label: 'Insurance' },
       { to: '/dividends', label: 'Dividends' }
@@ -27,7 +28,8 @@ const NAV: { title: string; items: { to: string; label: string; end?: boolean }[
       { to: '/exposure', label: 'Sectors & exposure' },
       { to: '/funds', label: 'Funds' },
       { to: '/tax', label: 'Tax' },
-      { to: '/rebalance', label: 'Rebalance' }
+      { to: '/rebalance', label: 'Rebalance' },
+      { to: '/forecast', label: 'Forecast & inflation' }
     ]
   },
   {

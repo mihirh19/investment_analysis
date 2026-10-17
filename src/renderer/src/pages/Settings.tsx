@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ErrorNote, PageHeader } from '../components/Shell'
+import { GoogleAccounts } from '../components/GoogleAccounts'
+import { PhoneApp } from '../components/PhoneApp'
 import { Button, Field, Input } from '../components/ui'
 import {
   openExternal,
@@ -48,6 +50,8 @@ export function Settings() {
     <>
       <PageHeader title="Settings & backup" />
       <Appearance />
+      <GoogleAccounts />
+      <PhoneApp />
 
       <section aria-labelledby="sources" className="max-w-[880px]">
         <div className="mb-2 flex items-baseline justify-between">

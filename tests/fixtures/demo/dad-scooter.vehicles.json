@@ -1,0 +1,37 @@
+[
+  {
+    "regNo": "GJ18BC7710",
+    "type": "TWO_WHEELER",
+    "make": "Honda",
+    "model": "Activa 6G",
+    "fuel": "PETROL",
+    "registrationDate": "2020-11-02",
+    "exShowroomPrice": 72000,
+    "policies": [
+      {
+        "id": "p1",
+        "insurer": "New India Assurance",
+        "type": "COMPREHENSIVE",
+        "startDate": "2025-11-02",
+        "endDate": "2026-11-01",
+        "idv": 38000,
+        "premium": 1450
+      }
+    ],
+    "puc": [
+      {
+        "id": "u1",
+        "validUntil": "2027-02-10"
+      }
+    ],
+    "expenses": [
+      {
+        "id": "s1",
+        "date": "2026-06-01",
+        "kind": "SERVICE",
+        "amount": 950,
+        "km": 18400
+      }
+    ]
+  }
+]

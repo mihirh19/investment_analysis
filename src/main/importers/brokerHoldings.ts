@@ -91,6 +91,7 @@ export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
   const rows: BrokerHoldingRow[] = []
   let platform: Platform | null = null
   let asOf: string | null = null
+  const seen = new Set<string>()
   for (const sheet of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet], { header: 1, defval: '', raw: true })
     const text = grid
@@ -130,6 +131,10 @@ export function parseBrokerHoldings(data: Buffer | ArrayBuffer): {
         const invested = iInv >= 0 ? parseNumber(line[iInv]) : null
         if (!(avgCost && avgCost > 0) && !(invested && invested > 0)) continue
         const looksLikeSymbol = /^[A-Z0-9&.-]{2,20}$/.test(nameRaw)
+        // Zerodha's file repeats every row on a "Combined" sheet: keep the first.
+        const key = isin ?? nameRaw.toUpperCase()
+        if (seen.has(key)) continue
+        seen.add(key)
         rows.push({
           name: nameRaw || isin!,
           isin,

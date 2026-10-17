@@ -7,11 +7,14 @@ import { mapCasJson, type CasJson } from './importers/cas'
 import type { Services } from './services'
 import type { ManualMeta } from '@shared/assets'
 import { addManualEntry, saveManualAsset } from './manualAssets'
+import { saveVehicle } from './vehicles'
+import { loadPlan, savePlan } from './portfolio/forecast'
+import type { VehicleMeta } from '@shared/vehicles'
 
 /**
  * Development-only helpers, never active in the packaged app:
  *   FP_USER_DATA=<dir>        keep data in a throwaway folder instead of the real profile
- *   FP_SEED_DIR=<dir>         import demo files named "<person>-*.cas.json" / "-zerodha-*.csv" / "-indmoney-*.csv" / "-*.assets.json"
+ *   FP_SEED_DIR=<dir>         import demo files named "<person>-*.cas.json" / "-zerodha-*.csv" / "-indmoney-*.csv" / "-*.assets.json" / "-*.vehicles.json" / "*.plan.json"
  *   FP_SCREENSHOT_DIR=<dir>   capture each page to PNG, then quit (FP_ROUTES, FP_SCOPES pick which)
  *   FP_THEME=light|dark      force the colour scheme
  *   FP_SHOT_DELAY=<ms>       wait before the first screenshot (lets live prices load)
@@ -41,6 +44,10 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
       await services.runImport({ kind: 'ZERODHA_TRADEBOOK', personId, filePath: path })
     } else if (file.includes('indmoney')) {
       await services.runImport({ kind: 'GENERIC_TRADES', personId, filePath: path, platform: 'INDMONEY' })
+    } else if (file.endsWith('.plan.json')) {
+      savePlan(db, { ...loadPlan(db), ...JSON.parse(readFileSync(path, 'utf8')) })
+    } else if (file.endsWith('.vehicles.json')) {
+      for (const meta of JSON.parse(readFileSync(path, 'utf8')) as VehicleMeta[]) saveVehicle(db, { personId, meta })
     } else if (file.endsWith('.assets.json')) {
       const items = JSON.parse(readFileSync(path, 'utf8')) as {
         meta: ManualMeta

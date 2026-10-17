@@ -84,9 +84,11 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Performance',
     'Tax',
     'Rebalance',
+    'Forecast & inflation',
     'Holdings',
     'Other assets',
     'Property & rent',
+    'Vehicles',
     'Sectors & exposure',
     'Funds',
     'Dividends',
@@ -134,6 +136,31 @@ await ok('open record-rent form')
 await clickText('button', 'Add a property')
 await sleep(800)
 await ok('open add-property form')
+await nav('Vehicles')
+await sleep(1500)
+const plates = await ev(`[...document.querySelectorAll('section')].filter((s) => s.textContent.includes('GJ 01 KP 4321')).length`)
+if (!(plates > 0)) {
+  failures++
+  console.log('FAIL vehicles page lists the demo car'.padEnd(46), plates)
+}
+await clickText('button', 'Add a cost')
+await ok('open vehicle cost form')
+await clickText('button', 'Add the renewed policy')
+await ok('open renewed policy form')
+await clickText('button', 'Add a vehicle')
+await sleep(800)
+await ok('open add-vehicle form')
+await clickText('[role=tab]', 'Family')
+await nav('Forecast & inflation')
+await sleep(1500)
+const fc = await ev(`document.body.innerText.includes('your money could be') && document.body.innerText.includes('Groceries and food')`)
+if (!fc) {
+  failures++
+  console.log('FAIL forecast shows the headline and spending'.padEnd(46), fc)
+}
+await clickText('button', 'Add a goal')
+await sleep(800)
+await ok('add a forecast goal')
 await nav('Analysis')
 await sleep(2500)
 await ok('analysis with charts')
@@ -204,9 +231,11 @@ await ok('open manual trade form')
 await nav('EPF & NPS')
 await clickText('button', 'Add an EPF account')
 await ok('open EPF form')
-await clickText('button', 'Add NPS units by hand')
+await clickText('button', 'Add your NPS')
+await ok('open NPS account form')
+await clickText('button', 'I have the units instead')
 await sleep(3000)
-await ok('open NPS form (loads schemes)')
+await ok('open NPS units form (loads schemes)')
 await nav('Insurance')
 await clickText('button', 'Add a policy')
 await ok('open policy form')
@@ -218,6 +247,8 @@ await clickText('[role=radio]', 'Same as Windows')
 await ok('switch theme back to Windows')
 await clickText('button', 'Show recovery key')
 await ok('show recovery key')
+await clickText('button', 'Set up Google sign-in')
+await ok('open Google sign-in setup')
 await nav('Import statements')
 await clickText('label', 'Fund portfolio')
 await ok('pick fund portfolio import')

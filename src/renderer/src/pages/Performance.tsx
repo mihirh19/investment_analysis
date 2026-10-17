@@ -165,8 +165,19 @@ export function Performance() {
           </div>
           <p className="mt-2 max-w-[48ch] text-[13px] text-ink-muted">
             Covers {Math.round(p.coverage * 100)}% of your money ({compactMoney(p.coveredValueInr)} of{' '}
-            {compactMoney(p.totalValueInr)}): holdings whose every purchase and sale is on record, plus deposits,
-            bonds and property with their dates. Statement-only holdings and EPF are left out.
+            {compactMoney(p.totalValueInr)}).{' '}
+            {p.fromStatementsInr > 0 ? (
+              <>
+                {compactMoney(p.coveredValueInr - p.fromStatementsInr)} has its full purchase history.{' '}
+                {compactMoney(p.fromStatementsInr)} has only part of its history, so it is measured from the earliest
+                trade file or statement imported{p.statementsSince ? ` (from ${shortDate(p.statementsSince)})` : ''},
+                as if what was held then had been bought at that day&rsquo;s price. Older CAS or tradebooks take it
+                further back.
+              </>
+            ) : (
+              <>Holdings with their purchases on record, plus deposits, bonds and property with their dates.</>
+            )}{' '}
+            EPF and insurance are left out.
           </p>
         </div>
         <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 sm:grid-cols-4">
@@ -420,7 +431,9 @@ export function Performance() {
             sub: h.personName,
             xirr: h.xirr,
             value: h.valueInr,
-            gain: h.gainInr
+            gain: h.gainInr,
+            note: h.since ? `measured from ${shortDate(h.since)}` : undefined,
+            recent: h.xirr === null
           }))}
           showPerson={scope === 'family'}
           withGain
@@ -474,11 +487,11 @@ function XirrTable({
   showPerson,
   withGain = false
 }: {
-  rows: { key: string; name: string; sub: string; xirr: number | null; value: number; gain?: number | null }[]
+  rows: { key: string; name: string; sub: string; xirr: number | null; value: number; gain?: number | null; note?: string; recent?: boolean }[]
   showPerson: boolean
   withGain?: boolean
 }) {
-  if (!rows.length) return <p className="text-[14px] text-ink-muted">Nothing with a full trade history yet.</p>
+  if (!rows.length) return <p className="text-[14px] text-ink-muted">Nothing with dated purchases yet.</p>
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[15px]">
@@ -494,11 +507,19 @@ function XirrTable({
         <tbody>
           {rows.map((r) => (
             <tr key={r.key} className="border-b border-rule">
-              <td className="py-1.5">{r.name}</td>
+              <td className="py-1.5">
+                {r.name}
+                {r.note && <div className="text-[12px] text-ink-muted">{r.note}</div>}
+              </td>
               {showPerson && <td className="py-1.5 text-ink-muted">{r.sub}</td>}
               <td className="num py-1.5">{money(r.value)}</td>
               {withGain && <td className={`num py-1.5 ${toneClass(r.gain)}`}>{signedMoney(r.gain)}</td>}
-              <td className={`num py-1.5 font-semibold ${toneClass(r.xirr)}`}>{pct(r.xirr)}</td>
+              <td
+                className={`num py-1.5 font-semibold ${toneClass(r.xirr)}`}
+                title={r.recent ? 'Under three months: too short to give a yearly figure' : undefined}
+              >
+                {r.recent ? <span className="font-normal text-ink-muted">too recent</span> : pct(r.xirr)}
+              </td>
             </tr>
           ))}
         </tbody>
