@@ -16,6 +16,8 @@ import { buildPhoneSnapshot } from '../src/main/phoneData'
 import { loadPlan, savePlan } from '../src/main/portfolio/forecast'
 import { createServices } from '../src/main/services'
 import { saveVehicle } from '../src/main/vehicles'
+import { saveStatement } from '../src/main/statements'
+import type { SpendCategory } from '../src/shared/ai'
 
 it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'fp-demo-'))
@@ -38,6 +40,52 @@ it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
         for (const e of it.entries ?? []) addManualEntry(db, id, e.date, e.value)
       }
   }
+  // A made-up card statement, so the Spending tab and bill reminders have something to show.
+  const d = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+  const txn = (n: number, merchant: string, amount: number, category: SpendCategory) => ({
+    date: d(n),
+    description: merchant.toUpperCase(),
+    merchant,
+    amount,
+    direction: 'DEBIT' as const,
+    category,
+    isEmi: false
+  })
+  saveStatement(
+    db,
+    1,
+    {
+      kind: 'CREDIT_CARD',
+      institution: 'Demo Bank',
+      accountName: 'Rewards Card',
+      last4: '4321',
+      holderName: null,
+      periodFrom: d(70),
+      periodTo: d(4),
+      statementDate: d(4),
+      dueDate: d(-5),
+      totalDue: 18640,
+      minimumDue: 932,
+      creditLimit: 200000,
+      openingBalance: null,
+      closingBalance: null,
+      rewardPoints: null,
+      transactions: [
+        txn(66, 'BigBasket', 3120, 'GROCERIES'),
+        txn(60, 'Swiggy', 640, 'FOOD_DINING'),
+        txn(52, 'HPCL', 3000, 'FUEL'),
+        txn(40, 'Amazon', 2499, 'SHOPPING'),
+        txn(33, 'BigBasket', 2860, 'GROCERIES'),
+        txn(27, 'Apollo Pharmacy', 1180, 'HEALTH'),
+        txn(20, 'Zomato', 820, 'FOOD_DINING'),
+        txn(14, 'HPCL', 2500, 'FUEL'),
+        txn(9, 'Netflix', 649, 'ENTERTAINMENT'),
+        txn(6, 'BigBasket', 3410, 'GROCERIES')
+      ],
+      trades: []
+    },
+    'demo'
+  )
   const snapshot = buildPhoneSnapshot(db, [], new Date().toISOString())
   const passphrase = 'demo passphrase 123'
   const sealed = await seal(snapshot, await vaultKey(passphrase, undefined, 1000))

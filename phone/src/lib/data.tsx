@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { INBOX_PREFIX, SNAPSHOT_FILE, type PhoneEntry, type PhoneSnapshot } from '@shared/phone'
 import { open, seal, vaultKey, WrongPassphraseError, type Sealed, type VaultKey } from '@shared/vault'
-import { clientId, createFile, currentToken, finishSignIn, listFiles, readFile, signIn, SignInNeeded } from './google'
+import { clientId, createFile, currentToken, finishSignIn, keepClientInAddress, listFiles, readFile, signIn, SignInNeeded } from './google'
 import { store } from './store'
 
 type Phase = 'starting' | 'setup' | 'signin' | 'empty' | 'locked' | 'ready'
@@ -115,6 +115,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const problem = await finishSignIn()
       if (problem) setError(problem)
+      keepClientInAddress()
       if (!clientId()) return setPhase('setup')
       const cached = await store.sealed()
       const k = await store.key()

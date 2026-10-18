@@ -46,6 +46,7 @@ export function PhoneApp() {
   const [pass, setPass] = useState('')
   const [again, setAgain] = useState('')
   const [qr, setQr] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const accounts = google?.accounts ?? []
   const chosen = s?.account ?? (account || accounts[0]?.email || '')
@@ -135,13 +136,32 @@ export function PhoneApp() {
         <Step n={4} state={live ? 'done' : step3 ? 'now' : 'later'} title="Open it on the iPhone">
           <div className="flex flex-wrap gap-6">
             {qr && <img src={qr} width={180} height={180} alt="QR code that opens the phone app" className="rounded-md border border-rule" />}
-            <ol className="max-w-[46ch] list-decimal space-y-1 pl-5 text-[14px]">
-              <li>Point the iPhone camera at the code and open the link in Safari.</li>
-              <li>
-                Tap Share, then <b>Add to Home Screen</b>. Open it from the Home Screen from now on.
-              </li>
-              <li>Sign in with {s.account ?? 'the same Google account'} and type the passphrase.</li>
-            </ol>
+            <div className="max-w-[50ch] text-[14px]">
+              <ol className="list-decimal space-y-1 pl-5">
+                <li>Point the iPhone camera at the code and open the link in Safari.</li>
+                <li>
+                  Tap Share, then <b>Add to Home Screen</b>. Open it from the Home Screen from now on.
+                </li>
+                <li>
+                  In the Home Screen app, sign in with {s.account ?? 'the same Google account'} and type the passphrase
+                  (it keeps its own storage, separate from Safari&rsquo;s).
+                </li>
+              </ol>
+              {s.phoneUrl && (
+                <p className="mt-3 text-[13px] text-ink-muted">
+                  If the Home Screen app asks for the link, send it to the phone and paste it there:{' '}
+                  <button
+                    className="text-stamp hover:underline"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(s.phoneUrl!)
+                      setCopied(true)
+                    }}
+                  >
+                    {copied ? 'Copied' : 'Copy link'}
+                  </button>
+                </p>
+              )}
+            </div>
           </div>
         </Step>
       </ol>

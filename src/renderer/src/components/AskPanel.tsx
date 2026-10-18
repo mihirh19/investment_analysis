@@ -32,6 +32,9 @@ const MD: Components = {
   pre: ({ children }) => <pre className="my-2 overflow-x-auto rounded-md bg-sheet p-2 text-[13px]">{children}</pre>,
   blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-rule-strong pl-3 text-ink-muted">{children}</blockquote>,
   hr: () => <hr className="my-3 border-rule" />,
+  // Never load images from an answer: text from an email could plant one whose address carries
+  // figures to someone else's server. Show its description instead.
+  img: ({ alt }) => (alt ? <span className="text-ink-muted">[{alt}]</span> : null),
   table: ({ children }) => (
     <div className="my-2 overflow-x-auto">
       <table className="num w-full border-collapse text-[13px]">{children}</table>

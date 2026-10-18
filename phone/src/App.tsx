@@ -1,15 +1,16 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { signedInEmail, signIn, signOut } from './lib/google'
+import { setClientFrom, signedInEmail, signIn, signOut } from './lib/google'
 import { useData } from './lib/data'
 import { store } from './lib/store'
 import { Home } from './screens/Home'
 import { Holdings } from './screens/Holdings'
 import { Plan } from './screens/Plan'
 import { Properties } from './screens/Properties'
+import { Spending } from './screens/Spending'
 import { Vehicles } from './screens/Vehicles'
 import { field, Primary, Sheet } from './ui'
 
-type Tab = 'home' | 'holdings' | 'property' | 'vehicles' | 'plan'
+type Tab = 'home' | 'holdings' | 'spending' | 'property' | 'vehicles' | 'plan'
 
 function Gate({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -20,6 +21,47 @@ function Gate({ title, children }: { title: string; children: ReactNode }) {
       <h1 className="wide mb-3 text-[26px] leading-tight font-semibold">{title}</h1>
       {children}
     </main>
+  )
+}
+
+/** First open without the link's sign-in client (a Home Screen app keeps its own storage on iPhone). */
+function Setup() {
+  const [text, setText] = useState('')
+  const [bad, setBad] = useState(false)
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (setClientFrom(text)) location.reload()
+    else setBad(true)
+  }
+  return (
+    <Gate title="Set up the phone app">
+      <p className="mb-4 text-[15px] text-ink-muted">
+        On the computer, open Family Portfolio → Settings → Phone app.{' '}
+        {standalone
+          ? 'This Home Screen app keeps its own storage, separate from Safari, so it needs the link once more: tap Copy link there, send it to this phone (WhatsApp or email to yourself), copy it here and paste it below.'
+          : 'Scan the QR code with this phone’s camera and open the link in Safari; then tap Share → Add to Home Screen.'}
+      </p>
+      <form onSubmit={submit}>
+        <input
+          aria-label="Phone link from the computer"
+          placeholder="Paste the phone link"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          className={`${field} mb-3`}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value)
+            setBad(false)
+          }}
+        />
+        <Primary type="submit" disabled={!text.trim()}>
+          Set up
+        </Primary>
+      </form>
+      {bad && <p className="mt-3 text-[15px] text-loss">That isn&rsquo;t the phone link. Copy it from Settings → Phone app on the computer.</p>}
+    </Gate>
   )
 }
 
@@ -110,6 +152,7 @@ function Menu({ onClose }: { onClose: () => void }) {
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'home', label: 'Home', icon: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
   { key: 'holdings', label: 'Holdings', icon: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
+  { key: 'spending', label: 'Spending', icon: 'M3 7h18v12H3zM3 11h18M7 15h3' },
   { key: 'property', label: 'Property', icon: 'M4 21V8l8-5 8 5v13M9 21v-6h6v6' },
   { key: 'vehicles', label: 'Vehicles', icon: 'M5 16l1.5-5h11L19 16M5 16h14v3H5zM7.5 19v1.5M16.5 19v1.5' },
   { key: 'plan', label: 'Plan', icon: 'M3 20l6-7 4 3 8-10M15 6h6v6' }
@@ -122,15 +165,7 @@ export function App() {
   useEffect(() => sessionStorage.setItem('fp.tab', tab), [tab])
 
   if (phase === 'starting') return <main className="min-h-full" />
-  if (phase === 'setup')
-    return (
-      <Gate title="Open this from your computer">
-        <p className="text-[15px] text-ink-muted">
-          On the computer, open Family Portfolio → Settings → Phone app, and scan the QR code with this phone&rsquo;s
-          camera. That link sets the app up; then tap Share → Add to Home Screen.
-        </p>
-      </Gate>
-    )
+  if (phase === 'setup') return <Setup />
   if (phase === 'signin')
     return (
       <Gate title="Family Portfolio">
@@ -157,7 +192,9 @@ export function App() {
   if (phase === 'locked' || !snapshot) return <Unlock />
 
   const tabs = TABS.filter(
-    (t) => (t.key !== 'property' || snapshot.properties.length) && (t.key !== 'vehicles' || snapshot.vehicles.length) && (t.key !== 'plan' || snapshot.forecast)
+    (t) =>
+      (t.key !== 'spending' || Object.values(snapshot.scopes).some((x) => x.spending)) &&
+      (t.key !== 'property' || snapshot.properties.length) && (t.key !== 'vehicles' || snapshot.vehicles.length) && (t.key !== 'plan' || snapshot.forecast)
   )
   return (
     <div className="flex min-h-full flex-col">
@@ -177,6 +214,7 @@ export function App() {
       <main className="flex-1 px-3 pb-28">
         {tab === 'home' && <Home />}
         {tab === 'holdings' && <Holdings />}
+        {tab === 'spending' && <Spending />}
         {tab === 'property' && <Properties />}
         {tab === 'vehicles' && <Vehicles />}
         {tab === 'plan' && <Plan />}

@@ -17,11 +17,38 @@ const LS = {
 /** Where Google sends the person back: this app's own address, exactly as registered. */
 export const redirectUri = () => `${location.origin}${import.meta.env.BASE_URL}`
 
+const CLIENT_RE = /[\w-]+\.apps\.googleusercontent\.com/
+
 /** The sign-in client: built in at publish time, or carried in the link the desktop's QR code opens. */
 export function clientId(): string | null {
   const fromUrl = new URLSearchParams(location.search).get('client')
-  if (fromUrl && /^[\w-]+\.apps\.googleusercontent\.com$/.test(fromUrl)) localStorage.setItem(LS.client, fromUrl)
+  if (fromUrl && new RegExp(`^${CLIENT_RE.source}$`).test(fromUrl)) localStorage.setItem(LS.client, fromUrl)
   return (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || localStorage.getItem(LS.client)
+}
+
+/**
+ * This app's address with the sign-in client in it. A Home Screen app on iPhone keeps its own
+ * storage, separate from Safari's, and starts from the address showing when it was added; keeping
+ * the client in the address means the icon opens an app that is already set up.
+ */
+export function appAddress(): string {
+  const id = localStorage.getItem(LS.client)
+  return id ? `${redirectUri()}?client=${encodeURIComponent(id)}` : redirectUri()
+}
+
+/** Puts the client back in the address (after Google's redirect, or a reload that lost it). */
+export function keepClientInAddress(): void {
+  clientId()
+  if (localStorage.getItem(LS.client) && !new URLSearchParams(location.search).get('client')) history.replaceState(null, '', appAddress() + location.hash)
+}
+
+/** Sets the client from the phone link (or just its client ID) pasted in. */
+export function setClientFrom(text: string): boolean {
+  const id = text.trim().match(CLIENT_RE)?.[0]
+  if (!id) return false
+  localStorage.setItem(LS.client, id)
+  history.replaceState(null, '', appAddress())
+  return true
 }
 
 export function signedInEmail(): string | null {
@@ -70,7 +97,7 @@ export async function finishSignIn(): Promise<string | null> {
   const p = new URLSearchParams(location.hash.slice(1))
   const expected = localStorage.getItem(LS.state)
   localStorage.removeItem(LS.state)
-  history.replaceState(null, '', redirectUri())
+  history.replaceState(null, '', appAddress())
   if (p.get('error')) return p.get('error') === 'access_denied' ? 'Sign-in was cancelled.' : `Google: ${p.get('error')}`
   if (!expected || p.get('state') !== expected) return 'That sign-in did not come from this app. Try again.'
   if (!(p.get('scope') ?? '').includes('drive.appdata')) return 'Allow Drive on Google’s page: the app keeps its data there.'

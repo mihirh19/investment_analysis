@@ -3,6 +3,7 @@
 
 import type { ChartGroup, PropertyExpenseKind, PropertyView } from './assets'
 import type { Forecast } from './plan'
+import type { SpendCategory } from './ai'
 import type { AssetClass, Platform } from './types'
 import type { VehicleExpenseKind, VehicleView } from './vehicles'
 
@@ -39,6 +40,38 @@ export interface PhoneScope {
   byGroup: { group: ChartGroup; value: number }[]
   upcoming: { date: string; label: string; amount: number; holding: string; personName: string }[]
   incomeThisFy: { dividends: number; interest: number; rent: number }
+  /** Card and bank spending read from statements (absent in snapshots from older versions). */
+  spending?: PhoneSpending | null
+  /** Capital gains this financial year and what could still be done about them. */
+  tax?: PhoneTax | null
+}
+
+export interface PhoneSpending {
+  /** Last six months, oldest first. */
+  months: { month: string; total: number; byCategory: Partial<Record<SpendCategory, number>> }[]
+  /** Card bills not yet seen paid, earliest due first. */
+  dues: { name: string; personName: string; dueDate: string; totalDue: number; minimumDue: number | null }[]
+  /** Latest money out, newest first. */
+  recent: { date: string; merchant: string; amount: number; category: SpendCategory; account: string }[]
+}
+
+export interface PhoneTax {
+  fy: string
+  /** Gains booked this financial year. */
+  shortTermGain: number
+  longTermGain: number
+  /** Tax at the fixed rates on what is booked (slab-rate gains are taxed with income, not included). */
+  fixedRateTax: number
+  slabGain: number
+  /** Unused tax-free long-term equity gains this year (section 112A), and the yearly limit. */
+  exemptionLeft: number
+  exemptionLimit: number
+  /** Gains not booked yet, if everything were sold today. */
+  unrealized: { shortTerm: number; longTerm: number }
+  /** Long-term equity lots that could be sold and bought back to use the exemption. */
+  harvest: { name: string; personName: string; account: string; units: number; value: number; gain: number }[]
+  /** Lots in profit turning long-term within 60 days. */
+  soonLongTerm: { name: string; personName: string; gain: number; longTermFrom: string }[]
 }
 
 export interface PhoneSnapshot {

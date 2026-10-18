@@ -1,5 +1,6 @@
 import { GROUP_OF, type ChartGroup, type PropertyMeta } from '@shared/assets'
-import type { PhoneEntry, PhoneHolding, PhoneScope, PhoneSnapshot } from '@shared/phone'
+import { NOT_SPENDING } from '@shared/ai'
+import type { PhoneEntry, PhoneHolding, PhoneScope, PhoneSnapshot, PhoneSpending, PhoneTax } from '@shared/phone'
 import { listPolicies } from './assets'
 import { schema, type Db } from './db'
 import { addManualEntry, manualAssetViews, saveManualAsset } from './manualAssets'
@@ -7,6 +8,8 @@ import { computeAnalysis } from './portfolio/analysis'
 import { computeForecast } from './portfolio/forecast'
 import { listHoldings } from './portfolio/holdings'
 import { computeProperties } from './portfolio/property'
+import { computeTax } from './portfolio/tax'
+import { spendingReport } from './statements'
 import { listVehicles, saveVehicle } from './vehicles'
 
 /** What the phone shows: the same figures as the desktop's pages, worked out here. */
@@ -43,7 +46,47 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
         .filter((u) => u.date >= today && u.date <= horizon)
         .slice(0, 40)
         .map((u) => ({ date: u.date, label: u.label, amount: u.amount, holding: u.holding, personName: u.personName })),
-      incomeThisFy: { dividends: fy?.dividends ?? 0, interest: fy?.interest ?? 0, rent: fy?.rent ?? 0 }
+      incomeThisFy: { dividends: fy?.dividends ?? 0, interest: fy?.interest ?? 0, rent: fy?.rent ?? 0 },
+      spending: spendingFor(personId),
+      tax: taxFor(personId)
+    }
+  }
+
+  const spendingFor = (personId?: number): PhoneSpending | null => {
+    const r = spendingReport(db, personId, 6, today)
+    if (!r.accounts.length) return null
+    const names = new Map(r.accounts.map((a) => [a.id, `${a.institution} ${a.name}${a.last4 ? ` ••${a.last4}` : ''}`]))
+    const owner = new Map(r.accounts.map((a) => [a.id, a.personName]))
+    return {
+      months: r.byMonth.slice(-6),
+      dues: r.dues.map((d) => ({ name: d.name, personName: owner.get(d.accountId) ?? '', dueDate: d.dueDate, totalDue: d.totalDue, minimumDue: d.minimumDue })),
+      recent: r.transactions
+        .filter((t) => t.amount > 0 && !NOT_SPENDING.includes(t.category))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 40)
+        .map((t) => ({ date: t.date, merchant: t.merchant ?? t.description, amount: t.amount, category: t.category, account: names.get(t.accountId) ?? '' }))
+    }
+  }
+
+  const taxFor = (personId?: number): PhoneTax | null => {
+    const t = computeTax(db, personId, today)
+    const now = t.years.filter((y) => y.current)
+    if (!now.length && !t.lots.length) return null
+    const sum = (f: (y: (typeof now)[number]) => number) => now.reduce((s, y) => s + f(y), 0)
+    return {
+      fy: t.currentFy,
+      shortTermGain: sum((y) => y.shortTermGain),
+      longTermGain: sum((y) => y.longTermGain),
+      fixedRateTax: sum((y) => y.fixedRateTax),
+      slabGain: sum((y) => y.slabGain),
+      exemptionLeft: t.exemptionLeft.reduce((s, e) => s + e.left, 0),
+      exemptionLimit: t.exemptionLeft.reduce((s, e) => s + e.limit, 0),
+      unrealized: { shortTerm: t.unrealized.shortTermGain - t.unrealized.shortTermLoss, longTerm: t.unrealized.longTermGain - t.unrealized.longTermLoss },
+      harvest: t.harvest.slice(0, 15).map((h) => ({ name: h.name, personName: h.personName, account: h.accountName, units: h.units, value: h.valueInr, gain: h.gainInr })),
+      soonLongTerm: t.soonLongTerm
+        .filter((l) => l.longTermFrom)
+        .slice(0, 15)
+        .map((l) => ({ name: l.name, personName: l.personName, gain: l.gainInr, longTermFrom: l.longTermFrom! }))
     }
   }
 

@@ -10,6 +10,7 @@ import { applyPhoneEntry, buildPhoneSnapshot } from '../src/main/phoneData'
 import { createPhoneSync } from '../src/main/phoneSync'
 import { computeProperties } from '../src/main/portfolio/property'
 import { listVehicles, saveVehicle } from '../src/main/vehicles'
+import { saveStatement } from '../src/main/statements'
 
 describe('the vault', () => {
   it('opens only with the right passphrase', async () => {
@@ -179,5 +180,44 @@ describe('phone entries on the books', () => {
     expect(snap.vehicles[0]).not.toHaveProperty('documents')
     expect(snap.scopes.family).toBeDefined()
     expect(snap.applied).toEqual(['p1', 'p2'])
+  })
+
+  it('carries card spending and bills for each person, and none for someone without statements', () => {
+    saveStatement(
+      db,
+      1,
+      {
+        kind: 'CREDIT_CARD',
+        institution: 'HDFC Bank',
+        accountName: 'Millennia',
+        last4: '4321',
+        holderName: null,
+        periodFrom: '2026-09-01',
+        periodTo: '2026-09-30',
+        statementDate: '2026-09-30',
+        dueDate: '2026-10-20',
+        totalDue: 4800,
+        minimumDue: 240,
+        creditLimit: null,
+        openingBalance: null,
+        closingBalance: null,
+        rewardPoints: null,
+        transactions: [
+          { date: '2026-09-05', description: 'SWIGGY', merchant: 'Swiggy', amount: 800, direction: 'DEBIT', category: 'FOOD_DINING', isEmi: false },
+          { date: '2026-09-12', description: 'PAYMENT RECEIVED', merchant: null, amount: 9000, direction: 'CREDIT', category: 'CARD_PAYMENT', isEmi: false },
+          { date: '2026-09-20', description: 'HPCL', merchant: 'HPCL', amount: 4000, direction: 'DEBIT', category: 'FUEL', isEmi: false }
+        ],
+        trades: []
+      },
+      'sep.pdf'
+    )
+    const snap = buildPhoneSnapshot(db, [], null)
+    const me = snap.scopes['1'].spending!
+    expect(me.dues).toMatchObject([{ name: 'HDFC Bank Millennia ••4321', totalDue: 4800, dueDate: '2026-10-20' }])
+    // The card payment is not spending.
+    expect(me.recent.map((t) => t.merchant)).toEqual(['HPCL', 'Swiggy'])
+    expect(snap.scopes.family.spending!.dues).toHaveLength(1)
+    const other = snap.persons.find((p) => p.id !== 1)
+    if (other) expect(snap.scopes[String(other.id)].spending).toBeNull()
   })
 })

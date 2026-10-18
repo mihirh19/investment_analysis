@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChartGroup } from '@shared/assets'
+import type { PhoneTax } from '@shared/phone'
 import { GROUP_COLORS, GROUP_LABELS } from '../../../src/renderer/src/lib/labels'
 import { useData } from '../lib/data'
 import { Card, day, inr, lakhCrore, Seg, signed, today, tone, Trend } from '../ui'
@@ -26,6 +27,98 @@ export function ScopePicker({ value, onChange }: { value: string; onChange: (k: 
 }
 
 const daysTo = (iso: string) => Math.round((Date.parse(iso) - Date.parse(today())) / 86400000)
+
+/** Gains booked this financial year, tax-free room left, and lots worth knowing about. */
+function TaxCard({ tax }: { tax: PhoneTax }) {
+  const [open, setOpen] = useState(false)
+  const used = Math.max(0, tax.exemptionLimit - tax.exemptionLeft)
+  return (
+    <Card title={`Tax this year`} aside={tax.fy}>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {(
+          [
+            ['Long-term booked', tax.longTermGain],
+            ['Short-term booked', tax.shortTermGain],
+            ['Tax (fixed rates)', tax.fixedRateTax]
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k}>
+            <div className="num text-center text-[17px] font-semibold">{lakhCrore(v)}</div>
+            <div className="text-[12px] text-ink-muted">{k}</div>
+          </div>
+        ))}
+      </div>
+      {tax.exemptionLimit > 0 && (
+        <div className="mt-3">
+          <div className="flex justify-between text-[14px]">
+            <span>Tax-free long-term gain left</span>
+            <span className="num font-semibold">{inr(tax.exemptionLeft)}</span>
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-rule/60" aria-hidden>
+            <div className="h-full rounded-full bg-gain" style={{ width: `${Math.min(100, (used / tax.exemptionLimit) * 100)}%` }} />
+          </div>
+          <div className="mt-1 text-[12px] text-ink-muted">
+            {inr(used)} used of {inr(tax.exemptionLimit)}
+          </div>
+        </div>
+      )}
+      <div className="mt-3 flex justify-between text-[13px] text-ink-muted">
+        <span>Not booked: long-term {lakhCrore(tax.unrealized.longTerm)}</span>
+        <span>short-term {lakhCrore(tax.unrealized.shortTerm)}</span>
+      </div>
+      {tax.slabGain !== 0 && <p className="mt-1 text-[12px] text-ink-muted">{inr(tax.slabGain)} of gains is taxed at your slab rate, with income.</p>}
+      {(tax.harvest.length > 0 || tax.soonLongTerm.length > 0) && (
+        <>
+          <button className="mt-3 min-h-10 text-[14px] text-stamp" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            {open ? 'Hide details' : `Details: ${tax.harvest.length ? `${tax.harvest.length} can use the tax-free room` : ''}${tax.harvest.length && tax.soonLongTerm.length ? ', ' : ''}${tax.soonLongTerm.length ? `${tax.soonLongTerm.length} turn long-term soon` : ''}`}
+          </button>
+          {open && (
+            <div className="text-[14px]">
+              {tax.harvest.length > 0 && (
+                <>
+                  <h3 className="mt-2 mb-1 font-semibold">Long-term gains within the tax-free room</h3>
+                  <p className="mb-1 text-[12px] text-ink-muted">Selling and buying back books the gain tax-free this year (the Tax page on the computer explains it).</p>
+                  <ul>
+                    {tax.harvest.map((h, i) => (
+                      <li key={i} className="flex justify-between gap-3 border-b border-rule py-1.5 last:border-0">
+                        <div className="min-w-0">
+                          <div className="truncate">{h.name}</div>
+                          <div className="truncate text-[12px] text-ink-muted">
+                            {h.personName}, {h.account}, {h.units.toLocaleString('en-IN', { maximumFractionDigits: 3 })} units
+                          </div>
+                        </div>
+                        <div className="num shrink-0 text-gain">{inr(h.gain)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {tax.soonLongTerm.length > 0 && (
+                <>
+                  <h3 className="mt-3 mb-1 font-semibold">Turning long-term soon</h3>
+                  <p className="mb-1 text-[12px] text-ink-muted">Gains here are taxed less if sold after the date shown.</p>
+                  <ul>
+                    {tax.soonLongTerm.map((l, i) => (
+                      <li key={i} className="flex justify-between gap-3 border-b border-rule py-1.5 last:border-0">
+                        <div className="min-w-0">
+                          <div className="truncate">{l.name}</div>
+                          <div className="truncate text-[12px] text-ink-muted">
+                            {l.personName}, long-term from {day(l.longTermFrom)}
+                          </div>
+                        </div>
+                        <div className="num shrink-0 text-gain">{inr(l.gain)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  )
+}
 
 export function Home() {
   const { snapshot, pending } = useData()
@@ -69,6 +162,15 @@ export function Home() {
         tone: daysTo(pol.nextDue) < 0 ? 'loss' : 'warn',
         title: `${pol.name}: premium`,
         detail: `${inr(pol.premium)} due ${day(pol.nextDue)}`
+      })
+
+  for (const d of s.spending?.dues ?? [])
+    if (daysTo(d.dueDate) <= 7)
+      attention.push({
+        key: `c${d.name}${d.dueDate}`,
+        tone: daysTo(d.dueDate) < 0 ? 'loss' : 'warn',
+        title: `${d.name}: card bill`,
+        detail: `${inr(d.totalDue)} ${daysTo(d.dueDate) < 0 ? `${-daysTo(d.dueDate)} days overdue` : `due ${day(d.dueDate)}`}`
       })
 
   const total = s.byGroup.reduce((a, g) => a + g.value, 0)
@@ -130,6 +232,8 @@ export function Home() {
           </ul>
         </Card>
       )}
+
+      {s.tax && <TaxCard tax={s.tax} />}
 
       <Card title="Where it is">
         <div className="mb-3 flex h-3 overflow-hidden rounded-full" aria-hidden>
