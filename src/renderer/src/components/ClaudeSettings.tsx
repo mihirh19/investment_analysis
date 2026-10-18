@@ -129,6 +129,16 @@ export function ClaudeSettings() {
           email, a dividend or SIP confirmation, a renewal, a bill. It can import an email&rsquo;s statement or report
           when you ask it to.
         </Toggle>
+        <Toggle
+          on={s.phoneChat}
+          disabled={!s.hasKey || !s.chat}
+          onChange={(v) => features.mutate([{ phoneChat: v }])}
+          title="Ask your money on the phone"
+          sends="from the phone, your question and the synced figures it looks up. Your key goes to the phone inside the copy locked with your phone passphrase, in your own Drive."
+        >
+          The phone app gets an Ask button that answers from its synced figures (and any fund&rsquo;s NAV history). Turn
+          this off, or remove the key, and the next sync takes the key off the phone. Needs the phone app set up.
+        </Toggle>
       </div>
       {(pdf.data ?? 0) > 0 && (
         <p className="mt-3 text-[13px] text-ink-muted">

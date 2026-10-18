@@ -86,7 +86,8 @@ it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
     },
     'demo'
   )
-  const snapshot = buildPhoneSnapshot(db, [], new Date().toISOString())
+  // A made-up key so the demo shows the Ask button (no request with it can succeed).
+  const snapshot = buildPhoneSnapshot(db, [], new Date().toISOString(), { apiKey: 'sk-ant-demo-not-a-real-key', model: 'claude-opus-5-5' })
   const passphrase = 'demo passphrase 123'
   const sealed = await seal(snapshot, await vaultKey(passphrase, undefined, 1000))
   writeFileSync(resolve('dist-phone/demo.json'), JSON.stringify({ sealed, passphrase }))

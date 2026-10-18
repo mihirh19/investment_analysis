@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { eq } from 'drizzle-orm'
-import type { AiFeatures, AiStatus } from '@shared/ai'
+import { AI_MODEL, FALLBACK_BETA, type AiFeatures, type AiStatus } from '@shared/ai'
 import { schema, type Db } from './db'
 
 /**
@@ -9,9 +9,7 @@ import { schema, type Db } from './db'
  * The key is kept encrypted with the OS key store; usage is tallied by month so the cost is visible.
  */
 
-export const AI_MODEL = 'claude-opus-5-5'
-/** Opt in to a server-side retry on another model if this one declines a request. */
-export const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
+export { AI_MODEL, FALLBACK_BETA }
 /** Claude Opus 5.5 list prices, US$ per million tokens (input, output, cache read). */
 const PRICE = { input: 4, output: 20, cacheRead: 0.2 }
 
@@ -26,6 +24,8 @@ interface Stored {
   chat: boolean
   /** Ask your money may search and read the connected Gmail accounts. */
   chatMail: boolean
+  /** The key goes to the phone app (inside the passphrase-locked copy) for Ask your money there. */
+  phoneChat: boolean
 }
 
 interface Month {
@@ -53,7 +53,7 @@ export function createAi(d: AiDeps) {
       .values({ key: k, value })
       .onConflictDoUpdate({ target: schema.settings.key, set: { value } })
       .run()
-  const load = (): Stored => ({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, ...JSON.parse(get(KEY) ?? '{}') })
+  const load = (): Stored => ({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, phoneChat: false, ...JSON.parse(get(KEY) ?? '{}') })
   const month = () => new Date().toISOString().slice(0, 7)
   const usage = (): Record<string, Month> => JSON.parse(get(USAGE_KEY) ?? '{}')
 
@@ -72,7 +72,7 @@ export function createAi(d: AiDeps) {
       const m = usage()[month()] ?? { calls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
       const costUsd =
         ((m.inputTokens * PRICE.input + m.outputTokens * PRICE.output + m.cacheReadTokens * PRICE.cacheRead) / 1e6) || 0
-      return { hasKey: !!s.apiKey, keyEnding: s.keyEnding, statements: s.statements, chat: s.chat, chatMail: s.chatMail, model: AI_MODEL, month: { ...m, costUsd } }
+      return { hasKey: !!s.apiKey, keyEnding: s.keyEnding, statements: s.statements, chat: s.chat, chatMail: s.chatMail, phoneChat: s.phoneChat, model: AI_MODEL, month: { ...m, costUsd } }
     },
 
     /** Saves the key after checking it with Anthropic (a free model lookup, no tokens). */
@@ -95,13 +95,13 @@ export function createAi(d: AiDeps) {
 
     setFeatures(f: AiFeatures): AiStatus {
       const s = load()
-      if ((f.statements || f.chat || f.chatMail) && !s.apiKey) throw new Error('Add your Claude API key first.')
+      if ((f.statements || f.chat || f.chatMail || f.phoneChat) && !s.apiKey) throw new Error('Add your Claude API key first.')
       set(KEY, JSON.stringify({ ...s, ...f }))
       return this.status()
     },
 
     removeKey(): AiStatus {
-      set(KEY, JSON.stringify({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false }))
+      set(KEY, JSON.stringify({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, phoneChat: false }))
       cached = null
       return this.status()
     },
@@ -115,6 +115,12 @@ export function createAi(d: AiDeps) {
             : 'Ask your money is off. Turn it on in Settings → Claude.'
         )
       return client()
+    },
+
+    /** The key itself, for the phone app's locked copy; only while that is switched on. */
+    phoneKey(): string | null {
+      const s = load()
+      return s.apiKey && s.chat && s.phoneChat ? d.decrypt(s.apiKey) : null
     },
 
     enabled: (feature: keyof AiFeatures) => !!load().apiKey && load()[feature],

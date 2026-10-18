@@ -221,3 +221,36 @@ describe('phone entries on the books', () => {
     if (other) expect(snap.scopes[String(other.id)].spending).toBeNull()
   })
 })
+
+describe('Ask your money on the phone', () => {
+  it('answers from the synced copy, with only the tools that work on a phone', async () => {
+    const { phoneSources } = await import('../phone/src/lib/ask')
+    const { ask } = await import('../src/shared/chat')
+    const snap = {
+      persons: [{ id: 1, name: 'Me' }, { id: 2, name: 'Dad' }],
+      scopes: { family: { netWorth: 100, tax: null, spending: null }, '1': { netWorth: 60, tax: null, spending: null } },
+      holdings: [
+        { personId: 1, name: 'Fund A', assetClass: 'MF', value: 60, invested: 50, amfiCode: '122639' },
+        { personId: 2, name: 'EPF', assetClass: 'EPF', value: 40, invested: 40 }
+      ],
+      properties: [],
+      vehicles: [],
+      policies: [],
+      forecast: null,
+      ai: { apiKey: 'sk-ant-test', model: 'claude-opus-5-5' }
+    } as unknown as PhoneSnapshot
+    const src = phoneSources(snap)
+    expect(src.holdings(1)).toMatchObject([{ person: 'Me', name: 'Fund A', gainInr: 10, amfiCode: '122639' }])
+    expect(src.retirement()).toMatchObject({ retirementHoldings: [{ person: 'Dad', name: 'EPF' }] })
+    expect(src.sectors()).toMatchObject({ note: expect.stringMatching(/computer/) })
+
+    let seen: { tools: { name: string }[]; system: string } | null = null
+    const client = { beta: { messages: { toolRunner: (p: typeof seen) => ((seen = p), (async function* () {})()) } } }
+    await ask(client as never, src, [{ role: 'user', text: 'hi' }], () => {}, 'q', () => {})
+    const names = seen!.tools.map((t) => t.name)
+    expect(names).toContain('fund_history')
+    expect(names).not.toEqual(expect.arrayContaining(['stock']))
+    expect(names.some((n) => n.startsWith('gmail') || n === 'fund_search' || n === 'inflation')).toBe(false)
+    expect(seen!.system).toMatch(/phone app/)
+  })
+})

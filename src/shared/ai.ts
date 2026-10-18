@@ -1,10 +1,16 @@
 // Claude features: reading statements into spending, and answering questions about the books.
 // Shared by main and renderer.
 
+/** The model every Claude feature uses (desktop and phone). */
+export const AI_MODEL = 'claude-opus-5-5'
+/** Opt in to a server-side retry on another model if this one declines a request. */
+export const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
+
 export interface AiFeatures {
   statements?: boolean
   chat?: boolean
   chatMail?: boolean
+  phoneChat?: boolean
 }
 
 export interface AiStatus {
@@ -15,6 +21,8 @@ export interface AiStatus {
   chat: boolean
   /** Ask your money may search and read the connected Gmail accounts. */
   chatMail: boolean
+  /** Ask your money on the phone app (the key travels inside the passphrase-locked copy). */
+  phoneChat: boolean
   model: string
   /** This calendar month's use and its approximate cost at list prices. */
   month: { calls: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number }

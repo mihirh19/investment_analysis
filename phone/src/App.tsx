@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { setClientFrom, signedInEmail, signIn, signOut } from './lib/google'
 import { useData } from './lib/data'
 import { store } from './lib/store'
@@ -10,12 +10,18 @@ import { Spending } from './screens/Spending'
 import { Vehicles } from './screens/Vehicles'
 import { field, Primary, Sheet } from './ui'
 
+// The chat (and the Claude SDK) loads only when Ask is first opened, keeping the app quick to start.
+const Ask = lazy(() => import('./screens/Ask').then((m) => ({ default: m.Ask })))
+
 type Tab = 'home' | 'holdings' | 'spending' | 'property' | 'vehicles' | 'plan'
 
 function Gate({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="flex min-h-full flex-col justify-center px-6 py-10">
-      <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-stamp text-[28px] font-bold text-white dark:text-[#10162a]" aria-hidden>
+      <div
+        className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-stamp text-[28px] font-bold text-white dark:text-[#10162a]"
+        aria-hidden
+      >
         ₹
       </div>
       <h1 className="wide mb-3 text-[26px] leading-tight font-semibold">{title}</h1>
@@ -28,7 +34,9 @@ function Gate({ title, children }: { title: string; children: ReactNode }) {
 function Setup() {
   const [text, setText] = useState('')
   const [bad, setBad] = useState(false)
-  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
+  const standalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as { standalone?: boolean }).standalone === true
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (setClientFrom(text)) location.reload()
@@ -60,7 +68,11 @@ function Setup() {
           Set up
         </Primary>
       </form>
-      {bad && <p className="mt-3 text-[15px] text-loss">That isn&rsquo;t the phone link. Copy it from Settings → Phone app on the computer.</p>}
+      {bad && (
+        <p className="mt-3 text-[15px] text-loss">
+          That isn&rsquo;t the phone link. Copy it from Settings → Phone app on the computer.
+        </p>
+      )}
     </Gate>
   )
 }
@@ -78,7 +90,9 @@ function Unlock() {
   }
   return (
     <Gate title="Unlock your portfolio">
-      <p className="mb-5 text-[15px] text-ink-muted">The passphrase you set on the computer, in Settings → Phone app.</p>
+      <p className="mb-5 text-[15px] text-ink-muted">
+        The passphrase you set on the computer, in Settings → Phone app.
+      </p>
       <form onSubmit={submit}>
         <input
           type="password"
@@ -91,7 +105,12 @@ function Unlock() {
           autoFocus
         />
         <label className="mb-5 flex items-center gap-2 text-[15px]">
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-5 w-5" />
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="h-5 w-5"
+          />
           Remember on this phone
         </label>
         <Primary type="submit" disabled={!pass || busy}>
@@ -114,7 +133,9 @@ function Menu({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex justify-between border-b border-rule py-2">
           <dt className="text-ink-muted">Downloaded</dt>
-          <dd>{fetchedAt ? new Date(fetchedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</dd>
+          <dd>
+            {fetchedAt ? new Date(fetchedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+          </dd>
         </div>
         <div className="flex justify-between border-b border-rule py-2">
           <dt className="text-ink-muted">Waiting for the computer</dt>
@@ -162,6 +183,7 @@ export function App() {
   const { phase, snapshot, syncing, error, sync } = useData()
   const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem('fp.tab') as Tab) || 'home')
   const [menu, setMenu] = useState(false)
+  const [asking, setAsking] = useState(false)
   useEffect(() => sessionStorage.setItem('fp.tab', tab), [tab])
 
   if (phase === 'starting') return <main className="min-h-full" />
@@ -194,22 +216,36 @@ export function App() {
   const tabs = TABS.filter(
     (t) =>
       (t.key !== 'spending' || Object.values(snapshot.scopes).some((x) => x.spending)) &&
-      (t.key !== 'property' || snapshot.properties.length) && (t.key !== 'vehicles' || snapshot.vehicles.length) && (t.key !== 'plan' || snapshot.forecast)
+      (t.key !== 'property' || snapshot.properties.length) &&
+      (t.key !== 'vehicles' || snapshot.vehicles.length) &&
+      (t.key !== 'plan' || snapshot.forecast)
   )
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-30 flex items-center justify-between bg-paper/95 px-4 pt-2 pb-2 backdrop-blur">
         <h1 className="wide text-[20px] font-semibold">{tabs.find((t) => t.key === tab)?.label ?? 'Home'}</h1>
-        <button
-          onClick={() => setMenu(true)}
-          className="flex min-h-10 items-center gap-2 rounded-full px-3 text-[13px] text-ink-muted"
-          aria-label="Sync and settings"
-        >
-          <span className={syncing ? 'animate-spin' : ''} aria-hidden>
-            ↻
-          </span>
-          {syncing ? 'Syncing' : `Prices ${snapshot.pricesAsOf ? new Date(snapshot.pricesAsOf).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'as of last sync'}`}
-        </button>
+        <div className="flex items-center gap-1">
+          {snapshot.ai && (
+            <button
+              onClick={() => setAsking(true)}
+              className="min-h-10 rounded-full bg-stamp px-4 text-[14px] font-semibold text-white dark:text-[#10162a]"
+            >
+              Ask
+            </button>
+          )}
+          <button
+            onClick={() => setMenu(true)}
+            className="flex min-h-10 items-center gap-2 rounded-full px-3 text-[13px] text-ink-muted"
+            aria-label="Sync and settings"
+          >
+            <span className={syncing ? 'animate-spin' : ''} aria-hidden>
+              ↻
+            </span>
+            {syncing
+              ? 'Syncing'
+              : `Prices ${snapshot.pricesAsOf ? new Date(snapshot.pricesAsOf).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'as of last sync'}`}
+          </button>
+        </div>
       </header>
       <main className="flex-1 px-3 pb-28">
         {tab === 'home' && <Home />}
@@ -219,7 +255,10 @@ export function App() {
         {tab === 'vehicles' && <Vehicles />}
         {tab === 'plan' && <Plan />}
       </main>
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 flex border-t border-rule bg-sheet/95 pt-1 backdrop-blur" aria-label="Sections">
+      <nav
+        className="safe-bottom fixed inset-x-0 bottom-0 z-30 flex border-t border-rule bg-sheet/95 pt-1 backdrop-blur"
+        aria-label="Sections"
+      >
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -227,7 +266,17 @@ export function App() {
             aria-current={tab === t.key ? 'page' : undefined}
             className={`flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] ${tab === t.key ? 'text-stamp' : 'text-ink-muted'}`}
           >
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
               <path d={t.icon} />
             </svg>
             {t.label}
@@ -235,6 +284,11 @@ export function App() {
         ))}
       </nav>
       {menu && <Menu onClose={() => setMenu(false)} />}
+      {asking && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-paper" />}>
+          <Ask onClose={() => setAsking(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

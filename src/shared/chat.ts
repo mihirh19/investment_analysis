@@ -1,8 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod'
 import { z } from 'zod'
-import type { ChatEvent, ChatTurn } from '@shared/ai'
-import { AI_MODEL, FALLBACK_BETA } from './ai'
+import { AI_MODEL, FALLBACK_BETA, type ChatEvent, type ChatTurn } from './ai'
 
 /**
  * "Ask your money": Claude answers questions about the books by calling tools that return the same
@@ -27,14 +26,16 @@ export interface ChatSources {
   sectors(personId?: number): unknown
   funds(personId?: number): unknown
   retirement(): unknown
-  /** Any listed stock, ETF or index: price, 52-week range, past returns. */
-  stock(query: string): Promise<unknown>
-  /** Mutual funds by name: returns, costs, size, scheme codes and NAVs. */
-  fundSearch(query: string): Promise<unknown>
+  /** Any listed stock, ETF or index: price, 52-week range, past returns (desktop only: Yahoo blocks browsers). */
+  stock?(query: string): Promise<unknown>
+  /** Mutual funds by name: returns, costs, size, scheme codes and NAVs (desktop only). */
+  fundSearch?(query: string): Promise<unknown>
   /** One scheme's NAV record by its AMFI code. */
   fundHistory(code: string): Promise<unknown>
   /** India's consumer price inflation, overall and by category. */
-  inflation(): unknown
+  inflation?(): unknown
+  /** Where the chat runs; the phone has the synced figures only. */
+  where?: 'desktop' | 'phone'
   /** The connected Gmail accounts, when the person has allowed it. */
   mail?: {
     accounts(): { email: string; person: string }[]
@@ -44,7 +45,10 @@ export interface ChatSources {
   }
 }
 
-const MARKET = `Market data: stock (any NSE/BSE stock, ETF or index such as Nifty 50, Sensex, Bank Nifty: price, day change, 52-week range, past returns), fund_search (any mutual fund by name: AMFI returns for Direct and Regular, expense ratio, size, risk, scheme codes), fund_history (a scheme code's NAV returns by period and calendar year, worst fall) and inflation (CPI). Use them for things the family doesn't hold too, and say the date the figures are as of.`
+const MARKET = (phone: boolean) =>
+  phone
+    ? `This is the phone app: it has the figures last synced from the computer (prices as of that sync) and fund_history (any mutual fund plan's NAV record by scheme code). Live stock and index prices, searching any fund by name, sectors, fund overlaps, detailed returns and Gmail are in the desktop app; say so when a question needs them.`
+    : `Market data: stock (any NSE/BSE stock, ETF or index such as Nifty 50, Sensex, Bank Nifty: price, day change, 52-week range, past returns), fund_search (any mutual fund by name: AMFI returns for Direct and Regular, expense ratio, size, risk, scheme codes), fund_history (a scheme code's NAV returns by period and calendar year, worst fall) and inflation (CPI). Use them for things the family doesn't hold too, and say the date the figures are as of.`
 
 const GMAIL = (mailboxes: { email: string; person: string }[] | null) =>
   mailboxes
@@ -53,7 +57,7 @@ const GMAIL = (mailboxes: { email: string; person: string }[] | null) =>
 - gmail_import imports an email's attachments (CAS, broker spreadsheets, statements) into the mailbox owner's books. Use it only when the person asks to import or add something, and say what was imported.`
     : 'Gmail is not available to you here. If a question needs it, say the person can allow it in Settings → Claude ("Search my Gmail").'
 
-const SYSTEM = (persons: { id: number; name: string }[], today: string, mailboxes: { email: string; person: string }[] | null) => `You answer questions about one Indian family's money, inside their personal finance app "Family Portfolio". Today is ${today}.
+const SYSTEM = (persons: { id: number; name: string }[], today: string, mailboxes: { email: string; person: string }[] | null, phone: boolean) => `You answer questions about one Indian family's money, inside their personal finance app "Family Portfolio". Today is ${today}.
 
 People in the books: ${persons.map((p) => p.name).join(', ')}. "Family" means all of them together. When the question doesn't say whose money, use the family.
 
@@ -64,9 +68,8 @@ How to answer:
 - You are not a SEBI-registered investment adviser. Explain, compare and show facts (costs, overlaps, tax effects, past returns), but don't tell the person to buy, sell or switch a particular security, fund or sector. If asked, lay out the facts that bear on the choice and suggest a SEBI-registered adviser for a recommendation.
 - Past returns don't predict future ones; say so when comparing returns.
 
-${MARKET}
-
-${GMAIL(mailboxes)}`
+${MARKET(phone)}
+${phone ? '' : `\n${GMAIL(mailboxes)}`}`
 
 const TOOL_WORDS: Record<string, string> = {
   overview: 'your net worth',
@@ -109,7 +112,9 @@ export async function ask(
   today = new Date().toISOString().slice(0, 10)
 ): Promise<void> {
   const persons = src.persons()
-  const mail = src.mail
+  const phone = src.where === 'phone'
+  const mail = phone ? undefined : src.mail
+  const { stock, fundSearch, inflation } = src
   const personId = (who: string | undefined) => {
     if (!who || /^family$/i.test(who.trim())) return undefined
     const p = persons.find((x) => x.name.toLowerCase() === who.trim().toLowerCase())
@@ -156,25 +161,35 @@ export async function ask(
     tool('sectors', 'Equity by sector against the Nifty 500, each sector index’s returns and P/E against its own ten years, funds and ETFs tracking each sector.', z.object({ who }), (i) => src.sectors(personId(i.who))),
     tool('funds', 'Mutual funds held: plan (Direct/Regular) and what Regular costs, fund houses, categories, overlap between funds with cost and returns side by side.', z.object({ who }), (i) => src.funds(personId(i.who))),
     tool('retirement', 'EPF balances, NPS holdings and insurance policies (premiums, due dates, cover).', z.object({}), () => src.retirement()),
-    tool(
-      'stock',
-      'Live market data for one listed stock, ETF or index (NSE first, then BSE): price, day change, 52-week high and low, returns over 1 month to 5 years, worst fall, dividends. Give the NSE symbol (INFY, NIFTYBEES), a company name, or an index (Nifty 50, Sensex, Bank Nifty, Nifty IT).',
-      z.object({ query: z.string().describe('NSE symbol, company name or index name') }),
-      (i) => src.stock(i.query)
-    ),
-    tool(
-      'fund_search',
-      'Mutual funds whose names match: AMFI returns 1/3/5/10 years for Direct and Regular, expense ratios, AUM, category, benchmark, risk, and each plan’s scheme code and latest NAV.',
-      z.object({ query: z.string().describe('Words from the fund’s name, e.g. "parag parikh flexi" or "nifty 50 index"') }),
-      (i) => src.fundSearch(i.query)
-    ),
+    ...(stock
+      ? [
+          tool(
+            'stock',
+            'Live market data for one listed stock, ETF or index (NSE first, then BSE): price, day change, 52-week high and low, returns over 1 month to 5 years, worst fall, dividends. Give the NSE symbol (INFY, NIFTYBEES), a company name, or an index (Nifty 50, Sensex, Bank Nifty, Nifty IT).',
+            z.object({ query: z.string().describe('NSE symbol, company name or index name') }),
+            (i) => stock(i.query)
+          )
+        ]
+      : []),
+    ...(fundSearch
+      ? [
+          tool(
+            'fund_search',
+            'Mutual funds whose names match: AMFI returns 1/3/5/10 years for Direct and Regular, expense ratios, AUM, category, benchmark, risk, and each plan’s scheme code and latest NAV.',
+            z.object({ query: z.string().describe('Words from the fund’s name, e.g. "parag parikh flexi" or "nifty 50 index"') }),
+            (i) => fundSearch(i.query)
+          )
+        ]
+      : []),
     tool(
       'fund_history',
       'One mutual fund plan’s NAV record from its AMFI scheme code (from fund_search or holdings): returns over 1 month to 10 years, by calendar year, and its worst fall.',
       z.object({ code: z.string().regex(/^\d{5,7}$/).describe('AMFI scheme code') }),
       (i) => src.fundHistory(i.code)
     ),
-    tool('inflation', 'India’s consumer price inflation (CPI, MoSPI): overall and by category (food, housing, health, education…), latest month.', z.object({}), () => src.inflation()),
+    ...(inflation
+      ? [tool('inflation', 'India’s consumer price inflation (CPI, MoSPI): overall and by category (food, housing, health, education…), latest month.', z.object({}), () => inflation())]
+      : []),
     ...(mail
       ? [
           tool(
@@ -210,7 +225,7 @@ export async function ask(
     fallbacks: 'default',
     output_config: { effort: 'medium' },
     cache_control: { type: 'ephemeral' },
-    system: SYSTEM(persons, today, mail ? mail.accounts() : null),
+    system: SYSTEM(persons, today, mail ? mail.accounts() : null, phone),
     tools,
     max_iterations: 12,
     stream: true,

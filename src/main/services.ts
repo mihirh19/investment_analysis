@@ -38,8 +38,8 @@ import { createMail } from './mailSync'
 import { detectImportKind } from './importers/detect'
 import { createPhoneSync } from './phoneSync'
 import { computeFundComparisons, computeSectorInsights } from './portfolio/insights'
-import { AiDisabledError, createAi } from './ai'
-import { ask, type ChatSources } from './chat'
+import { AI_MODEL, AiDisabledError, createAi } from './ai'
+import { ask, type ChatSources } from '@shared/chat'
 import { fundHistory, fundLookup, stockLookup } from './marketLookup'
 import { refreshSchemeFacts, storedSchemeFacts } from './market/amfiData'
 import { storedCpi } from './market/cpi'
@@ -314,7 +314,10 @@ export function createServices(deps: ServiceDeps) {
     tokenFor: (email) => mail.tokenFor(email, { drive: true }),
     hasDrive: (email) => mail.hasDrive(email),
     clientInfo: () => mail.clientInfo(),
-    buildSnapshot: (applied) => buildPhoneSnapshot(db, applied, deps.market?.getStatus().lastRefresh ?? null),
+    buildSnapshot: (applied) => {
+      const key = ai.phoneKey()
+      return buildPhoneSnapshot(db, applied, deps.market?.getStatus().lastRefresh ?? null, key ? { apiKey: key, model: AI_MODEL } : null)
+    },
     apply: (entry) => applyPhoneEntry(db, entry)
   })
 
@@ -829,8 +832,17 @@ export function createServices(deps: ServiceDeps) {
 
     getAiStatus: () => ai.status(),
     setAiKey: (apiKey: string) => ai.setKey(apiKey),
-    removeAiKey: () => ai.removeKey(),
-    setAiFeatures: (f: AiFeatures) => ai.setFeatures(f),
+    removeAiKey() {
+      const s = ai.removeKey()
+      if (phone.enabled()) void phone.sync().catch(() => {})
+      return s
+    },
+    setAiFeatures(f: AiFeatures) {
+      const s = ai.setFeatures(f)
+      // The phone gets (or loses) the key with its next copy: send one now rather than in ten minutes.
+      if ((f.phoneChat !== undefined || f.chat !== undefined) && phone.enabled()) void phone.sync().catch(() => {})
+      return s
+    },
     pdfPasswordCount: () => pdfPasswords().length,
     forgetPdfPasswords(): null {
       setSetting(PDF_PASSWORDS, deps.encrypt('[]'))

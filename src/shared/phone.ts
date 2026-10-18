@@ -26,6 +26,8 @@ export interface PhoneHolding {
   value: number
   invested: number | null
   dayChange: number | null
+  /** AMFI scheme code, for a fund's NAV history (absent in older snapshots). */
+  amfiCode?: string | null
 }
 
 /** Figures that depend on whose money is shown: the family, or one person. */
@@ -86,6 +88,8 @@ export interface PhoneSnapshot {
   vehicles: Omit<VehicleView, 'documents'>[]
   forecast: Forecast | null
   policies: { name: string; personName: string; nextDue: string | null; premium: number; insurer: string }[]
+  /** Ask your money on the phone: the person's Claude key, inside this passphrase-locked copy (only when switched on). */
+  ai?: { apiKey: string; model: string } | null
   /** Phone entries the desktop has applied (most recent), so the phone can stop showing them as pending. */
   applied: string[]
 }

@@ -7,7 +7,7 @@ import type { ChatEvent, StatementRead } from '../src/shared/ai'
 import { openDatabase, type Db } from '../src/main/db'
 import { CasHelperError } from '../src/main/importers/cas'
 import { createAi } from '../src/main/ai'
-import { ask, compact } from '../src/main/chat'
+import { ask, compact } from '../src/shared/chat'
 import { PdfPasswordNeeded, readStatement, saveStatement, spendingReport, statementContent } from '../src/main/statements'
 
 const card = (over: Partial<StatementRead> = {}): StatementRead => ({

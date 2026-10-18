@@ -13,7 +13,7 @@ import { spendingReport } from './statements'
 import { listVehicles, saveVehicle } from './vehicles'
 
 /** What the phone shows: the same figures as the desktop's pages, worked out here. */
-export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string | null): PhoneSnapshot {
+export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string | null, ai: PhoneSnapshot['ai'] = null): PhoneSnapshot {
   const persons = db
     .select()
     .from(schema.persons)
@@ -90,6 +90,13 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
     }
   }
 
+  const amfi = new Map(
+    db
+      .select({ id: schema.instruments.id, code: schema.instruments.amfiCode })
+      .from(schema.instruments)
+      .all()
+      .map((i) => [i.id, i.code])
+  )
   const holdings: PhoneHolding[] = listHoldings(db).map((r) => ({
     personId: r.personId,
     accountId: r.accountId,
@@ -105,7 +112,8 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
     currency: r.currency,
     value: r.marketValueInr ?? r.investedInr ?? 0,
     invested: r.investedInr,
-    dayChange: r.dayChangeInr
+    dayChange: r.dayChangeInr,
+    amfiCode: amfi.get(r.instrumentId) ?? null
   }))
 
   return {
@@ -125,6 +133,7 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
       premium: p.premium,
       insurer: p.insurer
     })),
+    ai,
     applied
   }
 }
