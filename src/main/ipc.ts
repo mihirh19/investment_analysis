@@ -4,7 +4,8 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { ApiResult, ImportKind, RequestApi } from '@shared/types'
 import type { Services } from './services'
 
-const FILE_FILTERS: Record<ImportKind | 'BACKUP' | 'DOCUMENT', Electron.FileFilter[]> = {
+const FILE_FILTERS: Record<ImportKind | 'BACKUP' | 'DOCUMENT' | 'STATEMENT', Electron.FileFilter[]> = {
+  STATEMENT: [{ name: 'Statement (PDF)', extensions: ['pdf'] }],
   DOCUMENT: [{ name: 'PDF or photo', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'] }],
   CAS_PDF: [{ name: 'CAS statement (PDF)', extensions: ['pdf'] }],
   ZERODHA_TRADEBOOK: [{ name: 'Zerodha tradebook', extensions: ['csv', 'xlsx', 'xls'] }],
@@ -95,6 +96,17 @@ export function registerIpc(services: Services): void {
     getForecast: (personId) => services.getForecast(personId),
     savePlan: (plan) => services.savePlan(plan),
     getSectorInsights: (personId) => services.getSectorInsights(personId),
+    getAiStatus: () => services.getAiStatus(),
+    setAiKey: (apiKey) => services.setAiKey(apiKey),
+    removeAiKey: () => services.removeAiKey(),
+    setAiFeatures: (f) => services.setAiFeatures(f),
+    pdfPasswordCount: () => services.pdfPasswordCount(),
+    forgetPdfPasswords: () => services.forgetPdfPasswords(),
+    importStatement: (input) => services.importStatement(input),
+    getSpending: (personId) => services.getSpending(personId),
+    setSpendCategory: (txnId, category) => services.setSpendCategory(txnId, category),
+    deleteStatement: (id) => services.deleteStatement(id),
+    askMoney: (id, history) => services.askMoney(id, history),
     getFundComparisons: (personId) => services.getFundComparisons(personId),
     getPhoneSync: () => services.getPhoneSync(),
     configurePhoneSync: (input) => services.configurePhoneSync(input),

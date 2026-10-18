@@ -1,6 +1,6 @@
 // Google accounts connected for reading statements from Gmail. Shared by main and renderer.
 
-export type MailJob = 'CAS'
+export type MailJob = 'CAS' | 'STATEMENT' | 'REPORT'
 
 /** One statement found in the mail and what happened to it. */
 export interface MailFound {
@@ -11,6 +11,21 @@ export interface MailFound {
   received: string
   result: 'IMPORTED' | 'FAILED'
   message: string
+}
+
+/** An email found by a search, for Ask your money. */
+export interface MailHit {
+  /** The connected mailbox it is in. */
+  account: string
+  /** Whose mailbox that is. */
+  person: string
+  id: string
+  /** Received, YYYY-MM-DD. */
+  date: string
+  from: string
+  subject: string
+  snippet: string
+  attachments: string[]
 }
 
 export interface GoogleAccountView {

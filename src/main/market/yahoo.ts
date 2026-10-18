@@ -92,7 +92,7 @@ export async function yahooHistory(
 
 /** The day's high on one date (exchange time), or null if the symbol did not trade that day. */
 export async function yahooHighOn(symbol: string, date: string, f?: FetchFn): Promise<number | null> {
-  const t0 = Date.parse(`T00:00:00Z`) / 1000 - 86400
+  const t0 = Date.parse(`${date}T00:00:00Z`) / 1000 - 86400
   const r = await chart(symbol, `period1=${t0}&period2=${t0 + 3 * 86400}&interval=1d`, f)
   const offset = r.meta.gmtoffset ?? 0
   const highs = r.indicators?.quote?.[0]?.high ?? []

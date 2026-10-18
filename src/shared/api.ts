@@ -60,6 +60,17 @@ export const API_METHODS = [
   'getForecast',
   'savePlan',
   'getSectorInsights',
+  'getAiStatus',
+  'setAiKey',
+  'removeAiKey',
+  'setAiFeatures',
+  'pdfPasswordCount',
+  'forgetPdfPasswords',
+  'importStatement',
+  'getSpending',
+  'setSpendCategory',
+  'deleteStatement',
+  'askMoney',
   'getFundComparisons',
   'getPhoneSync',
   'configurePhoneSync',
@@ -90,3 +101,4 @@ export const _allMethodsListed: Missing extends never ? true : Missing = true
 
 /** Main → renderer push channel, sent after each market data refresh. */
 export const MARKET_UPDATED = 'market:updated'
+export const CHAT_EVENT = 'chat:event'

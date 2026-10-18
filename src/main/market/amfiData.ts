@@ -145,22 +145,25 @@ export async function refreshSchemeFacts(db: Db, f: FetchFn = fetch, force = fal
   if (!force && at && Date.now() - Date.parse(at) < 7 * 86400000) return 0
   const { date, schemes } = await fetchFundPerformance(f)
   const ter = await fetchTer(f).catch(() => new Map<string, { regular: number | null; direct: number | null }>())
-  // TER names match the performance names nearly always; fall back to the closest name.
-  const terNames = [...ter.keys()]
-  for (const s of schemes) {
-    const exact = ter.get(s.name)
-    const t =
-      exact ??
-      (() => {
-        let best: { name: string; score: number } | null = null
-        for (const n of terNames) {
-          const score = nameSimilarity(s.name, n)
-          if (!best || score > best.score) best = { name: n, score }
-        }
-        return best && best.score >= 0.85 ? ter.get(best.name) : undefined
-      })()
+  // TER names match the performance names nearly always (exactly, or once spacing and punctuation
+  // are ignored); the rest are matched by similarity among the same fund house's names only. The
+  // work is done in slices so the app stays responsive while it runs.
+  const byKey = new Map([...ter].map(([n, v]) => [nameKey(n), v]))
+  const byHouse = groupByHouse([...ter.keys()])
+  for (let i = 0; i < schemes.length; i++) {
+    const s = schemes[i]
+    let t = ter.get(s.name) ?? byKey.get(nameKey(s.name))
+    if (!t) {
+      let best: { name: string; score: number } | null = null
+      for (const n of byHouse.get(houseOf(s.name)) ?? []) {
+        const score = nameSimilarity(s.name, n)
+        if (!best || score > best.score) best = { name: n, score }
+      }
+      t = best && best.score >= 0.85 ? ter.get(best.name) : undefined
+    }
     s.terRegular = t?.regular ?? null
     s.terDirect = t?.direct ?? null
+    if (i % 100 === 99) await new Promise((r) => setImmediate(r))
   }
   const value = JSON.stringify({ at: new Date().toISOString(), date, schemes })
   db.insert(schema.settings)
@@ -177,10 +180,31 @@ export function storedSchemeFacts(db: Db): { date: string | null; schemes: Schem
   return { date: v.date, schemes: v.schemes }
 }
 
+/** A name with case, punctuation and plan words ignored, for exact matching. */
+const nameKey = (n: string) =>
+  n
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/\b(direct|regular|plan|growth|option|idcw|fund)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+/** The first word of a scheme's name is its fund house ("HDFC", "Parag", "ICICI"). */
+const houseOf = (n: string) => n.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
+function groupByHouse(names: string[]): Map<string, string[]> {
+  const m = new Map<string, string[]>()
+  for (const n of names) m.set(houseOf(n), [...(m.get(houseOf(n)) ?? []), n])
+  return m
+}
+
 /** The AMFI facts for a fund held, by its name (plan words ignored). */
 export function factsFor(schemes: SchemeFacts[], name: string): SchemeFacts | null {
+  const key = nameKey(name)
+  const exact = schemes.find((s) => nameKey(s.name) === key)
+  if (exact) return exact
+  const house = houseOf(name)
   let best: { s: SchemeFacts; score: number } | null = null
   for (const s of schemes) {
+    if (houseOf(s.name) !== house) continue
     const score = nameSimilarity(name, s.name)
     if (!best || score > best.score) best = { s, score }
   }

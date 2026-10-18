@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, nativeTheme, shell } from 'electron'
-import { MARKET_UPDATED } from '@shared/api'
+import { CHAT_EVENT, MARKET_UPDATED } from '@shared/api'
 import { openDatabase } from './db'
 import { applyDevPaths, captureScreens, seedDemo } from './dev'
 import { registerIpc } from './ipc'
@@ -107,6 +107,7 @@ if (!app.requestSingleInstanceLock()) {
         dbKey: key,
         applyTheme: (t) => (nativeTheme.themeSource = t),
         openUrl: (url) => shell.openExternal(url),
+        emitChat: (e) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send(CHAT_EVENT, e)),
         replaceDatabase(filePath, newKey) {
           market.stop()
           sqlite.close()

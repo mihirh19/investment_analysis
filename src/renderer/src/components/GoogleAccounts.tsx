@@ -79,9 +79,11 @@ export function GoogleAccounts() {
         Google accounts
       </h2>
       <p className="mb-4 max-w-[72ch] text-[14px] text-ink-muted">
-        Connect the Gmail accounts your statements arrive in, and they import by themselves: the monthly CAS now,
-        card and bank statements next. The app only reads (it cannot send, delete or change mail), checks every 12
-        hours while it runs, and keeps the sign-in encrypted on this computer.
+        Connect the Gmail accounts your statements arrive in, and they import by themselves: the monthly CAS, and
+        Zerodha, Groww or INDmoney tradebooks and holdings sent as Excel or CSV (read by the app itself, no Claude
+        needed). Card and bank statements and contract notes are read too when Claude is switched on below. The app
+        only reads (it cannot send, delete or change mail), checks every 12 hours while it runs, and keeps the sign-in
+        encrypted on this computer.
       </p>
 
       {s && !s.configured && !showSetup && (

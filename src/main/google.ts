@@ -190,13 +190,35 @@ export interface MailMessage {
   date: string
   from: string
   subject: string
+  /** Gmail's one-line preview. */
+  snippet: string
+  /** The body as plain text (HTML-only mail is stripped of tags). */
+  text: string
   attachments: MailAttachment[]
+}
+
+/** Plain text of an HTML body: no scripts, styles or tags, entities decoded, whitespace folded. */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(Number(n)))
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim()
 }
 
 interface Part {
   filename?: string
   mimeType?: string
-  body?: { attachmentId?: string; size?: number }
+  body?: { attachmentId?: string; size?: number; data?: string }
   parts?: Part[]
   headers?: { name: string; value: string }[]
 }
@@ -229,10 +251,17 @@ export class Gmail {
   }
 
   async message(id: string): Promise<MailMessage> {
-    const r = await this.get<{ id: string; internalDate: string; payload: Part }>(`/messages/${id}?format=full`)
+    const r = await this.get<{ id: string; internalDate: string; snippet?: string; payload: Part }>(`/messages/${id}?format=full`)
     const header = (n: string) => r.payload.headers?.find((h) => h.name.toLowerCase() === n)?.value ?? ''
     const attachments: MailAttachment[] = []
+    const plain: string[] = []
+    const html: string[] = []
     const walk = (p: Part) => {
+      if (!p.filename && p.body?.data) {
+        const body = Buffer.from(p.body.data, 'base64url').toString('utf8')
+        if (p.mimeType === 'text/plain') plain.push(body)
+        else if (p.mimeType === 'text/html') html.push(body)
+      }
       if (p.filename && p.body?.attachmentId)
         attachments.push({
           filename: p.filename,
@@ -248,6 +277,8 @@ export class Gmail {
       date: new Date(Number(r.internalDate)).toISOString(),
       from: header('from'),
       subject: header('subject'),
+      snippet: htmlToText(r.snippet ?? ''),
+      text: plain.length ? plain.join('\n').trim() : htmlToText(html.join('\n')),
       attachments
     }
   }

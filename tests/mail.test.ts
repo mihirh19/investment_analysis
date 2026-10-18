@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
+import { extname } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createMail, CAS_QUERY } from '../src/main/mailSync'
+import { createMail, CAS_QUERY, REPORT_QUERY } from '../src/main/mailSync'
 import { GMAIL_SCOPE } from '../src/main/google'
 
 const CLIENT = { clientId: '1234-abcdef.apps.googleusercontent.com', clientSecret: 'GOCSPX-test-secret' }
@@ -10,7 +11,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 /** A pretend Google: token endpoint plus a Gmail mailbox per account. */
-function fakeGoogle(mailboxes: Record<string, { id: string; date: number; subject: string; pdf: string }[]>) {
+function fakeGoogle(mailboxes: Record<string, { id: string; date: number; subject: string; pdf: string; file?: string; body?: string }[]>) {
   const tokens = new Map<string, string>() // access token → email
   let nextCodeEmail = ''
   const searches: string[] = []
@@ -35,7 +36,11 @@ function fakeGoogle(mailboxes: Record<string, { id: string; date: number; subjec
       const q = url.searchParams.get('q')!
       searches.push(q)
       const after = Number(q.match(/after:(\d+)/)?.[1] ?? 0) * 1000
-      const hits = box.filter((m) => m.date > after).sort((a, b) => b.date - a.date)
+      // Report searches find spreadsheets, the others PDFs.
+      const wantSheet = q.startsWith(REPORT_QUERY)
+      const hits = box
+        .filter((m) => m.date > after && /\.pdf$/i.test(m.file ?? 'CAS.pdf') !== wantSheet)
+        .sort((a, b) => b.date - a.date)
       return json({ messages: hits.slice(0, Number(url.searchParams.get('maxResults'))).map((m) => ({ id: m.id })) })
     }
     const att = path.match(/^\/messages\/(\w+)\/attachments\/(\w+)$/)
@@ -44,18 +49,20 @@ function fakeGoogle(mailboxes: Record<string, { id: string; date: number; subjec
     return json({
       id: msg.id,
       internalDate: String(msg.date),
+      snippet: (msg.body ?? '').slice(0, 40),
       payload: {
         headers: [{ name: 'Subject', value: msg.subject }],
-        parts: [{ mimeType: 'text/plain' }, { filename: 'CAS.pdf', mimeType: 'application/pdf', body: { attachmentId: `a${msg.id}`, size: 9 } }]
+        parts: [{ mimeType: 'text/plain', body: { data: Buffer.from(msg.body ?? '').toString('base64url') } }, { filename: msg.file ?? 'CAS.pdf', mimeType: 'application/octet-stream', body: { attachmentId: `a${msg.id}`, size: 9 } }]
       }
     })
   }) as typeof fetch
   return { f, searches, signInAs: (email: string) => (nextCodeEmail = email) }
 }
 
-function setup(g: ReturnType<typeof fakeGoogle>) {
+function setup(g: ReturnType<typeof fakeGoogle>, withReports = false) {
   const settings = new Map<string, string>()
   const imported: { personId: number; content: string }[] = []
+  const reports: { personId: number; file: string; name: string; content: string }[] = []
   const mail = createMail({
     getSetting: (k) => settings.get(k) ?? null,
     setSetting: (k, v) => settings.set(k, v),
@@ -75,9 +82,15 @@ function setup(g: ReturnType<typeof fakeGoogle>) {
       if (content.includes('locked')) throw new Error('Enter the PDF password')
       imported.push({ personId, content })
       return 'Imported'
-    }
+    },
+    ...(withReports && {
+      async importReport(personId: number, file: string, name: string) {
+        reports.push({ personId, file, name, content: readFileSync(file, 'utf8') })
+        return `${name}: 3 trades added`
+      }
+    })
   })
-  return { mail, settings, imported }
+  return { mail, settings, imported, reports }
 }
 
 describe('statements from Gmail', () => {
@@ -136,6 +149,62 @@ describe('statements from Gmail', () => {
     expect(mail.due()).toBe(false) // only the revoked one and a just-checked one
     await mail.disconnect('revoked@gmail.com')
     expect(mail.setup().accounts.map((a) => a.email)).toEqual(['me@gmail.com'])
+  })
+
+  it('searches and reads mail for Ask your money, and imports one email on request', async () => {
+    const g = fakeGoogle({
+      'me@gmail.com': [
+        { id: 'm1', date: Date.parse('2026-09-12'), subject: 'NSDL CAS for August', pdf: 'me-aug', body: 'Your CAS is attached.' },
+        { id: 'r1', date: Date.parse('2026-10-01'), subject: 'Tradebook', pdf: 'symbol,trade_date', file: 'tradebook.csv', body: 'Tradebook for Q2 attached.' }
+      ]
+    })
+    const { mail, imported, reports } = setup(g, true)
+    mail.saveClient(CLIENT)
+    g.signInAs('me@gmail.com')
+    await mail.connect(1)
+    const before = reports.length
+
+    const found = await mail.search('from:zerodha')
+    expect(found.problems).toEqual([])
+    expect(found.results.map((r) => [r.account, r.person, r.subject, r.attachments])).toEqual([
+      ['me@gmail.com', 'Me', 'NSDL CAS for August', ['CAS.pdf']]
+    ])
+    const one = await mail.read('ME@gmail.com', 'm1')
+    expect(one.text).toBe('Your CAS is attached.')
+    await expect(mail.read('other@gmail.com', 'm1')).rejects.toThrow(/not connected/)
+
+    // Importing on request: a CAS by its subject goes to the CAS importer.
+    imported.length = 0
+    const r = await mail.importMessage('me@gmail.com', 'm1')
+    expect(r).toMatchObject([{ job: 'CAS', result: 'IMPORTED' }])
+    expect(imported).toEqual([{ personId: 1, content: 'me-aug' }])
+    expect(reports.length).toBe(before)
+  })
+
+  it('imports broker spreadsheets by their own extension, without Claude', async () => {
+    const g = fakeGoogle({
+      'me@gmail.com': [
+        { id: 'm1', date: Date.parse('2026-09-12'), subject: 'NSDL CAS', pdf: 'me-aug' },
+        { id: 'r1', date: Date.parse('2026-09-01'), subject: 'Tradebook Q2', pdf: 'symbol,trade_date', file: 'tradebook-AB1234-EQ.csv' },
+        { id: 'r2', date: Date.parse('2026-10-01'), subject: 'Holdings', pdf: 'holdings', file: 'holdings.xlsx' }
+      ]
+    })
+    const { mail, imported, reports } = setup(g, true)
+    mail.saveClient(CLIENT)
+    g.signInAs('me@gmail.com')
+    const me = await mail.connect(1)
+    expect(imported).toEqual([{ personId: 1, content: 'me-aug' }])
+    // Oldest first, each saved with its own extension so the importer can read it.
+    expect(reports.map((r) => [r.name, r.content, extname(r.file)])).toEqual([
+      ['tradebook-AB1234-EQ.csv', 'symbol,trade_date', '.csv'],
+      ['holdings.xlsx', 'holdings', '.xlsx']
+    ])
+    expect(me.recent.filter((x) => x.job === 'REPORT')).toHaveLength(2)
+    expect(g.searches.some((q) => q.startsWith(REPORT_QUERY))).toBe(true)
+
+    // Seen once, not imported again.
+    await mail.check('me@gmail.com')
+    expect(reports).toHaveLength(2)
   })
 })
 

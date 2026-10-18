@@ -2,6 +2,7 @@
 // person tab, panel and form, and fails if any screen crashes or logs an error.
 //   npm run smoke   (builds first; needs internet for live prices)
 import { spawn } from 'node:child_process'
+import { createServer } from 'node:http'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -12,10 +13,39 @@ const seedDir = resolve('tests/fixtures/demo')
 let failures = 0
 rmSync(userData, { recursive: true, force: true })
 const port = 9337
+
+// A stand-in for the Claude API, so the chat can be driven end to end without a key: the first
+// request asks for the holdings tool, the next one answers.
+let apiCalls = 0
+const usage = { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+const fakeClaude = createServer((req, res) => {
+  req.resume()
+  req.on('end', () => {
+    if (req.url.startsWith('/v1/models')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      return res.end(JSON.stringify({ id: 'claude-opus-5-5', type: 'model', display_name: 'Claude', created_at: '2026-01-01T00:00:00Z' }))
+    }
+    const first = ++apiCalls % 2 === 1
+    const message = { id: `msg_${apiCalls}`, type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [], stop_reason: null, stop_sequence: null, usage }
+    const block = first ? { type: 'tool_use', id: `toolu_${apiCalls}`, name: 'holdings', input: {} } : { type: 'text', text: '' }
+    const delta = first ? { type: 'input_json_delta', partial_json: '{"who":"family"}' } : { type: 'text_delta', text: 'Smoke answer: **₹5.3 L** in all.\n\n| Kind | Value |\n|---|---:|\n| Stocks | ₹3.1 L |\n| Funds | ₹2.2 L |\n\n- first point\n- second point' }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    for (const [type, data] of [
+      ['message_start', { message }],
+      ['content_block_start', { index: 0, content_block: block }],
+      ['content_block_delta', { index: 0, delta }],
+      ['content_block_stop', { index: 0 }],
+      ['message_delta', { delta: { stop_reason: first ? 'tool_use' : 'end_turn', stop_sequence: null }, usage }],
+      ['message_stop', {}]
+    ])
+      res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`)
+    res.end()
+  })
+}).listen(9401)
 // Keep animation frames running even when other windows cover the test window (charts handle input on them).
 const app = spawn(electron, [appDir, `--remote-debugging-port=${port}`, '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'], {
   stdio: 'ignore',
-  env: { ...process.env, FP_USER_DATA: userData, FP_SEED_DIR: seedDir }
+  env: { ...process.env, FP_USER_DATA: userData, FP_SEED_DIR: seedDir, ANTHROPIC_BASE_URL: 'http://127.0.0.1:9401' }
 })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let target
@@ -85,6 +115,7 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Tax',
     'Rebalance',
     'Forecast & inflation',
+    'Spending',
     'Holdings',
     'Other assets',
     'Property & rent',
@@ -252,11 +283,35 @@ await ok('open Google sign-in setup')
 await nav('Import statements')
 await clickText('label', 'Fund portfolio')
 await ok('pick fund portfolio import')
+await clickText('aside > button', 'Ask your money')
+await ok('open the chat from the sidebar')
+const typeInto = (sel, value) =>
+  ev(
+    `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return 'NOT FOUND'; Object.getOwnPropertyDescriptor(el.__proto__, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return 'ok' })()`
+  )
+const chat = 'aside[aria-label="Ask your money"]'
+await typeInto('#ask-key', 'sk-ant-api03-smoketestsmoketestsmoketest')
+await clickText(`${chat} button`, 'Save key and start')
+await ok('chat: save a key and switch on')
+await clickText(`${chat} button`, 'Full window')
+await ok('chat full window')
+await typeInto(`${chat} textarea`, 'What do we hold?')
+await clickText(`${chat} button`, 'Ask')
+await sleep(3000)
+// The answer is markdown: it must show as bold, a table and a list, not as ** and | characters.
+const answered = await ev(
+  `(() => { const el = document.querySelector('${chat}'); const t = el?.innerText ?? ''; return t.includes('Smoke answer') && !t.includes('**') && !!el.querySelector('strong') && el.querySelectorAll('table td').length === 4 && el.querySelectorAll('ul li').length >= 2 })()`
+)
+if (!answered) failures++
+console.log((answered ? 'ok   ' : 'FAIL ') + 'chat: answer rendered as markdown (bold, table, list)')
+await ok('chat: still on screen after answering')
+await clickText(`${chat} button`, 'Close')
 await clickText('button', 'Refresh')
 await sleep(8000)
 await ok('manual refresh while on a page')
 ws.close()
 app.kill()
+fakeClaude.close()
 clearInterval(keepAlive)
 console.log(failures ? `\n${failures} step(s) failed` : '\nAll steps passed')
 process.exit(failures ? 1 : 0)

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useMarketStatus, useMarketSubscription, usePersons, useRefreshMarket } from '../lib/api'
+import { AskPanel, openAsk } from './AskPanel'
 import { ErrorBoundary } from './ErrorBoundary'
 import { timeAgo } from '../lib/format'
 import { useScope, type Scope } from '../lib/scope'
@@ -29,6 +30,7 @@ const NAV: { title: string; items: { to: string; label: string; end?: boolean }[
       { to: '/funds', label: 'Funds' },
       { to: '/tax', label: 'Tax' },
       { to: '/rebalance', label: 'Rebalance' },
+      { to: '/spending', label: 'Spending' },
       { to: '/forecast', label: 'Forecast & inflation' }
     ]
   },
@@ -207,6 +209,14 @@ export function Shell() {
           })}
         </div>
 
+        <button
+          type="button"
+          onClick={openAsk}
+          className="mx-3 mt-3 rounded-md bg-stamp px-3 py-2 text-left text-[14.5px] font-semibold text-white hover:brightness-110 dark:text-[#10162a]"
+        >
+          Ask your money
+        </button>
+
         <SideNav pathname={pathname} />
         <LiveStatus />
       </aside>
@@ -221,6 +231,9 @@ export function Shell() {
           </ErrorBoundary>
         </div>
       </main>
+      <ErrorBoundary resetKey={pathname}>
+        <AskPanel />
+      </ErrorBoundary>
     </div>
   )
 }

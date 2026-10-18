@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { ManualAssetInput } from '@shared/assets'
 import type { VehicleInput } from '@shared/vehicles'
 import type { Plan } from '@shared/plan'
+import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ApiResult,
@@ -284,3 +285,21 @@ export const useConfigurePhone = () =>
 export const useAllowPhoneDrive = () => useWrite((email: string) => api().allowPhoneDrive(email))
 export const useSyncPhone = () => useWrite(() => api().syncPhone())
 export const useTurnOffPhone = () => useWrite(() => api().turnOffPhoneSync())
+
+// ---------------- Claude: statements and questions ----------------
+
+export const useAiStatus = () => useQuery({ queryKey: ['aiStatus'], queryFn: () => unwrap(api().getAiStatus()) })
+export const useSetAiKey = () => useWrite((apiKey: string) => api().setAiKey(apiKey))
+export const useRemoveAiKey = () => useWrite(() => api().removeAiKey())
+export const useSetAiFeatures = () => useWrite((f: AiFeatures) => api().setAiFeatures(f))
+export const usePdfPasswordCount = () => useQuery({ queryKey: ['pdfPasswords'], queryFn: () => unwrap(api().pdfPasswordCount()) })
+export const useForgetPdfPasswords = () => useWrite(() => api().forgetPdfPasswords())
+export const useImportStatement = () =>
+  useWrite((input: { personId: number; filePath: string; password?: string }) => api().importStatement(input))
+export const useSpending = (personId?: number) =>
+  useQuery({ queryKey: ['spending', personId ?? 'all'], queryFn: () => unwrap(api().getSpending(personId)) })
+export const useSetSpendCategory = () => useWrite((txnId: number, category: SpendCategory) => api().setSpendCategory(txnId, category))
+export const useDeleteStatement = () => useWrite((id: number) => api().deleteStatement(id))
+export const pickStatement = () => unwrap(api().pickFile('STATEMENT'))
+export const askMoney = (id: string, history: ChatTurn[]) => unwrap(api().askMoney(id, history))
+export const onChatEvent = (fn: (e: ChatEvent) => void) => api().onChatEvent(fn)

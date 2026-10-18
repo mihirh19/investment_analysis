@@ -336,3 +336,65 @@ export const documents = sqliteTable(
   },
   (t) => [index('documents_owner').on(t.ownerType, t.ownerId)]
 )
+
+// ---------------- spending: cards and bank accounts, read from statements ----------------
+
+export const spendAccounts = sqliteTable('spend_accounts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personId: integer('person_id')
+    .notNull()
+    .references(() => persons.id),
+  kind: text('kind').$type<'CREDIT_CARD' | 'BANK_ACCOUNT'>().notNull(),
+  institution: text('institution').notNull(),
+  name: text('name').notNull(),
+  last4: text('last4'),
+  createdAt: createdAt()
+})
+
+export const statements = sqliteTable(
+  'statements',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => spendAccounts.id),
+    periodFrom: text('period_from'),
+    periodTo: text('period_to'),
+    statementDate: text('statement_date'),
+    dueDate: text('due_date'),
+    totalDue: real('total_due'),
+    minimumDue: real('minimum_due'),
+    creditLimit: real('credit_limit'),
+    openingBalance: real('opening_balance'),
+    closingBalance: real('closing_balance'),
+    rewardPoints: real('reward_points'),
+    /** File name, or "gmail:<message id>". */
+    source: text('source').notNull(),
+    /** Same statement read twice is skipped. */
+    fingerprint: text('fingerprint').notNull(),
+    createdAt: createdAt()
+  },
+  (t) => [uniqueIndex('statements_fingerprint').on(t.fingerprint)]
+)
+
+export const spendTxns = sqliteTable(
+  'spend_txns',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => spendAccounts.id),
+    statementId: integer('statement_id')
+      .notNull()
+      .references(() => statements.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(),
+    description: text('description').notNull(),
+    merchant: text('merchant'),
+    /** Positive: money out. Negative: money in. */
+    amount: real('amount').notNull(),
+    category: text('category').notNull(),
+    edited: integer('edited', { mode: 'boolean' }).notNull().default(false),
+    isEmi: integer('is_emi', { mode: 'boolean' }).notNull().default(false)
+  },
+  (t) => [index('spend_txns_account_date').on(t.accountId, t.date)]
+)

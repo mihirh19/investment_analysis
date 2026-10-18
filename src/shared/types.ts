@@ -14,6 +14,7 @@ import type { GoogleAccountView, GoogleSetup } from './mail'
 import type { Forecast, Plan } from './plan'
 import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
+import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
 
@@ -827,7 +828,7 @@ export interface RequestApi {
   }): Promise<ApiResult<(Transaction & { instrumentName: string; accountName: string })[]>>
   addManualTransaction(input: ManualTxnInput): Promise<ApiResult<number>>
   deleteTransaction(id: number): Promise<ApiResult<null>>
-  pickFile(kind: ImportKind | 'BACKUP' | 'DOCUMENT'): Promise<ApiResult<string | null>>
+  pickFile(kind: ImportKind | 'BACKUP' | 'DOCUMENT' | 'STATEMENT'): Promise<ApiResult<string | null>>
   hasSavedCasPassword(personId: number): Promise<ApiResult<boolean>>
   runImport(req: ImportRequest): Promise<ApiResult<ImportResult>>
   listImports(): Promise<ApiResult<ImportBatch[]>>
@@ -901,6 +902,22 @@ export interface RequestApi {
   /** Pairs of your funds that hold many of the same companies, with AMFI's facts side by side. */
   getFundComparisons(personId?: number): Promise<ApiResult<FundComparisons>>
 
+  /** Claude: the person's own API key and which features may use it. */
+  getAiStatus(): Promise<ApiResult<AiStatus>>
+  setAiKey(apiKey: string): Promise<ApiResult<AiStatus>>
+  removeAiKey(): Promise<ApiResult<AiStatus>>
+  setAiFeatures(f: AiFeatures): Promise<ApiResult<AiStatus>>
+  /** PDF passwords remembered for statements (how many; never the passwords). */
+  pdfPasswordCount(): Promise<ApiResult<number>>
+  forgetPdfPasswords(): Promise<ApiResult<null>>
+  /** Reads a card or bank statement (or a contract note) with Claude and saves it. */
+  importStatement(input: { personId: number; filePath: string; password?: string }): Promise<ApiResult<StatementImportResult>>
+  getSpending(personId?: number): Promise<ApiResult<SpendingReport>>
+  setSpendCategory(txnId: number, category: SpendCategory): Promise<ApiResult<null>>
+  deleteStatement(id: number): Promise<ApiResult<null>>
+  /** Asks a question; the answer streams through onChatEvent and the call resolves when it ends. */
+  askMoney(id: string, history: ChatTurn[]): Promise<ApiResult<null>>
+
   /** The phone app's link through Google Drive. */
   getPhoneSync(): Promise<ApiResult<PhoneSyncStatus>>
   configurePhoneSync(input: { account: string; passphrase?: string }): Promise<ApiResult<PhoneSyncStatus>>
@@ -952,4 +969,5 @@ export interface RequestApi {
 /** The bridge exposed as window.api: requests plus a push channel for fresh prices. */
 export interface Api extends RequestApi {
   onMarketUpdate(listener: () => void): () => void
+  onChatEvent(listener: (e: ChatEvent) => void): () => void
 }

@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { basename } from 'node:path'
+import { copyFileSync, readFileSync, rmSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import Database from 'better-sqlite3'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { DisclosureStatus, ManualAssetInput, MetalPrices } from '@shared/assets'
@@ -35,8 +35,16 @@ import { computeAnalysis } from './portfolio/analysis'
 import { computeProperties } from './portfolio/property'
 import * as vehicles from './vehicles'
 import { createMail } from './mailSync'
+import { detectImportKind } from './importers/detect'
 import { createPhoneSync } from './phoneSync'
 import { computeFundComparisons, computeSectorInsights } from './portfolio/insights'
+import { AiDisabledError, createAi } from './ai'
+import { ask, type ChatSources } from './chat'
+import { fundHistory, fundLookup, stockLookup } from './marketLookup'
+import { refreshSchemeFacts, storedSchemeFacts } from './market/amfiData'
+import { storedCpi } from './market/cpi'
+import { deleteStatement, PdfPasswordNeeded, readStatement, saveStatement, setCategory, spendingReport, statementContent } from './statements'
+import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory, StatementImportResult, StatementRead } from '@shared/ai'
 import { applyPhoneEntry, buildPhoneSnapshot } from './phoneData'
 import { computeForecast, savePlan } from './portfolio/forecast'
 import type { Plan } from '@shared/plan'
@@ -61,7 +69,7 @@ import {
   mapIndmoneyHoldings,
   mapIndmoneyOrders
 } from './importers/trades'
-import { mfapiHistory, npsHistory, npsLatest, npsSchemes } from './market/funds'
+import { fetchNavAll, mfapiHistory, npsHistory, npsLatest, npsSchemes, type AmfiScheme } from './market/funds'
 import type { FetchFn } from './market/http'
 import { yahooHistory } from './market/yahoo'
 import { listDividends } from './portfolio/dividends'
@@ -88,6 +96,8 @@ export interface ServiceDeps {
   fetch?: FetchFn
   /** Opens a page in the person's browser (Google sign-in). */
   openUrl?(url: string): void | Promise<void>
+  /** Sends "Ask your money" progress to the window. */
+  emitChat?(e: ChatEvent): void
 }
 
 const RANGE_DAYS = { '1mo': 31, '6mo': 183, '1y': 366, '5y': 1827 } as const
@@ -120,6 +130,25 @@ export function createServices(deps: ServiceDeps) {
     fetch: deps.fetch,
     openUrl: deps.openUrl,
     personName: (id) => db.select().from(schema.persons).where(eq(schema.persons.id, id)).get()?.name ?? '',
+    async importStatement(personId, filePath, source) {
+      const r = await importStatementFile(personId, filePath, source)
+      return r.duplicate ? `${r.account}: already read.` : `${r.account}: ${r.message}`
+    },
+    statementsEnabled: () => ai.enabled('statements'),
+    async importReport(personId, filePath, fileName) {
+      const kind = detectImportKind(filePath)
+      if (!kind) return `${fileName}: not a report the app reads (skipped).`
+      // Named as sent, so the import history shows the real file name.
+      const named = join(dirname(filePath), fileName.replace(/[^\w.\- ]+/g, '_'))
+      copyFileSync(filePath, named)
+      try {
+        const r = await services.runImport({ kind, personId, filePath: named })
+        if (kind === 'BROKER_HOLDINGS') return `${fileName}: ${r.snapshotsAdded} holdings updated.`
+        return `${fileName}: ${r.transactionsAdded} trades added, ${r.transactionsSkipped} already there.`
+      } finally {
+        rmSync(named, { force: true })
+      }
+    },
     async importCas(personId, filePath) {
       const r = await services.runImport({ kind: 'CAS_PDF', personId, filePath })
       return r.snapshotsAdded || r.transactionsAdded
@@ -127,6 +156,153 @@ export function createServices(deps: ServiceDeps) {
         : 'Already up to date.'
     }
   })
+
+  // Claude, with the person's own key; each feature switched on separately.
+  const ai = createAi({ db, encrypt: deps.encrypt, decrypt: deps.decrypt })
+  const PDF_PASSWORDS = 'pdf:passwords'
+  const pdfPasswords = (): string[] => {
+    const raw = getSetting(PDF_PASSWORDS)
+    return raw ? (JSON.parse(deps.decrypt(raw)) as string[]) : []
+  }
+  const rememberPassword = (p: string) => {
+    if (!p) return
+    const list = pdfPasswords()
+    if (!list.includes(p)) setSetting(PDF_PASSWORDS, deps.encrypt(JSON.stringify([...list, p])))
+  }
+  /** Contract-note trades join the same Zerodha account as a tradebook import (and match its trades). */
+  const importNoteTrades = (personId: number, fileName: string) => (r: StatementRead) => {
+    if (!/zerodha/i.test(r.institution)) return 0
+    const bundle = mapZerodhaTradebook(
+      r.trades.map((t) => ({
+        symbol: t.symbol,
+        isin: t.isin ?? '',
+        'trade date': t.date,
+        'trade type': t.side.toLowerCase(),
+        quantity: t.quantity,
+        price: t.price,
+        exchange: t.exchange ?? '',
+        'trade id': t.tradeId ?? '',
+        segment: 'EQ'
+      }))
+    )
+    return persistBundle(db, { personId, kind: 'ZERODHA_TRADEBOOK', fileName, bundle }).transactionsAdded
+  }
+  /** Reads one statement PDF with Claude and saves it. */
+  async function importStatementFile(personId: number, filePath: string, source: string, password?: string): Promise<StatementImportResult> {
+    const client = ai.clientFor('statements')
+    const { content, password: used } = await statementContent(
+      (path, pw) => runPdfText(deps.casparserExe, path, pw),
+      filePath,
+      password ? [password, ...pdfPasswords()] : pdfPasswords()
+    )
+    const read = await readStatement(client, content, (u) => ai.record(u))
+    if (used) rememberPassword(used)
+    return saveStatement(db, personId, read, source, importNoteTrades(personId, source))
+  }
+
+  /** What "Ask your money" can look up: the pages' own figures, without chart series. */
+  const chatSources: ChatSources = {
+    persons: () => db.select().from(schema.persons).all().map((p) => ({ id: p.id, name: p.name })),
+    overview(personId) {
+      const a = computeAnalysis(db, personId)
+      const months = a.history.months
+      const totals = months.map((_, i) => a.history.series.reduce((s, g) => s + g.values[i], 0))
+      return {
+        netWorthInr: a.totalInr,
+        xirr: a.xirr,
+        byAssetClass: a.scorecard,
+        liquidity: a.liquidity,
+        concentration: a.concentration,
+        netWorthByMonth: months.slice(-24).map((m, i) => ({ month: m, value: totals[totals.length - Math.min(24, months.length) + i] }))
+      }
+    },
+    holdings: (personId) =>
+      listHoldings(db, personId).map((h) => ({
+        person: h.personName,
+        name: h.instrumentName,
+        account: h.accountName,
+        kind: h.assetClass,
+        units: h.quantity,
+        price: h.lastPrice,
+        priceDate: h.priceDate,
+        valueInr: h.marketValueInr,
+        investedInr: h.investedInr,
+        gainInr: h.unrealizedPnlInr,
+        dayChangeInr: h.dayChangeInr,
+        costFrom: h.costSource
+      })),
+    tax(personId) {
+      const t = computeTax(db, personId)
+      return { ...t, lots: t.lots.map(({ instrumentId: _i, accountId: _a, ...l }) => l) }
+    },
+    performance(personId) {
+      const p = computePerformance(db, personId)
+      return { coverage: p.coverage, coveredValueInr: p.coveredValueInr, totalValueInr: p.totalValueInr, statementsSince: p.statementsSince, trailing: p.trailing, years: p.years, maxDrawdown: p.maxDrawdown, xirr: p.xirr }
+    },
+    income(personId) {
+      const a = computeAnalysis(db, personId)
+      return { incomeByFinancialYear: a.income, upcoming: a.upcoming, maturities: a.maturities }
+    },
+    spending(personId, search) {
+      const r = spendingReport(db, personId)
+      const words = (search ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+      const matches = words.length
+        ? r.transactions.filter((t) => words.every((w) => `${t.description} ${t.merchant ?? ''} ${t.category}`.toLowerCase().includes(w)))
+        : []
+      return {
+        accounts: r.accounts.map((a) => ({ person: a.personName, kind: a.kind, name: `${a.institution} ${a.name}`, last4: a.last4, latestStatement: a.latest })),
+        spendingByMonth: r.byMonth,
+        cardBillsDue: r.dues,
+        ...(words.length ? { matchingTransactions: matches } : {}),
+        note: r.accounts.length ? undefined : 'No card or bank statements read yet (Spending page).'
+      }
+    },
+    property: (personId) =>
+      computeProperties(db, personId).map((p) => ({ ...p, market: p.market ? { ...p.market, series: undefined, cityAll: undefined } : null })),
+    vehicles: (personId) => vehicles.listVehicles(db, personId).map(({ documents: _d, costs, ...v }) => ({ ...v, costs: { ...costs, monthly: undefined } })),
+    forecast() {
+      const f = computeForecast(db)
+      return { ...f, years: f.years.filter((y, i) => i === 0 || y.year % 5 === 0 || i === f.years.length - 1).map(({ byBucket: _b, ...y }) => y) }
+    },
+    sectors(personId) {
+      const s = computeSectorInsights(db, personId)
+      return {
+        ...s,
+        market: s.market ? { ...s.market, peHistory: undefined } : null,
+        sectors: s.sectors.map((x) => ({ ...x, indices: x.indices.map((i) => ({ ...i, peHistory: undefined })), products: x.products.slice(0, 6) }))
+      }
+    },
+    funds(personId) {
+      const f = computeFunds(db, personId)
+      return { funds: f.funds, byHouse: f.byHouse, byCategory: f.byCategory, notes: f.notes, overlapPairs: computeFundComparisons(db, personId).pairs }
+    },
+    retirement: () => ({ epf: assets.listEpf(db), insurance: assets.listPolicies(db) }),
+    stock: (query) => stockLookup(query, deps.fetch),
+    async fundSearch(query) {
+      if (!storedSchemeFacts(db).schemes.length) await refreshSchemeFacts(db, deps.fetch).catch(() => 0)
+      return fundLookup(query, storedSchemeFacts(db), await navList())
+    },
+    fundHistory: (code) => fundHistory(code, (c, since) => mfapiHistory(c, since, deps.fetch)),
+    inflation: () => storedCpi(db),
+    // Read each time a question is asked: the switch and the connected accounts can change.
+    get mail() {
+      const accounts = mail.setup().accounts.filter((a) => a.status !== 'RECONNECT')
+      if (!ai.enabled('chatMail') || !accounts.length) return undefined
+      return {
+        accounts: () => accounts.map((a) => ({ email: a.email, person: a.personName })),
+        search: (query: string, max?: number, account?: string) => mail.search(query, { max, email: account }),
+        read: (account: string, id: string) => mail.read(account, id),
+        importMessage: (account: string, id: string) => mail.importMessage(account, id)
+      }
+    }
+  }
+
+  // AMFI's daily NAV file (every scheme's code and NAV), kept for a few hours once fetched.
+  let navCache: { at: number; list: AmfiScheme[] } | null = null
+  async function navList(): Promise<AmfiScheme[]> {
+    if (!navCache || Date.now() - navCache.at > 6 * 3600000) navCache = { at: Date.now(), list: await fetchNavAll(deps.fetch) }
+    return navCache.list
+  }
 
   // The phone app: encrypted copies through the chosen account's Google Drive.
   const phone = createPhoneSync({
@@ -648,6 +824,46 @@ export function createServices(deps: ServiceDeps) {
 
     getSectorInsights: (personId?: number) => computeSectorInsights(db, personId),
     getFundComparisons: (personId?: number) => computeFundComparisons(db, personId),
+
+    // ---------------- Claude ----------------
+
+    getAiStatus: () => ai.status(),
+    setAiKey: (apiKey: string) => ai.setKey(apiKey),
+    removeAiKey: () => ai.removeKey(),
+    setAiFeatures: (f: AiFeatures) => ai.setFeatures(f),
+    pdfPasswordCount: () => pdfPasswords().length,
+    forgetPdfPasswords(): null {
+      setSetting(PDF_PASSWORDS, deps.encrypt('[]'))
+      return null
+    },
+    async importStatement(input: { personId: number; filePath: string; password?: string }): Promise<StatementImportResult> {
+      try {
+        return await importStatementFile(input.personId, input.filePath, basename(input.filePath), input.password)
+      } catch (e) {
+        if (e instanceof PdfPasswordNeeded || e instanceof AiDisabledError) throw new Error(e.message)
+        throw e
+      }
+    },
+    /** For the Gmail job: a statement attachment, read the same way. */
+    importStatementFile,
+    getSpending: (personId?: number) => spendingReport(db, personId),
+    setSpendCategory(txnId: number, category: SpendCategory): null {
+      setCategory(db, txnId, category)
+      return null
+    },
+    deleteStatement(id: number): null {
+      deleteStatement(db, id)
+      return null
+    },
+    async askMoney(id: string, history: ChatTurn[]): Promise<null> {
+      const emit = (e: ChatEvent) => deps.emitChat?.(e)
+      try {
+        await ask(ai.clientFor('chat'), chatSources, history, emit, id, (u) => ai.record(u))
+      } catch (e) {
+        emit({ id, type: 'error', message: e instanceof Error ? e.message : String(e) })
+      }
+      return null
+    },
 
     // ---------------- phone app ----------------
 
