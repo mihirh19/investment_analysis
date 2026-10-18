@@ -5,15 +5,15 @@ import { store } from './lib/store'
 import { Home } from './screens/Home'
 import { Holdings } from './screens/Holdings'
 import { Plan } from './screens/Plan'
-import { Properties } from './screens/Properties'
+import { Assets } from './screens/Assets'
+import { Doing } from './screens/Doing'
 import { Spending } from './screens/Spending'
-import { Vehicles } from './screens/Vehicles'
 import { field, Primary, Sheet } from './ui'
 
 // The chat (and the Claude SDK) loads only when Ask is first opened, keeping the app quick to start.
 const Ask = lazy(() => import('./screens/Ask').then((m) => ({ default: m.Ask })))
 
-type Tab = 'home' | 'holdings' | 'spending' | 'property' | 'vehicles' | 'plan'
+type Tab = 'home' | 'holdings' | 'spending' | 'doing' | 'assets' | 'plan'
 
 function Gate({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -174,8 +174,8 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'home', label: 'Home', icon: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
   { key: 'holdings', label: 'Holdings', icon: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
   { key: 'spending', label: 'Spending', icon: 'M3 7h18v12H3zM3 11h18M7 15h3' },
-  { key: 'property', label: 'Property', icon: 'M4 21V8l8-5 8 5v13M9 21v-6h6v6' },
-  { key: 'vehicles', label: 'Vehicles', icon: 'M5 16l1.5-5h11L19 16M5 16h14v3H5zM7.5 19v1.5M16.5 19v1.5' },
+  { key: 'doing', label: 'Doing', icon: 'M4 20h16M7 16v-5M12 16V6M17 16v-8' },
+  { key: 'assets', label: 'Assets', icon: 'M4 21V8l8-5 8 5v13M9 21v-6h6v6' },
   { key: 'plan', label: 'Plan', icon: 'M3 20l6-7 4 3 8-10M15 6h6v6' }
 ]
 
@@ -216,14 +216,16 @@ export function App() {
   const tabs = TABS.filter(
     (t) =>
       (t.key !== 'spending' || Object.values(snapshot.scopes).some((x) => x.spending)) &&
-      (t.key !== 'property' || snapshot.properties.length) &&
-      (t.key !== 'vehicles' || snapshot.vehicles.length) &&
+      (t.key !== 'doing' || Object.values(snapshot.scopes).some((x) => x.performance || x.exposure || x.funds || x.rebalance)) &&
+      (t.key !== 'assets' || snapshot.properties.length + snapshot.vehicles.length > 0) &&
       (t.key !== 'plan' || snapshot.forecast)
   )
+  // A tab saved before the bar changed (or one with nothing in it now) falls back to Home.
+  const shown: Tab = tabs.some((t) => t.key === tab) ? tab : 'home'
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-30 flex items-center justify-between bg-paper/95 px-4 pt-2 pb-2 backdrop-blur">
-        <h1 className="wide text-[20px] font-semibold">{tabs.find((t) => t.key === tab)?.label ?? 'Home'}</h1>
+        <h1 className="wide text-[20px] font-semibold">{tabs.find((t) => t.key === shown)?.label ?? 'Home'}</h1>
         <div className="flex items-center gap-1">
           {snapshot.ai && (
             <button
@@ -248,12 +250,12 @@ export function App() {
         </div>
       </header>
       <main className="flex-1 px-3 pb-28">
-        {tab === 'home' && <Home />}
-        {tab === 'holdings' && <Holdings />}
-        {tab === 'spending' && <Spending />}
-        {tab === 'property' && <Properties />}
-        {tab === 'vehicles' && <Vehicles />}
-        {tab === 'plan' && <Plan />}
+        {shown === 'home' && <Home />}
+        {shown === 'holdings' && <Holdings />}
+        {shown === 'spending' && <Spending />}
+        {shown === 'doing' && <Doing />}
+        {shown === 'assets' && <Assets />}
+        {shown === 'plan' && <Plan />}
       </main>
       <nav
         className="safe-bottom fixed inset-x-0 bottom-0 z-30 flex border-t border-rule bg-sheet/95 pt-1 backdrop-blur"
@@ -263,8 +265,8 @@ export function App() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            aria-current={tab === t.key ? 'page' : undefined}
-            className={`flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] ${tab === t.key ? 'text-stamp' : 'text-ink-muted'}`}
+            aria-current={shown === t.key ? 'page' : undefined}
+            className={`flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] ${shown === t.key ? 'text-stamp' : 'text-ink-muted'}`}
           >
             <svg
               viewBox="0 0 24 24"

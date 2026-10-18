@@ -217,6 +217,8 @@ describe('phone entries on the books', () => {
     // The card payment is not spending.
     expect(me.recent.map((t) => t.merchant)).toEqual(['HPCL', 'Swiggy'])
     expect(snap.scopes.family.spending!.dues).toHaveLength(1)
+    // How it is doing: present for every scope (null when there is nothing to show), never an error.
+    for (const k of ['performance', 'exposure', 'funds', 'rebalance']) expect(snap.scopes.family).toHaveProperty(k)
     const other = snap.persons.find((p) => p.id !== 1)
     if (other) expect(snap.scopes[String(other.id)].spending).toBeNull()
   })

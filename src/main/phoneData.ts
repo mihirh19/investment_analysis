@@ -1,6 +1,17 @@
 import { GROUP_OF, type ChartGroup, type PropertyMeta } from '@shared/assets'
 import { NOT_SPENDING } from '@shared/ai'
-import type { PhoneEntry, PhoneHolding, PhoneScope, PhoneSnapshot, PhoneSpending, PhoneTax } from '@shared/phone'
+import type {
+  PhoneEntry,
+  PhoneExposure,
+  PhoneFunds,
+  PhoneHolding,
+  PhonePerformance,
+  PhoneRebalance,
+  PhoneScope,
+  PhoneSnapshot,
+  PhoneSpending,
+  PhoneTax
+} from '@shared/phone'
 import { listPolicies } from './assets'
 import { schema, type Db } from './db'
 import { addManualEntry, manualAssetViews, saveManualAsset } from './manualAssets'
@@ -9,6 +20,11 @@ import { computeForecast } from './portfolio/forecast'
 import { listHoldings } from './portfolio/holdings'
 import { computeProperties } from './portfolio/property'
 import { computeTax } from './portfolio/tax'
+import { computeExposure } from './portfolio/exposure'
+import { computeFunds } from './portfolio/fundInsights'
+import { computeFundComparisons, computeSectorInsights } from './portfolio/insights'
+import { computePerformance } from './portfolio/performance'
+import { computeRebalance } from './portfolio/rebalance'
 import { spendingReport } from './statements'
 import { listVehicles, saveVehicle } from './vehicles'
 
@@ -48,7 +64,102 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
         .map((u) => ({ date: u.date, label: u.label, amount: u.amount, holding: u.holding, personName: u.personName })),
       incomeThisFy: { dividends: fy?.dividends ?? 0, interest: fy?.interest ?? 0, rent: fy?.rent ?? 0 },
       spending: spendingFor(personId),
-      tax: taxFor(personId)
+      tax: taxFor(personId),
+      performance: safe(() => performanceFor(personId)),
+      exposure: safe(() => exposureFor(personId)),
+      funds: safe(() => fundsFor(personId)),
+      rebalance: safe(() => rebalanceFor(personId))
+    }
+  }
+
+  // One page's figures failing must not stop the phone getting the rest.
+  const safe = <T,>(f: () => T): T | null => {
+    try {
+      return f()
+    } catch {
+      return null
+    }
+  }
+
+  const performanceFor = (personId?: number): PhonePerformance | null => {
+    const p = computePerformance(db, personId)
+    if (!p.dates.length) return null
+    const bench = p.benchmarks[0]
+    // Month ends only, at most ten years: enough for a small chart.
+    const keep = p.dates.map((_, i) => i).slice(-121)
+    return {
+      coverage: p.coverage,
+      xirr: p.xirr.overall,
+      trailing: p.trailing.map((t) => ({ key: t.key, twr: t.twr, benchmarks: t.benchmarks })),
+      benchmarks: p.benchmarks.map((b) => ({ key: b.key, label: b.label })),
+      years: [...p.years].reverse().map((y) => ({ kind: y.kind, label: y.label, partial: y.partial, twr: y.twr, benchmarks: y.benchmarks, gain: y.gain, added: y.added })),
+      maxDrawdown: p.maxDrawdown,
+      growth: {
+        dates: keep.map((i) => p.dates[i]),
+        values: keep.map((i) => p.growth[i]),
+        benchmark: bench ? { label: bench.label, values: keep.map((i) => bench.growth[i] ?? null) } : null
+      },
+      byAccount: p.xirr.byAccount.map((a) => ({ label: a.label, personName: a.personName, xirr: a.xirr, valueInr: a.valueInr })),
+      holdings: [...p.xirr.byHolding]
+        .sort((a, b) => b.valueInr - a.valueInr)
+        .slice(0, 40)
+        .map((h) => ({ name: h.name, personName: h.personName, xirr: h.xirr, valueInr: h.valueInr, gainInr: h.gainInr }))
+    }
+  }
+
+  const exposureFor = (personId?: number): PhoneExposure | null => {
+    const e = computeExposure(db, personId)
+    if (!e.totalInr) return null
+    const market = new Map(computeSectorInsights(db, personId).sectors.map((s) => [s.sector, s.marketShare]))
+    const equity = e.sectors.reduce((s, x) => s + x.valueInr, 0)
+    return {
+      equityInr: equity,
+      sectors: e.sectors.map((s) => ({ ...s, share: equity ? s.valueInr / equity : 0, marketShare: market.get(s.sector) ?? null })),
+      marketCap: e.marketCap.map((m) => ({ cap: m.cap, valueInr: m.valueInr })),
+      debt: { totalInr: e.debt.totalInr, types: e.debt.types, ratings: e.debt.ratings },
+      companies: e.companies.slice(0, 30).map((c) => ({ name: c.name, sector: c.sector, valueInr: c.valueInr, directInr: c.directInr, viaFundsInr: c.viaFundsInr }))
+    }
+  }
+
+  const fundsFor = (personId?: number): PhoneFunds | null => {
+    const f = computeFunds(db, personId)
+    if (!f.funds.length) return null
+    const facts = new Map<number, { ter: number | null; r3y: number | null; benchmark3y: number | null }>()
+    const pairs = computeFundComparisons(db, personId).pairs
+    for (const p of pairs) for (const x of p.funds) facts.set(x.instrumentId, { ter: x.ter, r3y: x.r3y, benchmark3y: x.benchmark3y })
+    const label = new Map(f.overlap.portfolios.map((p) => [p.id, p.label]))
+    return {
+      totalInr: f.totalFundsInr,
+      regularExtraCostInr: f.funds.reduce((s, x) => s + (x.directPlan?.extraCostInr ?? 0), 0),
+      funds: f.funds.map((x) => ({
+        name: x.shortName || x.name,
+        category: x.category,
+        plan: x.plan,
+        valueInr: x.valueInr,
+        people: x.people,
+        extraCostInr: x.directPlan?.extraCostInr ?? null,
+        ter: facts.get(x.instrumentId)?.ter ?? null,
+        r3y: facts.get(x.instrumentId)?.r3y ?? null,
+        benchmark3y: facts.get(x.instrumentId)?.benchmark3y ?? null
+      })),
+      overlap: f.overlap.pairs
+        .filter((p) => p.overlap > 0)
+        .sort((a, b) => b.overlap - a.overlap)
+        .slice(0, 10)
+        .map((p) => ({ a: label.get(p.a) ?? '', b: label.get(p.b) ?? '', overlap: p.overlap, sharedCount: p.sharedCount, shared: p.shared.slice(0, 5).map((s) => s.name) })),
+      byCategory: f.byCategory.map((c) => ({ name: c.name, valueInr: c.valueInr }))
+    }
+  }
+
+  // The mix against the targets only: the desktop's suggested trades stay on the desktop.
+  const rebalanceFor = (personId?: number): PhoneRebalance | null => {
+    const r = computeRebalance(db, personId, { newMoneyInr: 0, allowSells: false })
+    if (!r.baseInr) return null
+    return {
+      targetSource: r.targetSource,
+      baseInr: r.baseInr,
+      buckets: r.buckets.map((b) => ({ bucket: b.bucket, valueInr: b.valueInr, share: b.share, target: b.target, status: b.status })),
+      caps: r.caps
     }
   }
 

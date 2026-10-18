@@ -63,7 +63,10 @@ export function phoneSources(s: PhoneSnapshot): ChatSources {
         amfiCode: h.amfiCode ?? null
       })),
     tax: (pid) => scope(pid).tax ?? { note: 'No capital gains figures in the synced copy yet; sync the computer (version 0.15 or later).' },
-    performance: (pid) => ({ xirr: scope(pid).xirr, xirrCoverage: scope(pid).xirrCoverage, ...ON_COMPUTER('Performance') }),
+    performance(pid) {
+      const p = scope(pid).performance
+      return p ? { ...p, growth: undefined } : { xirr: scope(pid).xirr, xirrCoverage: scope(pid).xirrCoverage, ...ON_COMPUTER('Performance') }
+    },
     income: (pid) => ({ incomeThisFy: scope(pid).incomeThisFy, upcoming: scope(pid).upcoming }),
     spending(pid, search) {
       const sp = scope(pid).spending
@@ -81,8 +84,11 @@ export function phoneSources(s: PhoneSnapshot): ChatSources {
       s.forecast
         ? { ...s.forecast, years: s.forecast.years.filter((y, i, all) => i === 0 || y.year % 5 === 0 || i === all.length - 1).map(({ byBucket: _b, ...y }) => y) }
         : { note: 'No forecast in the synced copy.' },
-    sectors: () => ON_COMPUTER('Sectors & exposure'),
-    funds: () => ON_COMPUTER('Funds'),
+    sectors: (pid) => scope(pid).exposure ?? ON_COMPUTER('Sectors & exposure'),
+    funds: (pid) => {
+      const x = scope(pid)
+      return x.funds || x.rebalance ? { ...x.funds, mixAgainstTargets: x.rebalance } : ON_COMPUTER('Funds')
+    },
     retirement: () => ({
       retirementHoldings: s.holdings.filter((h) => ['EPF', 'NPS', 'PPF'].includes(h.assetClass)).map((h) => ({ person: personName(h.personId), name: h.name, valueInr: h.value })),
       insurance: s.policies

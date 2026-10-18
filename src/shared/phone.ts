@@ -4,7 +4,7 @@
 import type { ChartGroup, PropertyExpenseKind, PropertyView } from './assets'
 import type { Forecast } from './plan'
 import type { SpendCategory } from './ai'
-import type { AssetClass, Platform } from './types'
+import type { AssetClass, Bucket, CapBand, DebtRating, DebtType, FundPlan, Platform } from './types'
 import type { VehicleExpenseKind, VehicleView } from './vehicles'
 
 export const SNAPSHOT_FILE = 'fp-snapshot.json'
@@ -46,6 +46,62 @@ export interface PhoneScope {
   spending?: PhoneSpending | null
   /** Capital gains this financial year and what could still be done about them. */
   tax?: PhoneTax | null
+  /** "How it is doing", cut down from the desktop's pages (absent in older snapshots). */
+  performance?: PhonePerformance | null
+  exposure?: PhoneExposure | null
+  funds?: PhoneFunds | null
+  rebalance?: PhoneRebalance | null
+}
+
+export interface PhonePerformance {
+  /** Share of today's value these figures describe (holdings with a full money trail). */
+  coverage: number
+  xirr: number | null
+  /** Time-weighted returns, % a year beyond one year, against each benchmark. */
+  trailing: { key: '1Y' | '3Y' | '5Y' | 'ALL'; twr: number | null; benchmarks: Record<string, number | null> }[]
+  benchmarks: { key: string; label: string }[]
+  /** Calendar and financial years, newest first. */
+  years: { kind: 'CY' | 'FY'; label: string; partial: boolean; twr: number | null; benchmarks: Record<string, number | null>; gain: number; added: number }[]
+  maxDrawdown: { depth: number; peak: string; trough: string; recovered: string | null } | null
+  /** Growth of ₹100, month by month, with the first benchmark on the same dates. */
+  growth: { dates: string[]; values: number[]; benchmark: { label: string; values: (number | null)[] } | null }
+  byAccount: { label: string; personName: string; xirr: number | null; valueInr: number }[]
+  holdings: { name: string; personName: string; xirr: number | null; valueInr: number; gainInr: number | null }[]
+}
+
+export interface PhoneExposure {
+  equityInr: number
+  /** Equity by sector: yours (direct and through funds) and the Nifty 500's share. */
+  sectors: { sector: string; valueInr: number; directInr: number; viaFundsInr: number; share: number; marketShare: number | null }[]
+  marketCap: { cap: CapBand; valueInr: number }[]
+  debt: { totalInr: number; types: { type: DebtType; valueInr: number }[]; ratings: { rating: DebtRating; valueInr: number }[] }
+  companies: { name: string; sector: string | null; valueInr: number; directInr: number; viaFundsInr: number }[]
+}
+
+export interface PhoneFunds {
+  totalInr: number
+  /** What Regular plans cost a year more than their Direct plans, all funds together. */
+  regularExtraCostInr: number
+  funds: {
+    name: string
+    category: string
+    plan: FundPlan
+    valueInr: number
+    people: string[]
+    extraCostInr: number | null
+    ter: number | null
+    r3y: number | null
+    benchmark3y: number | null
+  }[]
+  overlap: { a: string; b: string; overlap: number; sharedCount: number; shared: string[] }[]
+  byCategory: { name: string; valueInr: number }[]
+}
+
+export interface PhoneRebalance {
+  targetSource: 'OWN' | 'FAMILY' | null
+  baseInr: number
+  buckets: { bucket: Bucket; valueInr: number; share: number; target: number | null; status: 'OK' | 'OVER' | 'UNDER' | 'NO_TARGET' }[]
+  caps: { band: 'LARGE' | 'MID' | 'SMALL' | 'OTHER'; valueInr: number; share: number; target: number | null }[]
 }
 
 export interface PhoneSpending {

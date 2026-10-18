@@ -47,7 +47,7 @@ export interface ChatSources {
 
 const MARKET = (phone: boolean) =>
   phone
-    ? `This is the phone app: it has the figures last synced from the computer (prices as of that sync) and fund_history (any mutual fund plan's NAV record by scheme code). Live stock and index prices, searching any fund by name, sectors, fund overlaps, detailed returns and Gmail are in the desktop app; say so when a question needs them.`
+    ? `This is the phone app: it has the figures last synced from the computer (prices as of that sync) and fund_history (any mutual fund plan's NAV record by scheme code). Live stock and index prices, searching any fund by name, sector index valuations and Gmail are in the desktop app; say so when a question needs them.`
     : `Market data: stock (any NSE/BSE stock, ETF or index such as Nifty 50, Sensex, Bank Nifty: price, day change, 52-week range, past returns), fund_search (any mutual fund by name: AMFI returns for Direct and Regular, expense ratio, size, risk, scheme codes), fund_history (a scheme code's NAV returns by period and calendar year, worst fall) and inflation (CPI). Use them for things the family doesn't hold too, and say the date the figures are as of.`
 
 const GMAIL = (mailboxes: { email: string; person: string }[] | null) =>

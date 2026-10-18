@@ -17,6 +17,7 @@ import { loadPlan, savePlan } from '../src/main/portfolio/forecast'
 import { createServices } from '../src/main/services'
 import { saveVehicle } from '../src/main/vehicles'
 import { saveStatement } from '../src/main/statements'
+import { saveTargets } from '../src/main/portfolio/rebalance'
 import type { SpendCategory } from '../src/shared/ai'
 
 it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
@@ -86,6 +87,8 @@ it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
     },
     'demo'
   )
+  // A target mix, so the Doing tab's Mix has something to compare with.
+  saveTargets(db, null, { buckets: { EQUITY_IN: 0.45, EQUITY_INTL: 0.1, DEBT: 0.35, GOLD: 0.07, CASH: 0.03 }, band: 0.05 })
   // A made-up key so the demo shows the Ask button (no request with it can succeed).
   const snapshot = buildPhoneSnapshot(db, [], new Date().toISOString(), { apiKey: 'sk-ant-demo-not-a-real-key', model: 'claude-opus-5-5' })
   const passphrase = 'demo passphrase 123'
