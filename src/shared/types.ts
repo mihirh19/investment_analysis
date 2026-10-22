@@ -14,6 +14,8 @@ import type { GoogleAccountView, GoogleSetup } from './mail'
 import type { Forecast, Plan } from './plan'
 import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
+import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput } from './farm'
+import type { LoanInput, LoanPayment, LoansReport } from './loans'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
@@ -55,7 +57,7 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   OTHER: 'Other'
 }
 
-export type AccountKind = 'DEMAT' | 'MF_FOLIO' | 'US_BROKER' | 'EPF' | 'NPS' | 'INSURANCE' | 'MANUAL_ASSET' | 'OTHER'
+export type AccountKind = 'DEMAT' | 'MF_FOLIO' | 'US_BROKER' | 'EPF' | 'NPS' | 'INSURANCE' | 'MANUAL_ASSET' | 'FARM' | 'OTHER'
 
 export interface Account {
   id: number
@@ -83,6 +85,8 @@ export type AssetClass =
   | 'CRYPTO'
   | 'INSURANCE'
   | 'CASH'
+  /** Farm produce in the godown (groundnut, wheat…), valued at the mandi price. */
+  | 'AGRI'
   | 'OTHER'
 
 export interface Instrument {
@@ -881,6 +885,26 @@ export interface RequestApi {
   /** Opens a kept document in the default viewer (from a temporary copy). */
   openDocument(id: number): Promise<ApiResult<null>>
   deleteDocument(id: number): Promise<ApiResult<null>>
+  /** The farm: stock in the godown and in the field, seasons with costs and sales, mandi prices. */
+  getFarm(personId?: number): Promise<ApiResult<FarmReport>>
+  /** Loans: what is owed, EMIs, payoff, KCC interest; net worth is what is owned less this. */
+  getLoans(personId?: number): Promise<ApiResult<LoansReport>>
+  saveLoan(input: LoanInput): Promise<ApiResult<number>>
+  deleteLoan(id: number): Promise<ApiResult<null>>
+  addLoanPayment(loanId: number, payment: Omit<LoanPayment, 'id'>): Promise<ApiResult<null>>
+  deleteLoanPayment(loanId: number, paymentId: string): Promise<ApiResult<null>>
+  /** What a part-prepayment today would save, with the EMI unchanged. */
+  loanPrepayment(loanId: number, amount: number): Promise<ApiResult<{ interestSaved: number; monthsSooner: number; newPayoff: string | null }>>
+  saveFarmSeason(input: FarmSeasonInput): Promise<ApiResult<number>>
+  deleteFarmSeason(id: number): Promise<ApiResult<null>>
+  saveFarmEntry(input: FarmEntryInput): Promise<ApiResult<number>>
+  deleteFarmEntry(id: number): Promise<ApiResult<null>>
+  setFarmMarket(market: string): Promise<ApiResult<null>>
+  /** Varieties for the season form: those the mandi reported lately (with today's price), then Agmarknet's list. */
+  getCropVarieties(crop: CropKey, market?: string | null): Promise<ApiResult<CropVarieties>>
+  setFarmPriceTarget(crop: CropKey, price: number | null): Promise<ApiResult<null>>
+  /** Fetches today's mandi prices for the farm's crops now (it also happens by itself each day). */
+  refreshFarmPrices(): Promise<ApiResult<FarmReport>>
 
   /** Google accounts connected to fetch statements from Gmail (read-only). */
   getGoogleSetup(): Promise<ApiResult<GoogleSetup>>

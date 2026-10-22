@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useData } from '../lib/data'
 import { Seg } from '../ui'
+import { Farm } from './Farm'
 import { Properties } from './Properties'
 import { Vehicles } from './Vehicles'
 
-type Part = 'property' | 'vehicles'
+type Part = 'property' | 'vehicles' | 'farm'
 
-/** Property and vehicles together, so the tab bar stays at six. */
+/** Property, vehicles and the farm together, so the tab bar stays at six. */
 export function Assets() {
   const { snapshot } = useData()
   const [part, setPart] = useState<Part>(() => (sessionStorage.getItem('fp.assets') as Part) || 'property')
@@ -14,7 +15,8 @@ export function Assets() {
   const parts = (
     [
       ['property', 'Property & rent', snapshot.properties.length],
-      ['vehicles', 'Vehicles', snapshot.vehicles.length]
+      ['vehicles', 'Vehicles', snapshot.vehicles.length],
+      ['farm', 'Farm', snapshot.farm ? snapshot.farm.seasons.length + snapshot.farm.prices.length : 0]
     ] as const
   ).filter(([, , n]) => n > 0)
   const shown = parts.find(([k]) => k === part)?.[0] ?? parts[0]?.[0]
@@ -32,6 +34,7 @@ export function Assets() {
       )}
       {shown === 'property' && <Properties />}
       {shown === 'vehicles' && <Vehicles />}
+      {shown === 'farm' && <Farm />}
     </>
   )
 }

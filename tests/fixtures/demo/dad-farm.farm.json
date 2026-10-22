@@ -1,0 +1,43 @@
+{
+  "market": "Rajkot",
+  "targets": { "GROUNDNUT": 8200, "CUMIN": 21000 },
+  "seasons": [
+    {
+      "season": { "crop": "GROUNDNUT", "variety": "G20", "season": "KHARIF", "year": 2026, "field": "Well field", "areaAcres": 12, "sownOn": "2026-06-24", "expectedQtl": 150, "status": "GROWING" },
+      "entries": [
+        { "date": "2026-06-20", "type": "COST", "costKind": "SEED", "amount": 72000 },
+        { "date": "2026-07-05", "type": "COST", "costKind": "FERTILISER", "amount": 38000 },
+        { "date": "2026-08-02", "type": "COST", "costKind": "PESTICIDE", "amount": 16000 },
+        { "date": "2026-08-20", "type": "COST", "costKind": "WATER", "amount": 21000 },
+        { "date": "2026-10-08", "type": "COST", "costKind": "LABOUR", "amount": 54000, "note": "Uprooting and threshing" },
+        { "date": "2026-10-10", "type": "HARVEST", "quantityQtl": 150 },
+        { "date": "2026-10-14", "type": "SALE", "quantityQtl": 60, "rate": 7600, "charges": 4500, "mandi": "Rajkot APMC" }
+      ]
+    },
+    {
+      "season": { "crop": "WHEAT", "variety": "Lokwan", "season": "RABI", "year": 2027, "field": "Canal field", "areaAcres": 8, "sownOn": "2026-10-20", "expectedQtl": 160, "status": "GROWING" },
+      "entries": [
+        { "date": "2026-10-16", "type": "COST", "costKind": "SEED", "amount": 18000 },
+        { "date": "2026-10-20", "type": "COST", "costKind": "FERTILISER", "amount": 12000 }
+      ]
+    },
+    {
+      "season": { "crop": "CUMIN", "season": "STOCK", "year": 2026, "status": "HARVESTED" },
+      "entries": [
+        { "date": "2026-04-01", "type": "HARVEST", "quantityQtl": 12, "note": "Stock already in the godown" },
+        { "date": "2026-04-01", "type": "COST", "costKind": "OTHER", "amount": 96000, "note": "Growing cost of the stock" }
+      ]
+    },
+    {
+      "season": { "crop": "COTTON", "season": "KHARIF", "year": 2025, "field": "Well field", "areaAcres": 10, "status": "HARVESTED" },
+      "entries": [
+        { "date": "2025-06-25", "type": "COST", "costKind": "SEED", "amount": 42000 },
+        { "date": "2025-07-15", "type": "COST", "costKind": "FERTILISER", "amount": 51000 },
+        { "date": "2025-09-01", "type": "COST", "costKind": "PESTICIDE", "amount": 33000 },
+        { "date": "2025-11-20", "type": "COST", "costKind": "LABOUR", "amount": 84000, "note": "Picking" },
+        { "date": "2025-12-05", "type": "HARVEST", "quantityQtl": 95 },
+        { "date": "2025-12-18", "type": "SALE", "quantityQtl": 95, "rate": 7400, "charges": 6200, "mandi": "Gondal APMC" }
+      ]
+    }
+  ]
+}

@@ -98,14 +98,20 @@ export function Overview() {
       : [])
   ]
   const hist = analysis.data?.history
+  // Net worth: what is owned less what was owed on loans at each month end.
+  const owedByMonth = analysis.data?.owed.byMonth ?? []
+  const owedNow = analysis.data?.owed.totalInr ?? 0
   const allTrend =
-    hist && hist.months.length > 2 ? hist.months.map((_, i) => hist.series.reduce((s, x) => s + x.values[i], 0)) : null
+    hist && hist.months.length > 2
+      ? hist.months.map((_, i) => hist.series.reduce((s, x) => s + x.values[i], 0) - (owedByMonth[i] ?? 0))
+      : null
   const from = hist ? periodStartIndex(hist.months, period) : 0
   const trend = allTrend ? allTrend.slice(from) : null
   const trendDates = hist ? hist.months.slice(from) : []
   // Change over the period, today's live value against the value at its start.
   const startValue = trend && trend.length > 1 ? trend[0] : null
-  const change = startValue !== null ? t.value - startValue : null
+  const netNow = t.value - owedNow
+  const change = startValue !== null ? netNow - startValue : null
   const upcoming = (analysis.data?.upcoming ?? []).filter((u) => u.amount > 0).slice(0, 5)
 
   return (
@@ -136,12 +142,36 @@ export function Overview() {
                 <span className="ml-2 text-[14px]">{percent(t.dayBase > 0 ? t.dayChange / t.dayBase : null)}</span>
               </dd>
             </div>
-            <div className="flex items-baseline justify-between pt-3">
-              <dt className="text-[16px] font-medium">Current value, {whose}</dt>
-              <dd className="wide border-b-[3px] border-double border-ink pb-0.5 text-[44px] leading-none font-semibold tracking-tight">
-                {money(shownValue)}
-              </dd>
-            </div>
+            {owedNow > 0 ? (
+              <>
+                <div className="flex items-baseline justify-between border-b border-rule py-2">
+                  <dt className="text-ink-muted">Current value of what you own</dt>
+                  <dd className="num">{money(shownValue)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between border-b border-rule-strong py-2">
+                  <dt className="text-ink-muted">
+                    Owed on loans{' '}
+                    <Link to="/loans" className="text-[14px] text-stamp hover:underline">
+                      Loans
+                    </Link>
+                  </dt>
+                  <dd className="num text-loss">−{money(owedNow)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between pt-3">
+                  <dt className="text-[16px] font-medium">Net worth, {whose}</dt>
+                  <dd className="wide border-b-[3px] border-double border-ink pb-0.5 text-[44px] leading-none font-semibold tracking-tight">
+                    {money(shownValue - owedNow)}
+                  </dd>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-baseline justify-between pt-3">
+                <dt className="text-[16px] font-medium">Current value, {whose}</dt>
+                <dd className="wide border-b-[3px] border-double border-ink pb-0.5 text-[44px] leading-none font-semibold tracking-tight">
+                  {money(shownValue)}
+                </dd>
+              </div>
+            )}
           </dl>
           <p className="mt-4 text-[14px] text-ink-muted">
             {lakhCrore(t.value)}.{' '}
@@ -160,7 +190,7 @@ export function Overview() {
           </p>
           {change !== null && trend && (
             <div className="mt-4 flex items-center gap-3 border-t border-rule pt-3 text-[15px]">
-              <Sparkline values={[...trend.slice(0, -1), t.value]} width={110} height={30} />
+              <Sparkline values={[...trend.slice(0, -1), netNow]} width={110} height={30} />
               <span>
                 <span className="text-ink-muted">Over {periodTitle(period).replace(/^last /, 'the last ')}: </span>
                 <span className={`num font-semibold ${toneClass(change)}`}>{signedMoney(change)}</span>

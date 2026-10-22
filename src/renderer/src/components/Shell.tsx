@@ -16,6 +16,8 @@ const NAV: { title: string; items: { to: string; label: string; end?: boolean }[
       { to: '/other-assets', label: 'Other assets' },
       { to: '/property', label: 'Property & rent' },
       { to: '/vehicles', label: 'Vehicles' },
+      { to: '/farm', label: 'Farm' },
+      { to: '/loans', label: 'Loans & EMIs' },
       { to: '/retirement', label: 'EPF & NPS' },
       { to: '/insurance', label: 'Insurance' },
       { to: '/dividends', label: 'Dividends' }

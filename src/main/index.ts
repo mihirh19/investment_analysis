@@ -1,6 +1,8 @@
 import { copyFileSync, existsSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, Notification, shell } from 'electron'
+import { CROPS } from '@shared/farm'
+import { newlyReachedTargets } from './farm'
 import { CHAT_EVENT, MARKET_UPDATED } from '@shared/api'
 import { openDatabase } from './db'
 import { applyDevPaths, captureScreens, seedDemo } from './dev'
@@ -92,6 +94,13 @@ if (!app.requestSingleInstanceLock()) {
         db,
         () => {
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send(MARKET_UPDATED)
+          // A crop reaching the price the family is waiting for: say so once.
+          for (const t of newlyReachedTargets(db))
+            if (Notification.isSupported())
+              new Notification({
+                title: `${CROPS[t.crop].label}: ₹${t.price.toLocaleString('en-IN')} a quintal`,
+                body: `${t.market} mandi has reached your target of ₹${t.target.toLocaleString('en-IN')}.`
+              }).show()
         },
         fetch,
         { renderLinks }

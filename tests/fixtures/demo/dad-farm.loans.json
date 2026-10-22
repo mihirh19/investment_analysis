@@ -1,0 +1,13 @@
+[
+  {
+    "meta": { "kind": "KCC", "repayment": "REVOLVING", "lender": "Bank of Baroda", "principal": 300000, "ratePct": 7, "promptRepaymentPct": 3, "startDate": "2026-06-10", "dueDate": "2027-06-09", "autoEmi": false },
+    "payments": [
+      { "id": "d1", "date": "2026-06-10", "kind": "DRAW", "amount": 150000, "note": "Kharif seed and fertiliser" },
+      { "id": "d2", "date": "2026-08-01", "kind": "DRAW", "amount": 40000, "note": "Spray and labour" }
+    ]
+  },
+  {
+    "meta": { "kind": "GOLD", "repayment": "BULLET", "lender": "Muthoot Finance", "principal": 120000, "ratePct": 11.5, "tenureMonths": 12, "startDate": "2026-04-05", "autoEmi": false },
+    "payments": [{ "id": "i1", "date": "2026-09-05", "kind": "INTEREST", "amount": 5750 }]
+  }
+]

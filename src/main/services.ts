@@ -41,6 +41,11 @@ import { computeFundComparisons, computeSectorInsights } from './portfolio/insig
 import { AI_MODEL, AiDisabledError, createAi } from './ai'
 import { ask, type ChatSources } from '@shared/chat'
 import { fundHistory, fundLookup, stockLookup } from './marketLookup'
+import * as farm from './farm'
+import * as loans from './loans'
+import type { LoanInput, LoanPayment } from '@shared/loans'
+import { knownVarieties, refreshMandiPrices } from './market/mandi'
+import { PRICE_CLASSES, type CropKey, type CropVarieties, type FarmEntryInput, type FarmSeasonInput } from '@shared/farm'
 import { refreshSchemeFacts, storedSchemeFacts } from './market/amfiData'
 import { storedCpi } from './market/cpi'
 import { deleteStatement, PdfPasswordNeeded, readStatement, saveStatement, setCategory, spendingReport, statementContent } from './statements'
@@ -208,7 +213,9 @@ export function createServices(deps: ServiceDeps) {
       const months = a.history.months
       const totals = months.map((_, i) => a.history.series.reduce((s, g) => s + g.values[i], 0))
       return {
-        netWorthInr: a.totalInr,
+        ownedInr: a.totalInr,
+        owedOnLoansInr: a.owed.totalInr,
+        netWorthInr: a.totalInr - a.owed.totalInr,
         xirr: a.xirr,
         byAssetClass: a.scorecard,
         liquidity: a.liquidity,
@@ -277,6 +284,18 @@ export function createServices(deps: ServiceDeps) {
       return { funds: f.funds, byHouse: f.byHouse, byCategory: f.byCategory, notes: f.notes, overlapPairs: computeFundComparisons(db, personId).pairs }
     },
     retirement: () => ({ epf: assets.listEpf(db), insurance: assets.listPolicies(db) }),
+    loans(personId) {
+      const r = loans.loansReport(db, personId)
+      return { ...r, loans: r.loans.map((l) => ({ ...l, payments: l.payments.slice(0, 10) })) }
+    },
+    farm(personId) {
+      const r = farm.farmReport(db, personId)
+      return {
+        ...r,
+        prices: r.prices.map(({ history: _h, ...p }) => p),
+        seasons: r.seasons.map(({ entries, ...x }) => ({ ...x, entries: entries.slice(-20) }))
+      }
+    },
     stock: (query) => stockLookup(query, deps.fetch),
     async fundSearch(query) {
       if (!storedSchemeFacts(db).schemes.length) await refreshSchemeFacts(db, deps.fetch).catch(() => 0)
@@ -294,6 +313,15 @@ export function createServices(deps: ServiceDeps) {
         read: (account: string, id: string) => mail.read(account, id),
         importMessage: (account: string, id: string) => mail.importMessage(account, id)
       }
+    }
+  }
+
+  /** Today's mandi prices for every crop the farm grows or watches (problems are kept for the Farm page). */
+  async function refreshMandi(force: boolean): Promise<void> {
+    try {
+      await refreshMandiPrices(db, deps.fetch, force)
+    } catch (e) {
+      if (force) throw e
     }
   }
 
@@ -726,6 +754,71 @@ export function createServices(deps: ServiceDeps) {
     deleteDocument(id: number): null {
       vehicles.deleteDocument(db, id)
       return null
+    },
+
+    // ---------------- loans ----------------
+
+    getLoans: (personId?: number) => loans.loansReport(db, personId),
+    saveLoan: (input: LoanInput) => loans.saveLoan(db, input),
+    deleteLoan(id: number): null {
+      loans.deleteLoan(db, id)
+      return null
+    },
+    addLoanPayment(loanId: number, payment: Omit<LoanPayment, 'id'>): null {
+      loans.addLoanPayment(db, loanId, payment)
+      return null
+    },
+    deleteLoanPayment(loanId: number, paymentId: string): null {
+      loans.deleteLoanPayment(db, loanId, paymentId)
+      return null
+    },
+    loanPrepayment(loanId: number, amount: number) {
+      const l = loans.loansReport(db).loans.find((x) => x.id === loanId)
+      if (!l) throw new Error('That loan no longer exists.')
+      if (!(amount > 0)) throw new Error('Enter the amount.')
+      return loans.prepaymentEffect(l.meta, l.payments, amount)
+    },
+
+    // ---------------- the farm ----------------
+
+    getFarm: (personId?: number) => farm.farmReport(db, personId),
+    saveFarmSeason(input: FarmSeasonInput) {
+      const id = farm.saveSeason(db, input)
+      // A crop with no price yet: fetch it now rather than at the next daily run.
+      void refreshMandi(false).catch(() => {})
+      return id
+    },
+    deleteFarmSeason(id: number): null {
+      farm.deleteSeason(db, id)
+      return null
+    },
+    saveFarmEntry: (input: FarmEntryInput) => farm.saveEntry(db, input),
+    deleteFarmEntry(id: number): null {
+      farm.deleteEntry(db, id)
+      return null
+    },
+    setFarmMarket(market: string): null {
+      farm.setDefaultMarket(db, market)
+      void refreshMandi(false).catch(() => {})
+      return null
+    },
+    getCropVarieties(crop: CropKey, market?: string | null): CropVarieties {
+      const all = farm.cropPrice(db, crop, market?.trim() || farm.defaultMarket(db)).varieties
+      const reported = all.filter((v) => v.source === 'AGMARKNET').map(({ name, modal, date }) => ({ name, modal, date }))
+      const seen = new Set(reported.map((v) => v.name.toUpperCase()))
+      const classes = (PRICE_CLASSES[crop] ?? []).map((c) => {
+        const p = all.find((v) => v.source === 'APMC' && v.name === c.label)
+        return { ...c, modal: p?.modal ?? null, min: p?.min ?? null, max: p?.max ?? null, date: p?.date ?? null }
+      })
+      return { reported, classes, all: knownVarieties(db, crop).filter((v) => !seen.has(v.toUpperCase())) }
+    },
+    setFarmPriceTarget(crop: CropKey, price: number | null): null {
+      farm.setPriceTarget(db, crop, price)
+      return null
+    },
+    async refreshFarmPrices() {
+      await refreshMandi(true)
+      return farm.farmReport(db)
     },
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),

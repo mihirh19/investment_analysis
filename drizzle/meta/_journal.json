@@ -78,6 +78,34 @@
       "when": 1792253018542,
       "tag": "0010_spending",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792648120454,
+      "tag": "0011_farm",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792655646848,
+      "tag": "0012_loans",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792655646849,
+      "tag": "0013_farm_variety",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1792658513223,
+      "tag": "0014_farm_price_class",
+      "breakpoints": true
     }
   ]
 }

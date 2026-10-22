@@ -4,6 +4,8 @@
 import type { ChartGroup, PropertyExpenseKind, PropertyView } from './assets'
 import type { Forecast } from './plan'
 import type { SpendCategory } from './ai'
+import type { FarmEntryInput, FarmEntryType, FarmReport } from './farm'
+import type { LoanView } from './loans'
 import type { AssetClass, Bucket, CapBand, DebtRating, DebtType, FundPlan, Platform } from './types'
 import type { VehicleExpenseKind, VehicleView } from './vehicles'
 
@@ -42,6 +44,8 @@ export interface PhoneScope {
   byGroup: { group: ChartGroup; value: number }[]
   upcoming: { date: string; label: string; amount: number; holding: string; personName: string }[]
   incomeThisFy: { dividends: number; interest: number; rent: number }
+  /** Owed on loans today (absent in older snapshots); net worth is netWorth − owed. */
+  owed?: number
   /** Card and bank spending read from statements (absent in snapshots from older versions). */
   spending?: PhoneSpending | null
   /** Capital gains this financial year and what could still be done about them. */
@@ -144,6 +148,10 @@ export interface PhoneSnapshot {
   vehicles: Omit<VehicleView, 'documents'>[]
   forecast: Forecast | null
   policies: { name: string; personName: string; nextDue: string | null; premium: number; insurer: string }[]
+  /** Loans for everyone, without their payment lists (absent in older snapshots). */
+  loans?: Omit<LoanView, 'payments'>[]
+  /** The farm (absent in older snapshots): godown, field, seasons and mandi prices for everyone. */
+  farm?: FarmReport | null
   /** Ask your money on the phone: the person's Claude key, inside this passphrase-locked copy (only when switched on). */
   ai?: { apiKey: string; model: string } | null
   /** Phone entries the desktop has applied (most recent), so the phone can stop showing them as pending. */
@@ -167,6 +175,7 @@ export type PhoneEntry = { id: string; at: string } & (
   | { type: 'VEHICLE_PUC'; vehicleId: number; validUntil: string; date?: string; amount?: number }
   | { type: 'VEHICLE_POLICY'; vehicleId: number; endDate: string; startDate?: string; insurer?: string; premium?: number; idv?: number }
   | { type: 'ASSET_VALUE'; accountId: number; date: string; value: number }
+  | ({ type: 'FARM_ENTRY'; entryType: FarmEntryType } & Omit<FarmEntryInput, 'id' | 'type'>)
 )
 
 export type PhoneEntryType = PhoneEntry['type']

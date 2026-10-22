@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import type { ManualAssetInput } from '@shared/assets'
 import type { VehicleInput } from '@shared/vehicles'
 import type { Plan } from '@shared/plan'
+import type { CropKey, FarmEntryInput, FarmSeasonInput } from '@shared/farm'
+import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
@@ -243,6 +245,30 @@ export const readVehicleDocument = (filePath: string, password?: string) =>
   unwrap(api().readVehicleDocument(filePath, password))
 export const openDocument = (id: number) => unwrap(api().openDocument(id))
 export const pickDocument = () => unwrap(api().pickFile('DOCUMENT'))
+
+// ---------------- loans ----------------
+
+export const useLoans = (personId?: number) =>
+  useQuery({ queryKey: ['loans', personId ?? 'all'], queryFn: () => unwrap(api().getLoans(personId)) })
+export const useSaveLoan = () => useWrite((input: LoanInput) => api().saveLoan(input))
+export const useDeleteLoan = () => useWrite((id: number) => api().deleteLoan(id))
+export const useAddLoanPayment = () => useWrite((loanId: number, p: Omit<LoanPayment, 'id'>) => api().addLoanPayment(loanId, p))
+export const useDeleteLoanPayment = () => useWrite((loanId: number, paymentId: string) => api().deleteLoanPayment(loanId, paymentId))
+export const loanPrepayment = (loanId: number, amount: number) => unwrap(api().loanPrepayment(loanId, amount))
+
+// ---------------- the farm ----------------
+
+export const useFarm = (personId?: number) =>
+  useQuery({ queryKey: ['farm', personId ?? 'all'], queryFn: () => unwrap(api().getFarm(personId)) })
+export const useSaveFarmSeason = () => useWrite((input: FarmSeasonInput) => api().saveFarmSeason(input))
+export const useDeleteFarmSeason = () => useWrite((id: number) => api().deleteFarmSeason(id))
+export const useSaveFarmEntry = () => useWrite((input: FarmEntryInput) => api().saveFarmEntry(input))
+export const useDeleteFarmEntry = () => useWrite((id: number) => api().deleteFarmEntry(id))
+export const useCropVarieties = (crop: CropKey, market?: string | null) =>
+  useQuery({ queryKey: ['farm-varieties', crop, market ?? ''], queryFn: () => unwrap(api().getCropVarieties(crop, market)) })
+export const useSetFarmMarket = () => useWrite((market: string) => api().setFarmMarket(market))
+export const useSetFarmPriceTarget = () => useWrite((crop: CropKey, price: number | null) => api().setFarmPriceTarget(crop, price))
+export const useRefreshFarmPrices = () => useWrite(() => api().refreshFarmPrices())
 
 // ---------------- Google accounts ----------------
 

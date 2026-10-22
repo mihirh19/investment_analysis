@@ -135,7 +135,7 @@ export function Analysis() {
         </div>
         <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 sm:grid-cols-4">
           {[
-            ['Net worth', money(a.totalInr)],
+            a.owed.totalInr > 0 ? ['Net worth, after loans', money(a.totalInr - a.owed.totalInr)] : ['Net worth', money(a.totalInr)],
             ['Available in days', money(liquidNow)],
             ['Coming in, next 12 months', money(totalUpcoming)],
             ['Top 10 holdings', `${Math.round(a.concentration.top10Share * 100)}% of it`]

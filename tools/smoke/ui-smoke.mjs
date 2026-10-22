@@ -120,6 +120,8 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Other assets',
     'Property & rent',
     'Vehicles',
+    'Farm',
+    'Loans & EMIs',
     'Sectors & exposure',
     'Funds',
     'Dividends',
@@ -283,6 +285,30 @@ await ok('open Google sign-in setup')
 await nav('Import statements')
 await clickText('label', 'Fund portfolio')
 await ok('pick fund portfolio import')
+await nav('Loans & EMIs')
+await sleep(2000)
+const loansShown = await ev(`document.body.innerText.includes('Kisan Credit Card') && document.body.innerText.includes('Owed today')`)
+if (!loansShown) failures++
+console.log((loansShown ? 'ok   ' : 'FAIL ') + 'loans: KCC and what is owed shown')
+await clickText('button', 'Add a loan')
+await ok('loans: open the loan form')
+await clickText('button', 'Cancel')
+await nav('Overview')
+await sleep(2000)
+const netShown = await ev(`document.body.innerText.includes('Owed on loans') && document.body.innerText.includes('Net worth,')`)
+if (!netShown) failures++
+console.log((netShown ? 'ok   ' : 'FAIL ') + 'overview: net worth after loans')
+await nav('Farm')
+await sleep(2500)
+const farmShown = await ev(`document.body.innerText.includes('In the godown') && document.body.innerText.includes('Groundnut') && document.body.innerText.includes('Mandi prices')`)
+if (!farmShown) failures++
+console.log((farmShown ? 'ok   ' : 'FAIL ') + 'farm: godown, prices and seasons shown')
+await clickText('button', 'Add a crop season')
+await ok('farm: open the season form')
+await clickText('button', 'Cancel')
+await clickText('button', 'Record a sale')
+await ok('farm: open the sale form')
+await clickText('button', 'Cancel')
 await clickText('aside > button', 'Ask your money')
 await ok('open the chat from the sidebar')
 const typeInto = (sel, value) =>

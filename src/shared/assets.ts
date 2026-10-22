@@ -373,6 +373,8 @@ export interface AssetClassScore {
 
 export interface AnalysisReport {
   totalInr: number
+  /** Loans: owed today, and at each of history's month ends. Net worth is totalInr − owed. */
+  owed: { totalInr: number; byMonth: number[] }
   xirr: {
     overall: number | null
     coverage: number
@@ -405,6 +407,8 @@ export const GROUP_OF: Record<import('./types').AssetClass, ChartGroup> = {
   REIT: 'PROPERTY',
   CRYPTO: 'CRYPTO',
   CASH: 'OTHER',
+  // Eight hues are all the charts can tell apart; the farm page shows the produce on its own.
+  AGRI: 'OTHER',
   INSURANCE: 'OTHER',
   OTHER: 'OTHER'
 }

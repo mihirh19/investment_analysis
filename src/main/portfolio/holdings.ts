@@ -4,6 +4,7 @@ import { schema, type Db } from '../db'
 import { computeFifo } from './fifo'
 import { estimateEpfBalance, parseEpfMeta } from './epf'
 import { FxTable } from './fx'
+import { farmHoldings } from '../farm'
 import { manualHoldings } from '../manualAssets'
 
 const EPS = 1e-3
@@ -239,7 +240,7 @@ export function listHoldings(db: Db, personId?: number): HoldingRow[] {
     })
   }
 
-  return [...dropDematFolioDuplicates(rows, accounts), ...manualHoldings(db, personId)]
+  return [...dropDematFolioDuplicates(rows, accounts), ...manualHoldings(db, personId), ...farmHoldings(db, personId)]
 }
 
 /**

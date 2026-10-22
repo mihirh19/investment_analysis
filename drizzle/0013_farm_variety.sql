@@ -1,0 +1,1 @@
+ALTER TABLE `farm_seasons` ADD `variety` text;

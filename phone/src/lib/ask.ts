@@ -38,7 +38,9 @@ export function phoneSources(s: PhoneSnapshot): ChatSources {
       return {
         pricesAsOf: s.pricesAsOf,
         syncedAt: s.generatedAt,
-        netWorthInr: x.netWorth,
+        ownedInr: x.netWorth,
+        owedOnLoansInr: x.owed ?? 0,
+        netWorthInr: x.netWorth - (x.owed ?? 0),
         investedInr: x.invested,
         dayChangeInr: x.dayChange,
         xirr: x.xirr,
@@ -93,6 +95,19 @@ export function phoneSources(s: PhoneSnapshot): ChatSources {
       retirementHoldings: s.holdings.filter((h) => ['EPF', 'NPS', 'PPF'].includes(h.assetClass)).map((h) => ({ person: personName(h.personId), name: h.name, valueInr: h.value })),
       insurance: s.policies
     }),
+    farm: (pid) => {
+      if (!s.farm) return { note: 'No farm recorded (Farm page on the computer).' }
+      const who = pid === undefined ? null : personName(pid)
+      const mineF = <T extends { personName: string }>(xs: T[]) => (who ? xs.filter((x) => x.personName === who) : xs)
+      return {
+        ...s.farm,
+        stock: mineF(s.farm.stock),
+        growing: mineF(s.farm.growing),
+        seasons: mineF(s.farm.seasons).map(({ entries, ...x }) => ({ ...x, entries: entries.slice(-20) })),
+        prices: s.farm.prices.map(({ history: _h, ...p }) => p)
+      }
+    },
+    loans: (pid) => (s.loans ? (pid === undefined ? s.loans : s.loans.filter((l) => l.personId === pid)) : { note: 'No loans in the synced copy.' }),
     fundHistory: (code) => fundHistory(code, navHistory)
   }
 }

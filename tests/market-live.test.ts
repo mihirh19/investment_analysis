@@ -29,3 +29,29 @@ it.runIf(process.env.FP_LIVE)(
   },
   120000
 )
+
+it.runIf(process.env.FP_LIVE)(
+  'reads Rajkot mandi prices from Agmarknet',
+  async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join, resolve } = await import('node:path')
+    const { openDatabase } = await import('../src/main/db')
+    const { cropPrice, saveSeason } = await import('../src/main/farm')
+    const { refreshMandiPrices } = await import('../src/main/market/mandi')
+    const dir = mkdtempSync(join(tmpdir(), 'fp-mandi-live-'))
+    const { db, sqlite } = openDatabase(join(dir, 't.db'), '7'.repeat(64), resolve('drizzle'))
+    saveSeason(db, { personId: 2, crop: 'GROUNDNUT', season: 'KHARIF', year: 2026, status: 'HARVESTED' })
+    saveSeason(db, { personId: 2, crop: 'WHEAT', season: 'RABI', year: 2027, status: 'GROWING' })
+    const missed = await refreshMandiPrices(db, undefined, true)
+    for (const c of ['GROUNDNUT', 'WHEAT'] as const) {
+      const p = cropPrice(db, c, 'Rajkot')
+      console.log(c, p.latest?.modal, p.varieties.map((v) => `${v.name} ${v.modal} ${v.min ?? ''}-${v.max ?? ''} ${v.source}`).join(' | '))
+    }
+    console.log('missed', missed)
+    expect(cropPrice(db, 'GROUNDNUT', 'Rajkot').latest?.modal).toBeGreaterThan(1000)
+    sqlite.close()
+    rmSync(dir, { recursive: true, force: true })
+  },
+  180000
+)

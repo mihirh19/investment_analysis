@@ -8,6 +8,9 @@ import type { Services } from './services'
 import type { ManualMeta } from '@shared/assets'
 import { addManualEntry, saveManualAsset } from './manualAssets'
 import { saveVehicle } from './vehicles'
+import { seedFarm, type FarmSeed } from './farm'
+import { saveLoan } from './loans'
+import type { LoanInput } from '@shared/loans'
 import { loadPlan, savePlan } from './portfolio/forecast'
 import type { VehicleMeta } from '@shared/vehicles'
 
@@ -48,6 +51,10 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
       savePlan(db, { ...loadPlan(db), ...JSON.parse(readFileSync(path, 'utf8')) })
     } else if (file.endsWith('.vehicles.json')) {
       for (const meta of JSON.parse(readFileSync(path, 'utf8')) as VehicleMeta[]) saveVehicle(db, { personId, meta })
+    } else if (file.endsWith('.loans.json')) {
+      for (const l of JSON.parse(readFileSync(path, 'utf8')) as Omit<LoanInput, 'personId'>[]) saveLoan(db, { ...l, personId })
+    } else if (file.endsWith('.farm.json')) {
+      seedFarm(db, personId, JSON.parse(readFileSync(path, 'utf8')) as FarmSeed)
     } else if (file.endsWith('.assets.json')) {
       const items = JSON.parse(readFileSync(path, 'utf8')) as {
         meta: ManualMeta

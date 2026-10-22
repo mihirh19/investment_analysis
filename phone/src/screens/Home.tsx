@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChartGroup } from '@shared/assets'
+import { CROPS } from '@shared/farm'
 import type { PhoneTax } from '@shared/phone'
 import { GROUP_COLORS, GROUP_LABELS } from '../../../src/renderer/src/lib/labels'
 import { useData } from '../lib/data'
@@ -155,6 +156,14 @@ export function Home() {
         detail: p.rent.endsInDays < 0 ? `ended ${-p.rent.endsInDays} days ago` : `ends in ${p.rent.endsInDays} days`
       })
   }
+  for (const p of snapshot.farm?.prices ?? [])
+    if (p.targetReached && p.latest)
+      attention.push({
+        key: `f${p.crop}`,
+        tone: 'warn',
+        title: `${CROPS[p.crop].label}: ${inr(p.latest.modal)} a quintal at ${p.market}`,
+        detail: `Reached your target of ${inr(p.target)}`
+      })
   for (const pol of snapshot.policies.filter(mine))
     if (pol.nextDue && daysTo(pol.nextDue) <= 30)
       attention.push({
@@ -181,7 +190,12 @@ export function Home() {
       <ScopePicker value={scope} onChange={setScope} />
       <Card>
         <div className="text-[14px] text-ink-muted">{personName ? `${personName}’s net worth` : 'Net worth'}</div>
-        <div className="wide num text-left text-[40px] leading-tight font-semibold">{lakhCrore(s.netWorth)}</div>
+        <div className="wide num text-left text-[40px] leading-tight font-semibold">{lakhCrore(s.netWorth - (s.owed ?? 0))}</div>
+        {(s.owed ?? 0) > 0 && (
+          <div className="text-[13px] text-ink-muted">
+            Own {lakhCrore(s.netWorth)}, owe <span className="text-loss">{lakhCrore(s.owed!)}</span> on loans
+          </div>
+        )}
         <div className={`num text-left text-[15px] ${tone(s.dayChange)}`}>{signed(s.dayChange)} today</div>
         <div className="mt-3">
           <Trend values={s.history.values} />

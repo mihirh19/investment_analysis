@@ -217,7 +217,7 @@ export function App() {
     (t) =>
       (t.key !== 'spending' || Object.values(snapshot.scopes).some((x) => x.spending)) &&
       (t.key !== 'doing' || Object.values(snapshot.scopes).some((x) => x.performance || x.exposure || x.funds || x.rebalance)) &&
-      (t.key !== 'assets' || snapshot.properties.length + snapshot.vehicles.length > 0) &&
+      (t.key !== 'assets' || snapshot.properties.length + snapshot.vehicles.length + (snapshot.farm ? 1 : 0) > 0) &&
       (t.key !== 'plan' || snapshot.forecast)
   )
   // A tab saved before the bar changed (or one with nothing in it now) falls back to Home.

@@ -26,6 +26,10 @@ export interface ChatSources {
   sectors(personId?: number): unknown
   funds(personId?: number): unknown
   retirement(): unknown
+  /** The farm: godown stock and its value, crops in the field, seasons' costs and sales, mandi prices. */
+  farm?(personId?: number): unknown
+  /** Loans: owed, EMI, payoff, interest; KCC drawings and on-time interest. */
+  loans?(personId?: number): unknown
   /** Any listed stock, ETF or index: price, 52-week range, past returns (desktop only: Yahoo blocks browsers). */
   stock?(query: string): Promise<unknown>
   /** Mutual funds by name: returns, costs, size, scheme codes and NAVs (desktop only). */
@@ -64,7 +68,7 @@ People in the books: ${persons.map((p) => p.name).join(', ')}. "Family" means al
 How to answer:
 - Every figure must come from a tool result. Look things up before answering; never estimate or recall numbers. If the records don't have something (a statement not imported, a fund without holdings), say so and say what to import.
 - Keep it short and plain: lead with the answer, then the two or three figures that support it. Rupees as ₹ with Indian grouping or lakh/crore (₹4.2 L, ₹1.3 Cr). Financial years run April to March (FY27 = Apr 2026 to Mar 2027). Reply in the language the person writes in, including Hinglish.
-- Point to the page that shows more (Holdings, Tax, Performance, Spending, Property & rent, Vehicles, Forecast & inflation, Sectors & exposure, Funds).
+- Point to the page that shows more (Holdings, Tax, Performance, Spending, Property & rent, Vehicles, Farm, Loans & EMIs, Forecast & inflation, Sectors & exposure, Funds).
 - You are not a SEBI-registered investment adviser. Explain, compare and show facts (costs, overlaps, tax effects, past returns), but don't tell the person to buy, sell or switch a particular security, fund or sector. If asked, lay out the facts that bear on the choice and suggest a SEBI-registered adviser for a recommendation.
 - Past returns don't predict future ones; say so when comparing returns.
 
@@ -84,6 +88,8 @@ const TOOL_WORDS: Record<string, string> = {
   sectors: 'sectors',
   funds: 'your funds',
   retirement: 'EPF, NPS and insurance',
+  farm: 'the farm',
+  loans: 'loans',
   stock: 'market prices',
   fund_search: 'mutual fund data',
   fund_history: 'NAV history',
@@ -161,6 +167,26 @@ export async function ask(
     tool('sectors', 'Equity by sector against the Nifty 500, each sector index’s returns and P/E against its own ten years, funds and ETFs tracking each sector.', z.object({ who }), (i) => src.sectors(personId(i.who))),
     tool('funds', 'Mutual funds held: plan (Direct/Regular) and what Regular costs, fund houses, categories, overlap between funds with cost and returns side by side.', z.object({ who }), (i) => src.funds(personId(i.who))),
     tool('retirement', 'EPF balances, NPS holdings and insurance policies (premiums, due dates, cover).', z.object({}), () => src.retirement()),
+    ...(src.loans
+      ? [
+          tool(
+            'loans',
+            'Loans and EMIs: kind, lender, owed today, EMI, next EMI, EMIs left, payoff date, interest still to pay, this financial year’s interest and principal (home loans: 24(b) and 80C under the old regime), and for a Kisan Credit Card the amount drawn, interest at the full rate and at the on-time rate, and the repay-by date. Net worth is holdings less what is owed.',
+            z.object({ who }),
+            (i) => src.loans!(personId(i.who))
+          )
+        ]
+      : []),
+    ...(src.farm
+      ? [
+          tool(
+            'farm',
+            'The family farm: produce in the godown (quintals, today’s mandi price, value, growing cost), crops still in the field (expected yield and value, not counted in net worth), each season’s costs by kind, harvest, sales, profit and profit per acre, and mandi prices against the 30/90-day average, a year ago, MSP and the family’s target. Prices are ₹ a quintal; 1 man = 20 kg.',
+            z.object({ who }),
+            (i) => src.farm!(personId(i.who))
+          )
+        ]
+      : []),
     ...(stock
       ? [
           tool(

@@ -8,7 +8,7 @@ import { it } from 'vitest'
 import type { ManualMeta } from '../src/shared/assets'
 import type { VehicleMeta } from '../src/shared/vehicles'
 import { seal, vaultKey } from '../src/shared/vault'
-import { openDatabase } from '../src/main/db'
+import { openDatabase, schema } from '../src/main/db'
 import { persistBundle } from '../src/main/importers/bundle'
 import { mapCasJson, type CasJson } from '../src/main/importers/cas'
 import { addManualEntry, saveManualAsset } from '../src/main/manualAssets'
@@ -18,6 +18,10 @@ import { createServices } from '../src/main/services'
 import { saveVehicle } from '../src/main/vehicles'
 import { saveStatement } from '../src/main/statements'
 import { saveTargets } from '../src/main/portfolio/rebalance'
+import { mandiKey, seedFarm, type FarmSeed } from '../src/main/farm'
+import { saveLoan } from '../src/main/loans'
+import type { LoanInput } from '../src/shared/loans'
+import type { CropKey } from '../src/shared/farm'
 import type { SpendCategory } from '../src/shared/ai'
 
 it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
@@ -33,6 +37,8 @@ it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
     else if (file.includes('zerodha')) await services.runImport({ kind: 'ZERODHA_TRADEBOOK', personId, filePath: path })
     else if (file.includes('indmoney')) await services.runImport({ kind: 'GENERIC_TRADES', personId, filePath: path, platform: 'INDMONEY' })
     else if (file.endsWith('.plan.json')) savePlan(db, { ...loadPlan(db), ...JSON.parse(readFileSync(path, 'utf8')) })
+    else if (file.endsWith('.loans.json')) for (const l of JSON.parse(readFileSync(path, 'utf8')) as Omit<LoanInput, 'personId'>[]) saveLoan(db, { ...l, personId })
+    else if (file.endsWith('.farm.json')) seedFarm(db, personId, JSON.parse(readFileSync(path, 'utf8')) as FarmSeed)
     else if (file.endsWith('.vehicles.json'))
       for (const meta of JSON.parse(readFileSync(path, 'utf8')) as VehicleMeta[]) saveVehicle(db, { personId, meta })
     else if (file.endsWith('.assets.json'))
@@ -87,6 +93,14 @@ it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
     },
     'demo'
   )
+  // Made-up Rajkot prices (the test runs offline), so the farm has values.
+  const days = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+  const prices: Record<string, number> = { GROUNDNUT: 7900, WHEAT: 2875, CUMIN: 19800, COTTON: 7650 }
+  for (const [crop, modal] of Object.entries(prices))
+    for (let i = 0; i < 40; i++)
+      db.insert(schema.priceHistory)
+        .values({ key: mandiKey(crop as CropKey, 'Rajkot'), date: days(i), close: Math.round(modal * (1 - i * 0.002)) })
+        .run()
   // A target mix, so the Doing tab's Mix has something to compare with.
   saveTargets(db, null, { buckets: { EQUITY_IN: 0.45, EQUITY_INTL: 0.1, DEBT: 0.35, GOLD: 0.07, CASH: 0.03 }, band: 0.05 })
   // A made-up key so the demo shows the Ask button (no request with it can succeed).

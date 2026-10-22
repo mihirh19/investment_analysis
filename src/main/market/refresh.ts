@@ -40,6 +40,7 @@ function propertyCities(db: Db): number[] {
 }
 import { reclassifyDemat, tidyListedNames } from '../importers/isin'
 import { syncDisclosures, type DisclosureDeps } from './disclosures'
+import { refreshMandiPrices } from './mandi'
 import { fromIndustryText, fromNseIndustry, fromYahoo } from './sectors'
 import { yahooDividends, yahooHistory, yahooProfile, yahooQuote, yahooSymbolForIsin, YahooSession } from './yahoo'
 
@@ -70,6 +71,7 @@ type SourceKey =
   | 'inflation'
   | 'fundfacts'
   | 'sectorindices'
+  | 'mandi'
 
 const SOURCE_LABELS: Record<SourceKey, string> = {
   stocks: 'Stock & ETF prices (Yahoo Finance)',
@@ -90,7 +92,8 @@ const SOURCE_LABELS: Record<SourceKey, string> = {
   housing: 'Home prices (NHB RESIDEX)',
   inflation: 'Inflation by category (MoSPI consumer price index)',
   fundfacts: 'Fund returns, size and expense ratios (AMFI)',
-  sectorindices: 'Sector indices: returns and P/E history (NSE)'
+  sectorindices: 'Sector indices: returns and P/E history (NSE)',
+  mandi: 'Mandi prices for the farm (Agmarknet)'
 }
 
 const MINUTE = 60_000
@@ -231,6 +234,8 @@ export class MarketData {
           await this.guard('inflation', async () => {
             await refreshCpi(this.db, this.f)
           })
+          // Every six hours at most, and only for crops the farm grows or watches.
+          await this.guard('mandi', () => refreshMandiPrices(this.db, this.f))
           // Weekly at most (each checks its own age).
           await this.guard('fundfacts', async () => {
             await refreshSchemeFacts(this.db, this.f)

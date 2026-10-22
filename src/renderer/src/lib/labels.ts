@@ -26,6 +26,7 @@ export const ASSET_LABELS: Record<AssetClass, string> = {
   CRYPTO: 'Crypto',
   INSURANCE: 'Insurance',
   CASH: 'Cash & savings',
+  AGRI: 'Farm produce',
   OTHER: 'Other'
 }
 
@@ -45,6 +46,7 @@ export const ASSET_ORDER: AssetClass[] = [
   'CRYPTO',
   'INSURANCE',
   'CASH',
+  'AGRI',
   'OTHER'
 ]
 
@@ -59,7 +61,7 @@ export const GROUP_LABELS: Record<ChartGroup, string> = {
   RETIREMENT: 'EPF, PPF & NPS',
   PROPERTY: 'Property',
   CRYPTO: 'Crypto',
-  OTHER: 'Cash & other'
+  OTHER: 'Cash, farm & other'
 }
 
 export const GROUP_COLORS: Record<ChartGroup, string> = {
@@ -143,7 +145,7 @@ export const RATING_LABELS: Record<DebtRating, { label: string; detail: string }
 export const RATING_ORDER: DebtRating[] = ['SOVEREIGN', 'AAA', 'AA', 'A_BELOW', 'DEPOSIT', 'UNRATED', 'NOT_BROKEN_DOWN']
 
 export const LIQUIDITY_LABELS: Record<Liquidity, { label: string; detail: string }> = {
-  LIQUID: { label: 'Available in days', detail: 'Stocks, funds, crypto, savings, matured deposits' },
+  LIQUID: { label: 'Available in days', detail: 'Stocks, funds, crypto, savings, matured deposits, farm produce in the godown' },
   BREAKABLE: { label: 'Can be broken early', detail: 'FDs, bonds, SGBs, gold, with a penalty or a price' },
   LOCKED: { label: 'Locked in', detail: 'EPF, PPF, NPS, NSC and KVP until their dates' },
   ILLIQUID: { label: 'Hard to sell quickly', detail: 'Property and other holdings' }

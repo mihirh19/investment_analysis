@@ -10,6 +10,7 @@ import { estimateEpfBalance, parseEpfMeta } from './epf'
 import { FxTable } from './fx'
 import { listHoldings } from './holdings'
 import { xirr, type CashFlow } from './xirr'
+import { loansReport, owedByDate } from '../loans'
 
 type Txn = typeof schema.transactions.$inferSelect
 
@@ -22,6 +23,8 @@ const MARKET_LIQUIDITY: Partial<Record<HoldingRow['assetClass'], Liquidity>> = {
   EPF: 'LOCKED',
   NPS: 'LOCKED',
   INSURANCE: 'BREAKABLE',
+  // Produce in the godown sells at the mandi within days.
+  AGRI: 'LIQUID',
   OTHER: 'ILLIQUID'
 }
 
@@ -419,6 +422,7 @@ export function computeAnalysis(db: Db, personId?: number): AnalysisReport {
 
   return {
     totalInr,
+    owed: { totalInr: loansReport(db, personId, today).owedInr, byMonth: owedByDate(db, history.months, personId) },
     xirr: { overall: overall.xirr, coverage: overall.coverage, byPerson },
     scorecard,
     history,

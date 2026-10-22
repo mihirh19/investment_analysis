@@ -20,6 +20,8 @@ import { computeForecast } from './portfolio/forecast'
 import { listHoldings } from './portfolio/holdings'
 import { computeProperties } from './portfolio/property'
 import { computeTax } from './portfolio/tax'
+import { farmReport, saveEntry } from './farm'
+import { loansReport } from './loans'
 import { computeExposure } from './portfolio/exposure'
 import { computeFunds } from './portfolio/fundInsights'
 import { computeFundComparisons, computeSectorInsights } from './portfolio/insights'
@@ -53,10 +55,12 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
       dayChange: rows.reduce((s, r) => s + (r.dayChangeInr ?? 0), 0),
       xirr: a.xirr.overall,
       xirrCoverage: a.xirr.coverage,
+      // Net worth over time: what was owned less what was owed on loans at each month end.
       history: {
         months: a.history.months,
-        values: a.history.months.map((_, i) => a.history.series.reduce((s, g) => s + g.values[i], 0))
+        values: a.history.months.map((_, i) => a.history.series.reduce((s, g) => s + g.values[i], 0) - (a.owed.byMonth[i] ?? 0))
       },
+      owed: a.owed.totalInr,
       byGroup: [...byGroup].map(([group, value]) => ({ group, value })).sort((x, y) => y.value - x.value),
       upcoming: a.upcoming
         .filter((u) => u.date >= today && u.date <= horizon)
@@ -244,9 +248,18 @@ export function buildPhoneSnapshot(db: Db, applied: string[], pricesAsOf: string
       premium: p.premium,
       insurer: p.insurer
     })),
+    loans: loansReport(db).loans.map(({ payments: _p, ...l }) => l),
+    farm: farmForPhone(db),
     ai,
     applied
   }
+}
+
+/** The farm for everyone, with each crop's price history cut to the last few months. */
+function farmForPhone(db: Db): PhoneSnapshot['farm'] {
+  const r = farmReport(db)
+  if (!r.seasons.length && !r.prices.length) return null
+  return { ...r, prices: r.prices.map((p) => ({ ...p, history: p.history.slice(-120) })) }
 }
 
 /** Applies one thing recorded on the phone, through the same checks as the desktop's forms. */
@@ -301,5 +314,10 @@ export function applyPhoneEntry(db: Db, e: PhoneEntry): void {
     case 'ASSET_VALUE':
       addManualEntry(db, e.accountId, e.date, e.value)
       return
+    case 'FARM_ENTRY': {
+      const { id: _id, at: _at, type: _t, entryType, ...rest } = e
+      saveEntry(db, { ...rest, type: entryType })
+      return
+    }
   }
 }

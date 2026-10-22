@@ -24,6 +24,8 @@ import { Rebalance } from './pages/Rebalance'
 import { OtherAssets } from './pages/OtherAssets'
 import { Property } from './pages/Property'
 import { Vehicles } from './pages/Vehicles'
+import { Farm } from './pages/Farm'
+import { Loans } from './pages/Loans'
 import { Forecast } from './pages/Forecast'
 import { Spending } from './pages/Spending'
 
@@ -55,6 +57,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="other-assets" element={<OtherAssets />} />
               <Route path="property" element={<Property />} />
               <Route path="vehicles" element={<Vehicles />} />
+              <Route path="farm" element={<Farm />} />
+              <Route path="loans" element={<Loans />} />
               <Route path="forecast" element={<Forecast />} />
               <Route path="spending" element={<Spending />} />
             </Route>

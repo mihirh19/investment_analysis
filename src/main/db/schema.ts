@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type { AccountKind, AssetClass, ImportKind, Platform, Relation, TxnType } from '@shared/types'
+import type { CropKey, FarmCostKind, FarmEntryType, FarmSeasonKind, FarmStatus } from '@shared/farm'
 
 const createdAt = () =>
   text('created_at')
@@ -398,3 +399,62 @@ export const spendTxns = sqliteTable(
   },
   (t) => [index('spend_txns_account_date').on(t.accountId, t.date)]
 )
+
+// ---------------- the farm: seasons, their costs, harvests and sales ----------------
+
+export const farmSeasons = sqliteTable('farm_seasons', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personId: integer('person_id')
+    .notNull()
+    .references(() => persons.id),
+  crop: text('crop').$type<CropKey>().notNull(),
+  /** e.g. G20, Bold, Lokwan; prices are taken for it when the mandi reports it. */
+  variety: text('variety'),
+  /** The class the mandi sells it as (groundnut: Jini or Jadi), when its own variety isn't quoted. */
+  priceClass: text('price_class'),
+  season: text('season').$type<FarmSeasonKind>().notNull(),
+  year: integer('year').notNull(),
+  field: text('field'),
+  areaAcres: real('area_acres'),
+  sownOn: text('sown_on'),
+  expectedQtl: real('expected_qtl'),
+  status: text('status').$type<FarmStatus>().notNull(),
+  market: text('market'),
+  note: text('note'),
+  createdAt: createdAt()
+})
+
+export const farmEntries = sqliteTable(
+  'farm_entries',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    seasonId: integer('season_id')
+      .notNull()
+      .references(() => farmSeasons.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(),
+    type: text('type').$type<FarmEntryType>().notNull(),
+    costKind: text('cost_kind').$type<FarmCostKind>(),
+    quantityQtl: real('quantity_qtl'),
+    rate: real('rate'),
+    amount: real('amount').notNull().default(0),
+    charges: real('charges'),
+    mandi: text('mandi'),
+    note: text('note'),
+    createdAt: createdAt()
+  },
+  (t) => [index('farm_entries_season').on(t.seasonId)]
+)
+
+// ---------------- loans: what the family owes ----------------
+
+export const loans = sqliteTable('loans', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personId: integer('person_id')
+    .notNull()
+    .references(() => persons.id),
+  /** LoanMeta as JSON. */
+  metaJson: text('meta_json').notNull(),
+  /** LoanPayment[] as JSON: recorded EMIs, prepayments, KCC drawings and repayments. */
+  paymentsJson: text('payments_json').notNull().default('[]'),
+  createdAt: createdAt()
+})
