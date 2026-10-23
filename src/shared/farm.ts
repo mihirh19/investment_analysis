@@ -262,6 +262,11 @@ export interface FarmReport {
   thisFy: { fy: string; sales: number; costs: number }
   pricesAsOf: string | null
   priceError: string | null
+  /** Past patterns, mandis, arrivals, hold-or-sell and Claude's note, for crops in stock or growing. */
+  outlook: CropOutlook[]
+  holdingCosts: HoldingCosts
+  /** Transport to each mandi, ₹ a quintal, as entered. */
+  transport: Record<string, number>
 }
 
 /** For the season form: varieties the mandi reported lately, the yard's classes with today's price, and Agmarknet's list. */
@@ -269,4 +274,51 @@ export interface CropVarieties {
   reported: { name: string; modal: number; date: string }[]
   classes: { key: string; label: string; gu: string; note: string; modal: number | null; min: number | null; max: number | null; date: string | null }[]
   all: string[]
+}
+
+/** How this crop's price moved from this month in past years, at this mandi (monthly averages). */
+export interface SeasonalPattern {
+  /** The month it starts from, e.g. "October". */
+  fromMonth: string
+  horizons: { months: number; changes: { year: number; pct: number }[]; median: number | null; min: number | null; max: number | null }[]
+}
+
+/** What keeping produce in the godown costs, for the hold-or-sell figures. */
+export interface HoldingCosts {
+  /** ₹ a quintal a month (godown rent, bags, fumigation); 0 in one's own godown. */
+  storagePerQtlMonth: number
+  /** Weight lost a month as it dries, % (groundnut and grains lose moisture after harvest). */
+  lossPctPerMonth: number
+  /** Interest on the money not yet received (e.g. the KCC rate), % a year. */
+  interestPct: number
+}
+
+/** Claude's note on market conditions for a crop, from a web search; an outlook, not a forecast to rely on. */
+export interface MarketNote {
+  at: string
+  crop: CropKey
+  market: string
+  text: string
+  /** The 1–3 month range it gives, ₹ a quintal, and how sure it says it is. */
+  range: { low: number; high: number } | null
+  confidence: 'low' | 'medium' | 'high' | null
+  sources: { title: string; url: string }[]
+}
+
+export interface CropOutlook {
+  crop: CropKey
+  market: string
+  price: number | null
+  pattern: SeasonalPattern | null
+  /** Today's prices at the state's mandis, with what transport to each costs and leaves. */
+  mandis: { date: string; rows: { name: string; district: string; modal: number; arrivalsT: number | null; transport: number | null; net: number | null; here: boolean }[] } | null
+  /** Arrivals at this mandi: the latest day's and the last 30 days' average, tonnes. */
+  arrivals: { latest: number | null; latestDate: string | null; avg30: number | null } | null
+  /** For what is in the godown: selling today, and waiting, at past years' worst, typical and best moves. */
+  hold: {
+    qtl: number
+    sellNow: number
+    horizons: { months: number; cost: number; low: number | null; typical: number | null; high: number | null }[]
+  } | null
+  note: MarketNote | null
 }

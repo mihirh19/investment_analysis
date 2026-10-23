@@ -111,6 +111,16 @@ describe('fetching the farm’s prices', () => {
       if (url.pathname.endsWith('/wholesale-prices-monthly'))
         return json(MONTHLY(Number(url.searchParams.get('year')), Number(url.searchParams.get('month'))))
       if (url.hostname === 'www.apmcrajkot.com') return new Response(RAJKOT)
+      if (url.pathname.endsWith('/dashboard-data/'))
+        return json({
+          data: {
+            records: [
+              { mkt_id: 61, mkt_name: 'Gondal APMC', district_name: 'Rajkot', modal_price_wt: '8120.00', arrival_qty: '310.5' },
+              { mkt_id: 60, mkt_name: 'Rajkot APMC', district_name: 'Rajkot', modal_price_wt: '7950.00', arrival_qty: '142.0' }
+            ]
+          },
+          pagination: { total_pages: 1 }
+        })
       return new Response('', { status: 404 })
     }) as typeof fetch
 
@@ -121,7 +131,11 @@ describe('fetching the farm’s prices', () => {
     saveEntry(db, { seasonId: s, date: '2026-10-18', type: 'HARVEST', costKind: null, quantityQtl: 50, rate: null, amount: 0, charges: null, mandi: null, note: null })
     expect(await refreshMandiPrices(db, f, false, new Date('2026-10-22T06:00:00Z'))).toEqual([])
     expect(asked.filter((a) => a.includes('lastweek'))).toEqual(['/v1/prices-and-arrivals/market-price/lastweek?marketId=60&stateId=11&commodityId=10&includeExcel=false'])
-    expect(asked.filter((a) => a.includes('monthly'))).toHaveLength(12)
+    // Six years of monthly averages, skipping months an earlier answer already brought.
+    const monthly = asked.filter((a) => a.includes('monthly')).length
+    expect(monthly).toBeGreaterThan(20)
+    expect(monthly).toBeLessThan(50)
+    expect(asked.filter((a) => a.includes('dashboard-data'))).toHaveLength(1)
     expect(asked.filter((a) => a.includes('daily_rates'))).toHaveLength(1)
 
     const r = farmReport(db, undefined, '2026-10-22')
@@ -168,7 +182,8 @@ describe('fetching the farm’s prices', () => {
     expect(asked.length).toBe(before)
     await refreshMandiPrices(db, f, true, new Date('2026-10-22T09:00:00Z'))
     // Forced: the week again, and only the last two months now that the year is there.
-    expect(asked.length).toBe(before + 1 + 2 + 1)
+    // Forced: the week, the last two months, the state’s mandis and Rajkot’s own page.
+    expect(asked.length).toBe(before + 1 + 2 + 1 + 1)
   })
 
   it('says which crops it found no price for, and why', async () => {

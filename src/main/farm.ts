@@ -11,7 +11,11 @@ import {
   type FarmReport,
   type FarmSeasonInput,
   type FarmSeasonView,
-  type FarmStock
+  type FarmStock,
+  type HoldingCosts,
+  type MarketNote,
+  type SeasonalPattern,
+  type CropOutlook
 } from '@shared/farm'
 import type { HoldingRow } from '@shared/types'
 import { schema, type Db } from './db'
@@ -83,6 +87,153 @@ export function newlyReachedTargets(db: Db): { crop: CropKey; price: number; tar
   }
   setSetting(db, ALERTED_KEY, JSON.stringify(alerted))
   return out
+}
+
+// ---------------- the outlook: past patterns, mandis, arrivals, holding ----------------
+
+const STATE_KEY = 'farm:statePrices'
+const HOLDING_KEY = 'farm:holding'
+const TRANSPORT_KEY = 'farm:transport'
+const NOTES_KEY = 'farm:notes'
+
+/** A day's prices across a state's mandis: weighted modal price (₹/qtl) and arrivals (tonnes). */
+export interface StatePrices {
+  date: string
+  markets: { id: number; name: string; district: string; modal: number; arrivalsT: number | null }[]
+}
+/** Arrivals at a mandi, tonnes a day, kept like a price series. */
+export const arrivalKey = (crop: CropKey, market: string) => `ARRIVAL:${crop}:${market.trim().toUpperCase()}`
+
+export const storedStatePrices = (db: Db, crop: CropKey): StatePrices | null =>
+  (JSON.parse(getSetting(db, STATE_KEY) ?? '{}') as Record<string, StatePrices>)[crop] ?? null
+export function saveStatePrices(db: Db, crop: CropKey, st: StatePrices): void {
+  const all = JSON.parse(getSetting(db, STATE_KEY) ?? '{}') as Record<string, StatePrices>
+  all[crop] = st
+  setSetting(db, STATE_KEY, JSON.stringify(all))
+}
+
+export const DEFAULT_HOLDING: HoldingCosts = { storagePerQtlMonth: 0, lossPctPerMonth: 0.5, interestPct: 7 }
+export const holdingCosts = (db: Db): HoldingCosts => ({ ...DEFAULT_HOLDING, ...JSON.parse(getSetting(db, HOLDING_KEY) ?? '{}') })
+export function setHoldingCosts(db: Db, c: HoldingCosts): void {
+  if (![c.storagePerQtlMonth, c.lossPctPerMonth, c.interestPct].every((v) => Number.isFinite(v) && v >= 0)) throw new Error('Costs can’t be negative.')
+  if (c.lossPctPerMonth > 20 || c.interestPct > 60) throw new Error('That looks too high: weight loss is a few % a month at most, interest under 60% a year.')
+  setSetting(db, HOLDING_KEY, JSON.stringify(c))
+}
+
+export const transportCosts = (db: Db): Record<string, number> => JSON.parse(getSetting(db, TRANSPORT_KEY) ?? '{}')
+export function setTransportCost(db: Db, market: string, perQtl: number | null): void {
+  const t = transportCosts(db)
+  const k = market.trim()
+  if (!k) throw new Error('Which mandi?')
+  if (perQtl === null || !(perQtl >= 0)) delete t[k]
+  else t[k] = Math.round(perQtl)
+  setSetting(db, TRANSPORT_KEY, JSON.stringify(t))
+}
+
+export const marketNotes = (db: Db): Partial<Record<CropKey, MarketNote>> => JSON.parse(getSetting(db, NOTES_KEY) ?? '{}')
+export function saveMarketNote(db: Db, note: MarketNote): void {
+  const all = marketNotes(db)
+  all[note.crop] = note
+  setSetting(db, NOTES_KEY, JSON.stringify(all))
+}
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const median = (xs: number[]) => {
+  if (!xs.length) return null
+  const s = [...xs].sort((a, b) => a - b)
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2
+}
+const normMarket = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\bapmc\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+/**
+ * How the price moved from this month in past years: for each year with both months reported,
+ * the change from this month's average to the one 1, 3 and 6 months on.
+ */
+export function seasonalPattern(db: Db, crop: CropKey, market: string, today = todayIso()): SeasonalPattern | null {
+  const pts = new Map(
+    db
+      .select({ date: schema.priceHistory.date, price: schema.priceHistory.close })
+      .from(schema.priceHistory)
+      .where(eq(schema.priceHistory.key, monthlyKey(crop, market)))
+      .all()
+      .map((p) => [p.date.slice(0, 7), p.price])
+  )
+  const y0 = Number(today.slice(0, 4))
+  const m0 = Number(today.slice(5, 7))
+  const at = (y: number, m: number) => pts.get(`${y + Math.floor((m - 1) / 12)}-${String(((m - 1) % 12) + 1).padStart(2, '0')}`)
+  const horizons = [1, 3, 6].map((k) => {
+    const changes: { year: number; pct: number }[] = []
+    // Past years only: the move from this month a year (or more) ago, already over.
+    for (let y = y0 - 1; y >= y0 - 8; y--) {
+      const a = at(y, m0)
+      const b = at(y, m0 + k)
+      if (a && b) changes.push({ year: y, pct: Math.round((b / a - 1) * 1000) / 10 })
+    }
+    const pcts = changes.map((c) => c.pct)
+    const mid = median(pcts)
+    return { months: k, changes, median: mid === null ? null : Math.round(mid * 10) / 10, min: pcts.length ? Math.min(...pcts) : null, max: pcts.length ? Math.max(...pcts) : null }
+  })
+  if (horizons.every((h) => !h.changes.length)) return null
+  return { fromMonth: MONTH_NAMES[m0 - 1], horizons }
+}
+
+/** Selling today against waiting k months, at past years' worst, typical and best moves, after holding costs. */
+export function holdFigures(qtl: number, price: number, pattern: SeasonalPattern | null, c: HoldingCosts): NonNullable<CropOutlook['hold']> {
+  const sellNow = Math.round(qtl * price)
+  return {
+    qtl,
+    sellNow,
+    horizons: [1, 3, 6].map((k) => {
+      const h = pattern?.horizons.find((x) => x.months === k)
+      const left = qtl * Math.max(0, 1 - (c.lossPctPerMonth / 100) * k)
+      const cost = Math.round(c.storagePerQtlMonth * qtl * k + (sellNow * c.interestPct * k) / 1200)
+      // Against selling now: what is left (after drying) at the moved price, less storage and interest.
+      const gain = (pct: number | null | undefined) => (pct == null ? null : Math.round(left * price * (1 + pct / 100) - cost - sellNow))
+      return { months: k, cost, low: gain(h?.min), typical: gain(h?.median), high: gain(h?.max) }
+    })
+  }
+}
+
+function outlookFor(db: Db, crop: CropKey, market: string, stockQtl: number, today: string): CropOutlook {
+  const price = priceFor(db, crop, market)?.price ?? null
+  const pattern = seasonalPattern(db, crop, market, today)
+  const st = storedStatePrices(db, crop)
+  const transport = transportCosts(db)
+  const tFor = (name: string) => {
+    const k = Object.keys(transport).find((t) => normMarket(t) === normMarket(name))
+    return k !== undefined ? transport[k] : null
+  }
+  const arrivals = db
+    .select({ date: schema.priceHistory.date, t: schema.priceHistory.close })
+    .from(schema.priceHistory)
+    .where(and(eq(schema.priceHistory.key, arrivalKey(crop, market)), gte(schema.priceHistory.date, daysBefore(today, 30))))
+    .orderBy(asc(schema.priceHistory.date))
+    .all()
+  return {
+    crop,
+    market,
+    price,
+    pattern,
+    mandis: st
+      ? {
+          date: st.date,
+          rows: st.markets.map((m) => {
+            const t = tFor(m.name)
+            return { name: m.name, district: m.district, modal: m.modal, arrivalsT: m.arrivalsT, transport: t, net: t !== null ? m.modal - t : null, here: normMarket(m.name) === normMarket(market) }
+          })
+        }
+      : null,
+    arrivals: arrivals.length
+      ? { latest: arrivals.at(-1)!.t, latestDate: arrivals.at(-1)!.date, avg30: Math.round((arrivals.reduce((s, a) => s + a.t, 0) / arrivals.length) * 10) / 10 }
+      : null,
+    hold: stockQtl > 0 && price ? holdFigures(stockQtl, price, pattern, holdingCosts(db)) : null,
+    note: marketNotes(db)[crop] ?? null
+  }
 }
 
 // ---------------- seasons and entries ----------------
@@ -458,7 +609,18 @@ export function farmReport(db: Db, personId?: number, today = todayIso()): FarmR
       costs: Math.round(all.filter((e) => e.type === 'COST' && inFy(e.date)).reduce((s, e) => s + e.amount, 0))
     },
     pricesAsOf: lastPrice?.date ?? null,
-    priceError: getSetting(db, 'farm:priceError')
+    priceError: getSetting(db, 'farm:priceError'),
+    outlook: crops.map((c) =>
+      outlookFor(
+        db,
+        c,
+        seasons.find((x) => x.crop === c && x.market)?.market ?? market,
+        stock.filter((x) => x.crop === c).reduce((t, x) => t + x.quantityQtl, 0),
+        today
+      )
+    ),
+    holdingCosts: holdingCosts(db),
+    transport: transportCosts(db)
   }
 }
 

@@ -26,6 +26,8 @@ interface Stored {
   chatMail: boolean
   /** The key goes to the phone app (inside the passphrase-locked copy) for Ask your money there. */
   phoneChat: boolean
+  /** Market notes for the farm's crops. */
+  marketNotes: boolean
 }
 
 interface Month {
@@ -53,7 +55,7 @@ export function createAi(d: AiDeps) {
       .values({ key: k, value })
       .onConflictDoUpdate({ target: schema.settings.key, set: { value } })
       .run()
-  const load = (): Stored => ({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, phoneChat: false, ...JSON.parse(get(KEY) ?? '{}') })
+  const load = (): Stored => ({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, phoneChat: false, marketNotes: false, ...JSON.parse(get(KEY) ?? '{}') })
   const month = () => new Date().toISOString().slice(0, 7)
   const usage = (): Record<string, Month> => JSON.parse(get(USAGE_KEY) ?? '{}')
 
@@ -72,7 +74,7 @@ export function createAi(d: AiDeps) {
       const m = usage()[month()] ?? { calls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
       const costUsd =
         ((m.inputTokens * PRICE.input + m.outputTokens * PRICE.output + m.cacheReadTokens * PRICE.cacheRead) / 1e6) || 0
-      return { hasKey: !!s.apiKey, keyEnding: s.keyEnding, statements: s.statements, chat: s.chat, chatMail: s.chatMail, phoneChat: s.phoneChat, model: AI_MODEL, month: { ...m, costUsd } }
+      return { hasKey: !!s.apiKey, keyEnding: s.keyEnding, statements: s.statements, chat: s.chat, chatMail: s.chatMail, phoneChat: s.phoneChat, marketNotes: s.marketNotes, model: AI_MODEL, month: { ...m, costUsd } }
     },
 
     /** Saves the key after checking it with Anthropic (a free model lookup, no tokens). */
@@ -95,24 +97,26 @@ export function createAi(d: AiDeps) {
 
     setFeatures(f: AiFeatures): AiStatus {
       const s = load()
-      if ((f.statements || f.chat || f.chatMail || f.phoneChat) && !s.apiKey) throw new Error('Add your Claude API key first.')
+      if ((f.statements || f.chat || f.chatMail || f.phoneChat || f.marketNotes) && !s.apiKey) throw new Error('Add your Claude API key first.')
       set(KEY, JSON.stringify({ ...s, ...f }))
       return this.status()
     },
 
     removeKey(): AiStatus {
-      set(KEY, JSON.stringify({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, phoneChat: false }))
+      set(KEY, JSON.stringify({ apiKey: null, keyEnding: null, statements: false, chat: false, chatMail: false, phoneChat: false, marketNotes: false }))
       cached = null
       return this.status()
     },
 
     /** The client, only when the feature is switched on. */
-    clientFor(feature: 'statements' | 'chat'): Anthropic {
+    clientFor(feature: 'statements' | 'chat' | 'marketNotes'): Anthropic {
       if (!load()[feature])
         throw new AiDisabledError(
           feature === 'statements'
             ? 'Reading statements with Claude is off. Turn it on in Settings → Claude.'
-            : 'Ask your money is off. Turn it on in Settings → Claude.'
+            : feature === 'marketNotes'
+              ? 'Market notes are off. Turn them on in Settings → Claude.'
+              : 'Ask your money is off. Turn it on in Settings → Claude.'
         )
       return client()
     },

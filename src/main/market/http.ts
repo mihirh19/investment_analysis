@@ -16,6 +16,9 @@ export interface HttpOptions {
   fetch?: FetchFn
   timeoutMs?: number
   headers?: Record<string, string>
+  /** GET unless given (Agmarknet's dashboard data is a POST). */
+  method?: 'GET' | 'POST'
+  body?: string
 }
 
 export async function getText(url: string, opts: HttpOptions = {}): Promise<string> {
@@ -55,6 +58,8 @@ export async function fetchWith<T>(url: string, opts: HttpOptions, read: (res: R
     let res: Response
     try {
       res = await f(url, {
+        method: opts.method ?? 'GET',
+        body: opts.body,
         headers: { 'User-Agent': UA, Accept: '*/*', ...opts.headers },
         signal: ctrl.signal,
         redirect: 'follow'

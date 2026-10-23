@@ -45,7 +45,8 @@ import * as farm from './farm'
 import * as loans from './loans'
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import { knownVarieties, refreshMandiPrices } from './market/mandi'
-import { PRICE_CLASSES, type CropKey, type CropVarieties, type FarmEntryInput, type FarmSeasonInput } from '@shared/farm'
+import { PRICE_CLASSES, type CropKey, type CropVarieties, type FarmEntryInput, type FarmSeasonInput, type HoldingCosts, type MarketNote } from '@shared/farm'
+import { writeMarketNote } from './farmNote'
 import { refreshSchemeFacts, storedSchemeFacts } from './market/amfiData'
 import { storedCpi } from './market/cpi'
 import { deleteStatement, PdfPasswordNeeded, readStatement, saveStatement, setCategory, spendingReport, statementContent } from './statements'
@@ -811,6 +812,36 @@ export function createServices(deps: ServiceDeps) {
         return { ...c, modal: p?.modal ?? null, min: p?.min ?? null, max: p?.max ?? null, date: p?.date ?? null }
       })
       return { reported, classes, all: knownVarieties(db, crop).filter((v) => !seen.has(v.toUpperCase())) }
+    },
+    setFarmHolding(costs: HoldingCosts): null {
+      farm.setHoldingCosts(db, costs)
+      return null
+    },
+    setFarmTransport(market: string, perQtl: number | null): null {
+      farm.setTransportCost(db, market, perQtl)
+      return null
+    },
+    async getMarketNote(crop: CropKey, fresh = false): Promise<MarketNote> {
+      const cached = farm.marketNotes(db)[crop]
+      // One a day is plenty: market conditions don't change by the hour, and each note costs.
+      if (cached && !fresh && Date.now() - Date.parse(cached.at) < 20 * 3600000) return cached
+      const report = farm.farmReport(db)
+      const o = report.outlook.find((x) => x.crop === crop)
+      const market = o?.market ?? farm.defaultMarket(db)
+      const note = await writeMarketNote(
+        ai.clientFor('marketNotes'),
+        {
+          crop,
+          market,
+          today: new Date().toISOString().slice(0, 10),
+          price: farm.cropPrice(db, crop, market),
+          pattern: o?.pattern ?? farm.seasonalPattern(db, crop, market),
+          arrivals: o?.arrivals ? { latest: o.arrivals.latest, avg30: o.arrivals.avg30 } : null
+        },
+        (u) => ai.record(u)
+      )
+      farm.saveMarketNote(db, note)
+      return note
     },
     setFarmPriceTarget(crop: CropKey, price: number | null): null {
       farm.setPriceTarget(db, crop, price)

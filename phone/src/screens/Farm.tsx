@@ -249,6 +249,45 @@ export function Farm() {
         </Card>
       )}
 
+      {(farm.outlook ?? []).some((o) => o.pattern || o.note) && (
+        <Card title="Selling: past seasons and news">
+          <ul>
+            {(farm.outlook ?? [])
+              .filter((o) => o.pattern || o.note)
+              .map((o) => {
+                const fmt = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`)
+                const h = (k: number) => o.pattern?.horizons.find((x) => x.months === k)
+                return (
+                  <li key={o.crop} className="border-b border-rule py-2 last:border-0">
+                    <div className="text-[15px] font-medium">{CROPS[o.crop].label}</div>
+                    {o.pattern &&
+                      [3, 6].map((k) =>
+                        h(k)?.changes.length ? (
+                          <div key={k} className="text-[13px] text-ink-muted">
+                            From {o.pattern!.fromMonth}, {k} months on: typically {fmt(h(k)!.median)} ({fmt(h(k)!.min)} to {fmt(h(k)!.max)}, {h(k)!.changes.length} years)
+                          </div>
+                        ) : null
+                      )}
+                    {o.note?.range && (
+                      <div className="mt-1 text-[13px]">
+                        Claude&rsquo;s range, next 1–3 months: <b className="num">{inr(o.note.range.low)}–{inr(o.note.range.high)}</b>
+                        {o.note.confidence ? ` (${o.note.confidence} confidence)` : ''}
+                      </div>
+                    )}
+                    {o.note && (
+                      <details className="mt-1 text-[13px]">
+                        <summary className="text-stamp">Market note, {day(o.note.at.slice(0, 10))}</summary>
+                        <div className="mt-1 whitespace-pre-wrap text-ink-muted">{o.note.text.replaceAll('**', '')}</div>
+                      </details>
+                    )}
+                  </li>
+                )
+              })}
+          </ul>
+          <p className="mt-2 text-[12px] text-ink-muted">Past years and the news, not a promise of what comes next; the choice is yours.</p>
+        </Card>
+      )}
+
       {seasons.map((s) => (
         <Card key={s.id} title={`${CROPS[s.crop].label}${s.variety ? ` ${s.variety}` : ''}, ${SEASON_LABELS[s.season]}${s.season === 'STOCK' ? '' : ` ${s.year}`}`} aside={people.length > 1 ? s.personName : undefined}>
           <dl className="grid grid-cols-2 gap-y-1 text-[14px]">

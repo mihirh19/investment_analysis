@@ -1,9 +1,20 @@
 import { eq, ne } from 'drizzle-orm'
 import { CROPS, type CropKey } from '@shared/farm'
 import { schema, type Db } from '../db'
-import { classKey, defaultMarket, mandiKey, monthlyKey, priceTargets, saveRange, varietyKey } from '../farm'
+import {
+  arrivalKey,
+  classKey,
+  defaultMarket,
+  mandiKey,
+  monthlyKey,
+  priceTargets,
+  saveRange,
+  saveStatePrices,
+  varietyKey,
+  type StatePrices
+} from '../farm'
 import { fetchRajkotRates } from './apmcRajkot'
-import { getJson, type FetchFn } from './http'
+import { fetchWith, getJson, type FetchFn } from './http'
 
 /**
  * Mandi prices from Agmarknet (the Ministry of Agriculture's market information service): the same
@@ -16,7 +27,74 @@ const API = 'https://api.agmarknet.gov.in/v1'
 const MARKETS_KEY = 'mandi:markets'
 const LAST_KEY = 'mandi:last'
 const ERROR_KEY = 'farm:priceError'
-const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+/** The latest of the last week's days with prices reported across the state (all pages). */
+async function statePrices(crop: CropKey, stateId: number, now: Date, f?: FetchFn): Promise<StatePrices | null> {
+  for (let back = 0; back < 7; back++) {
+    const date = new Date(now.getTime() - back * 86400000).toISOString().slice(0, 10)
+    const markets: StatePrices['markets'] = []
+    for (let page = 1; page <= 6; page++) {
+      const r = await fetchWith(
+        `${API}/dashboard-data/`,
+        {
+          fetch: f,
+          timeoutMs: 30_000,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dashboard: 'market_details_sp',
+            date,
+            commodity: [CROPS[crop].agmarkId],
+            state: [stateId],
+            format: 'json',
+            limit: 50,
+            page
+          })
+        },
+        async (res) =>
+          (await res.json()) as {
+            data?: {
+              records?: {
+                mkt_id: number
+                mkt_name: string
+                district_name: string
+                modal_price_wt: string
+                arrival_qty: string | null
+              }[]
+            }
+            pagination?: { total_pages?: number }
+          }
+      )
+      for (const x of r.data?.records ?? []) {
+        const modal = Number(x.modal_price_wt)
+        if (modal > 0)
+          markets.push({
+            id: x.mkt_id,
+            name: x.mkt_name,
+            district: x.district_name,
+            modal: Math.round(modal),
+            arrivalsT: x.arrival_qty != null ? Number(x.arrival_qty) : null
+          })
+      }
+      if (!r.data?.records?.length || page >= (r.pagination?.total_pages ?? 1)) break
+    }
+    if (markets.length) return { date, markets: markets.sort((a, b) => b.modal - a.modal) }
+  }
+  return null
+}
+const MONTHS = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december'
+]
 const GUJARAT = 11
 
 export interface MandiMarket {
@@ -30,7 +108,10 @@ function getSetting(db: Db, key: string): string | null {
   return db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value ?? null
 }
 function setSetting(db: Db, key: string, value: string): void {
-  db.insert(schema.settings).values({ key, value }).onConflictDoUpdate({ target: schema.settings.key, set: { value } }).run()
+  db.insert(schema.settings)
+    .values({ key, value })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { value } })
+    .run()
 }
 
 interface Filters {
@@ -89,16 +170,24 @@ export function findMarket(list: MandiMarket[], name: string): MandiMarket | nul
   const exact = list.filter((m) => norm(m.name) === want).sort((a, b) => rank(a) - rank(b))
   if (exact.length) return exact[0]
   // "Gondal" also matches "Gondal(Veg.market Gondal) APMC"; the plain one first.
-  const starts = list.filter((m) => norm(m.name).startsWith(`${want} `)).sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length)
+  const starts = list
+    .filter((m) => norm(m.name).startsWith(`${want} `))
+    .sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length)
   return starts[0] ?? null
 }
 
 /** Days with a price in Agmarknet's last-week table: the middle of the varieties' modal prices, and their spread. */
-export function parseLastWeek(j: { columns?: { key: string }[]; data?: Record<string, unknown>[] }): { date: string; modal: number; min: number; max: number }[] {
+export function parseLastWeek(j: {
+  columns?: { key: string }[]
+  data?: Record<string, unknown>[]
+}): { date: string; modal: number; min: number; max: number }[] {
   const days = (j.columns ?? []).map((c) => c.key).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
   const out: { date: string; modal: number; min: number; max: number }[] = []
   for (const d of days) {
-    const vals = (j.data ?? []).map((r) => r[d]).filter((v): v is number => typeof v === 'number' && v > 0).sort((a, b) => a - b)
+    const vals = (j.data ?? [])
+      .map((r) => r[d])
+      .filter((v): v is number => typeof v === 'number' && v > 0)
+      .sort((a, b) => a - b)
     if (!vals.length) continue
     const mid = vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2
     out.push({ date: d, modal: Math.round(mid), min: vals[0], max: vals[vals.length - 1] })
@@ -107,13 +196,18 @@ export function parseLastWeek(j: { columns?: { key: string }[]; data?: Record<st
 }
 
 /** Each variety's prices in the last-week table: "Rajkot APMC - G20" is the variety G20. */
-export function parseVarieties(j: { columns?: { key: string }[]; data?: Record<string, unknown>[] }): { variety: string; points: { date: string; price: number }[] }[] {
+export function parseVarieties(j: {
+  columns?: { key: string }[]
+  data?: Record<string, unknown>[]
+}): { variety: string; points: { date: string; price: number }[] }[] {
   const days = (j.columns ?? []).map((c) => c.key).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
   return (j.data ?? [])
     .map((r) => {
       const label = String(r.variety ?? '')
       const variety = label.includes(' - ') ? label.slice(label.lastIndexOf(' - ') + 3).trim() : label.trim()
-      const points = days.filter((d) => typeof r[d] === 'number' && (r[d] as number) > 0).map((d) => ({ date: d, price: Math.round(r[d] as number) }))
+      const points = days
+        .filter((d) => typeof r[d] === 'number' && (r[d] as number) > 0)
+        .map((d) => ({ date: d, price: Math.round(r[d] as number) }))
       return { variety, points }
     })
     .filter((v) => v.variety && v.points.length)
@@ -130,10 +224,14 @@ export function parseMonthly(
   if (!row) return []
   const at = (y: number, m: number) => {
     const v = row[`prices_${MONTHS[m - 1]}_${y}`]
-    return typeof v === 'number' && v > 0 ? { date: `${y}-${String(m).padStart(2, '0')}-15`, price: Math.round(v) } : null
+    return typeof v === 'number' && v > 0
+      ? { date: `${y}-${String(m).padStart(2, '0')}-15`, price: Math.round(v) }
+      : null
   }
   const prev = month === 1 ? [year - 1, 12] : [year, month - 1]
-  return [at(year, month), at(prev[0], prev[1]), at(year - 1, month)].filter((x): x is { date: string; price: number } => !!x)
+  return [at(year, month), at(prev[0], prev[1]), at(year - 1, month)].filter(
+    (x): x is { date: string; price: number } => !!x
+  )
 }
 
 function store(db: Db, key: string, points: { date: string; price: number }[]): void {
@@ -151,7 +249,8 @@ function wanted(db: Db): { crop: CropKey; market: string }[] {
   const fallback = defaultMarket(db)
   const seen = new Map<string, { crop: CropKey; market: string }>()
   const add = (crop: CropKey, market: string) => seen.set(`${crop}:${norm(market)}`, { crop, market })
-  for (const s of db.select().from(schema.farmSeasons).where(ne(schema.farmSeasons.status, 'CLOSED')).all()) add(s.crop, s.market ?? fallback)
+  for (const s of db.select().from(schema.farmSeasons).where(ne(schema.farmSeasons.status, 'CLOSED')).all())
+    add(s.crop, s.market ?? fallback)
   for (const c of Object.keys(priceTargets(db)) as CropKey[]) add(c, fallback)
   return [...seen.values()]
 }
@@ -170,7 +269,11 @@ export async function refreshMandiPrices(db: Db, f?: FetchFn, force = false, now
     else db.delete(schema.settings).where(eq(schema.settings.key, ERROR_KEY)).run()
     return missed
   } catch (e) {
-    setSetting(db, ERROR_KEY, `Agmarknet didn’t answer (${e instanceof Error ? e.message : String(e)}). The last prices fetched are used.`)
+    setSetting(
+      db,
+      ERROR_KEY,
+      `Agmarknet didn’t answer (${e instanceof Error ? e.message : String(e)}). The last prices fetched are used.`
+    )
     throw e
   }
 }
@@ -181,6 +284,7 @@ async function fetchAll(db: Db, f: FetchFn | undefined, force: boolean, now: Dat
   const list = (await filters(db, f)).markets
   const last: Record<string, string> = JSON.parse(getSetting(db, LAST_KEY) ?? '{}')
   const missed: string[] = []
+  const backfill: { crop: CropKey; market: string; m: MandiMarket }[] = []
   for (const { crop, market } of needs) {
     const key = mandiKey(crop, market)
     const label = `${CROPS[crop].label} at ${market}`
@@ -196,33 +300,34 @@ async function fetchAll(db: Db, f: FetchFn | undefined, force: boolean, now: Dat
       { fetch: f, timeoutMs: 30_000 }
     )
     const days = parseLastWeek(week)
-    store(db, key, days.map((d) => ({ date: d.date, price: d.modal })))
+    store(
+      db,
+      key,
+      days.map((d) => ({ date: d.date, price: d.modal }))
+    )
     const latest = days.at(-1)
     if (latest) saveRange(db, key, { date: latest.date, min: latest.min, max: latest.max })
     // And each variety on its own, so G20 is valued at G20's price.
     for (const v of parseVarieties(week)) store(db, varietyKey(crop, market, v.variety), v.points)
 
-    // A year of monthly averages: twelve months once, then just this one and the last.
-    const mKey = monthlyKey(crop, market)
-    const haveMonthly = db.select().from(schema.priceHistory).where(eq(schema.priceHistory.key, mKey)).limit(1).get()
-    const back = haveMonthly ? 2 : 12
-    for (let i = 0; i < back; i++) {
-      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
-      const y = d.getUTCFullYear()
-      const mo = d.getUTCMonth() + 1
-      try {
-        const mj = await getJson<{ rows?: Record<string, unknown>[] }>(
-          `${API}/price-trend/wholesale-prices-monthly?report_mode=Marketwise&commodity=${CROPS[crop].agmarkId}&year=${y}&month=${mo}&state=${m.stateId}&district=${m.districtId}`,
-          { fetch: f, timeoutMs: 30_000 }
-        )
-        store(db, mKey, parseMonthly(mj, m.name, y, mo))
-      } catch {
-        /* a month without a report; the daily prices still stand */
+    // The slow part (years of monthly averages) waits until every crop has today’s price.
+    backfill.push({ crop, market, m })
+
+    // Every Gujarat mandi's price and arrivals for the latest day reported: for comparing mandis and
+    // following how much is coming in.
+    try {
+      const st = await statePrices(crop, m.stateId ?? GUJARAT, now, f)
+      if (st) {
+        saveStatePrices(db, crop, st)
+        const here = st.markets.find((x) => x.id === m.id)
+        if (here?.arrivalsT != null) store(db, arrivalKey(crop, market), [{ date: st.date, price: here.arrivalsT }])
       }
-      if (i < back - 1) await sleep(f ? 0 : 250)
+    } catch {
+      /* the comparison waits for the next run */
     }
 
-    if (!days.length && !db.select().from(schema.priceHistory).where(eq(schema.priceHistory.key, key)).limit(1).get()) missed.push(label)
+    if (!days.length && !db.select().from(schema.priceHistory).where(eq(schema.priceHistory.key, key)).limit(1).get())
+      missed.push(label)
     last[key] = now.toISOString()
     setSetting(db, LAST_KEY, JSON.stringify(last))
   }
@@ -242,6 +347,41 @@ async function fetchAll(db: Db, f: FetchFn | undefined, force: boolean, now: Dat
     } catch {
       // Agmarknet's prices stand; the yard's own page is a second source.
       missed.push('Rajkot APMC’s own daily rates (the site didn’t answer)')
+    }
+  }
+  for (const { crop, market, m } of backfill) {
+    // Monthly averages for six years (for the seasonal pattern): every month not yet covered, newest
+    // first; each answer also brings the month before and the same month a year earlier. Later runs
+    // ask for this month and the last only.
+    const mKey = monthlyKey(crop, market)
+    const have = new Set(
+      db
+        .select({ date: schema.priceHistory.date })
+        .from(schema.priceHistory)
+        .where(eq(schema.priceHistory.key, mKey))
+        .all()
+        .map((r) => r.date.slice(0, 7))
+    )
+    const deep = have.size > 0
+    let asked = 0
+    for (let i = 0; i < (deep ? 2 : 72); i++) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+      const y = d.getUTCFullYear()
+      const mo = d.getUTCMonth() + 1
+      const ym = `${y}-${String(mo).padStart(2, '0')}`
+      if (!deep ? have.has(ym) : false) continue
+      try {
+        if (asked++) await sleep(f ? 0 : 250)
+        const mj = await getJson<{ rows?: Record<string, unknown>[] }>(
+          `${API}/price-trend/wholesale-prices-monthly?report_mode=Marketwise&commodity=${CROPS[crop].agmarkId}&year=${y}&month=${mo}&state=${m.stateId}&district=${m.districtId}`,
+          { fetch: f, timeoutMs: 30_000 }
+        )
+        const pts = parseMonthly(mj, m.name, y, mo)
+        store(db, mKey, pts)
+        for (const p of pts) have.add(p.date.slice(0, 7))
+      } catch {
+        /* a month without a report; the daily prices still stand */
+      }
     }
   }
   return missed

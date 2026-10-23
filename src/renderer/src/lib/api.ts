@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { ManualAssetInput } from '@shared/assets'
 import type { VehicleInput } from '@shared/vehicles'
 import type { Plan } from '@shared/plan'
-import type { CropKey, FarmEntryInput, FarmSeasonInput } from '@shared/farm'
+import type { CropKey, FarmEntryInput, FarmSeasonInput, HoldingCosts } from '@shared/farm'
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -269,6 +269,9 @@ export const useCropVarieties = (crop: CropKey, market?: string | null) =>
 export const useSetFarmMarket = () => useWrite((market: string) => api().setFarmMarket(market))
 export const useSetFarmPriceTarget = () => useWrite((crop: CropKey, price: number | null) => api().setFarmPriceTarget(crop, price))
 export const useRefreshFarmPrices = () => useWrite(() => api().refreshFarmPrices())
+export const useSetFarmHolding = () => useWrite((costs: HoldingCosts) => api().setFarmHolding(costs))
+export const useSetFarmTransport = () => useWrite((market: string, perQtl: number | null) => api().setFarmTransport(market, perQtl))
+export const useMarketNote = () => useWrite((crop: CropKey, fresh?: boolean) => api().getMarketNote(crop, fresh))
 
 // ---------------- Google accounts ----------------
 

@@ -14,7 +14,7 @@ import type { GoogleAccountView, GoogleSetup } from './mail'
 import type { Forecast, Plan } from './plan'
 import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
-import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput } from './farm'
+import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput, HoldingCosts, MarketNote } from './farm'
 import type { LoanInput, LoanPayment, LoansReport } from './loans'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
@@ -903,6 +903,12 @@ export interface RequestApi {
   /** Varieties for the season form: those the mandi reported lately (with today's price), then Agmarknet's list. */
   getCropVarieties(crop: CropKey, market?: string | null): Promise<ApiResult<CropVarieties>>
   setFarmPriceTarget(crop: CropKey, price: number | null): Promise<ApiResult<null>>
+  /** What keeping produce costs (storage, drying loss, interest), for the hold-or-sell figures. */
+  setFarmHolding(costs: HoldingCosts): Promise<ApiResult<null>>
+  /** Transport to a mandi, ₹ a quintal (null to clear), for comparing mandis. */
+  setFarmTransport(market: string, perQtl: number | null): Promise<ApiResult<null>>
+  /** Claude's market note for a crop (at most daily unless asked again). */
+  getMarketNote(crop: CropKey, fresh?: boolean): Promise<ApiResult<MarketNote>>
   /** Fetches today's mandi prices for the farm's crops now (it also happens by itself each day). */
   refreshFarmPrices(): Promise<ApiResult<FarmReport>>
 

@@ -11,6 +11,7 @@ export interface AiFeatures {
   chat?: boolean
   chatMail?: boolean
   phoneChat?: boolean
+  marketNotes?: boolean
 }
 
 export interface AiStatus {
@@ -23,6 +24,8 @@ export interface AiStatus {
   chatMail: boolean
   /** Ask your money on the phone app (the key travels inside the passphrase-locked copy). */
   phoneChat: boolean
+  /** Market notes for the farm's crops (Claude searches the web; only public prices are sent). */
+  marketNotes: boolean
   model: string
   /** This calendar month's use and its approximate cost at list prices. */
   month: { calls: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number }

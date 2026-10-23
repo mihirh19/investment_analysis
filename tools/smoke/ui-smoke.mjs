@@ -303,6 +303,9 @@ await sleep(2500)
 const farmShown = await ev(`document.body.innerText.includes('In the godown') && document.body.innerText.includes('Groundnut') && document.body.innerText.includes('Mandi prices')`)
 if (!farmShown) failures++
 console.log((farmShown ? 'ok   ' : 'FAIL ') + 'farm: godown, prices and seasons shown')
+const outlookShown = await ev(`document.body.innerText.includes('Selling: outlook and facts') && document.body.innerText.includes('What keeping it in the godown costs')`)
+if (!outlookShown) failures++
+console.log((outlookShown ? 'ok   ' : 'FAIL ') + 'farm: selling outlook shown')
 await clickText('button', 'Add a crop season')
 await ok('farm: open the season form')
 await clickText('button', 'Cancel')

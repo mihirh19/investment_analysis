@@ -139,6 +139,17 @@ export function ClaudeSettings() {
           The phone app gets an Ask button that answers from its synced figures (and any fund&rsquo;s NAV history). Turn
           this off, or remove the key, and the next sync takes the key off the phone. Needs the phone app set up.
         </Toggle>
+        <Toggle
+          on={s.marketNotes}
+          disabled={!s.hasKey}
+          onChange={(v) => features.mutate([{ marketNotes: v }])}
+          title="Market notes for the farm"
+          sends="the crop, the mandi and its public prices (today’s, averages, MSP, past seasons); never your stock, sales or money. Claude searches the web for news."
+        >
+          On the Farm page, a note on what is moving a crop&rsquo;s price (sowing and crop estimates, weather,
+          government buying, demand) with a likely range for the next 1–3 months and its sources. An outlook, not a
+          promise; at most one a day per crop, roughly US$0.10–0.30 each.
+        </Toggle>
       </div>
       {(pdf.data ?? 0) > 0 && (
         <p className="mt-3 text-[13px] text-ink-muted">

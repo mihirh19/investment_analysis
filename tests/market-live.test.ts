@@ -49,6 +49,9 @@ it.runIf(process.env.FP_LIVE)(
       console.log(c, p.latest?.modal, p.varieties.map((v) => `${v.name} ${v.modal} ${v.min ?? ''}-${v.max ?? ''} ${v.source}`).join(' | '))
     }
     console.log('missed', missed)
+    const { farmReport } = await import('../src/main/farm')
+    for (const o of farmReport(db).outlook)
+      console.log('OUTLOOK', o.crop, JSON.stringify(o.pattern?.horizons.map((h) => [h.months, h.changes.length, h.median, h.min, h.max])), 'mandis', o.mandis?.rows.length, o.mandis?.rows.slice(0, 3).map((m) => `${m.name} ${m.modal}`).join(', '), 'arrivals', JSON.stringify(o.arrivals))
     expect(cropPrice(db, 'GROUNDNUT', 'Rajkot').latest?.modal).toBeGreaterThan(1000)
     sqlite.close()
     rmSync(dir, { recursive: true, force: true })

@@ -21,6 +21,7 @@ import {
 } from '@shared/farm'
 import { PriceLine } from '../components/charts'
 import { Combobox } from '../components/Combobox'
+import { FarmOutlook } from '../components/FarmOutlook'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { Button, Field, Input, Select } from '../components/ui'
 import {
@@ -97,6 +98,7 @@ export function Farm() {
 
           {r.stock.length > 0 && <Stock stock={r.stock} />}
           {r.prices.length > 0 && <Prices prices={r.prices} defaultMarket={r.defaultMarket} />}
+          <FarmOutlook r={r} />
 
           {active.length > 0 && (
             <section className="mb-10">
@@ -397,7 +399,7 @@ function Season({ s, showPerson }: { s: FarmSeasonView; showPerson: boolean }) {
       : []),
     ...(s.harvestedQtl ? ([['Harvested', `${qty(s.harvestedQtl)} (${inMan(s.harvestedQtl)})`]] as [string, string][]) : []),
     ...(s.soldQtl ? ([['Sold', `${qty(s.soldQtl)} for ${inr(s.salesNet)} after charges`]] as [string, string][]) : []),
-    ...(s.inStockQtl ? ([['In the godown', `${qty(s.inStockQtl)}, worth ${inr(s.stockValue)} today`]] as [string, string][]) : []),
+    ...(s.inStockQtl ? ([['In the godown', `${qty(s.inStockQtl)}${s.price ? `, worth ${inr(s.stockValue)} today` : ', no price yet'}`]] as [string, string][]) : []),
     ...(s.costs ? ([['Costs', `${inr(s.costs)}${s.costPerQtl ? `, ${inr(s.costPerQtl)} a quintal` : ''}`]] as [string, string][]) : [])
   ]
   return (
