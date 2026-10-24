@@ -63,6 +63,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="forecast" element={<Forecast />} />
               <Route path="spending" element={<Spending />} />
               <Route path="research" element={<Research />} />
+              <Route path="research/screener" element={<Research mode="screener" />} />
+              <Route path="research/world" element={<Research mode="world" />} />
               <Route path="research/:symbol" element={<Research />} />
             </Route>
           </Routes>

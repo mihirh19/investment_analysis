@@ -10,6 +10,16 @@ import {
   type Filing,
   type ResearchRow
 } from '@shared/research'
+import {
+  fundamentalsOf,
+  NO_FUNDAMENTALS,
+  screenRow,
+  type Fundamentals,
+  type IndexLevel,
+  type MarketMonitor,
+  type ScreenData,
+  type ScreenRow
+} from '@shared/screener'
 import { schema, type Db } from '../db'
 import { listHoldings } from '../portfolio/holdings'
 import type { FilingRef } from './nse'
@@ -284,3 +294,120 @@ export function searchCompanies(db: Db, query: string, held = heldStocks(db)): C
     .map((r) => ({ symbol: r.symbol, name: r.name ?? r.symbol, held: held.has(r.symbol) }))
 }
 
+// ---------------- screener and market monitor ----------------
+
+/**
+ * Works out the screener figures again for companies whose stored filings changed (all of them, or
+ * the ones named). Cheap when nothing changed: it compares filing counts.
+ */
+export function refreshFundamentals(db: Db, symbols?: string[]): number {
+  const counts = db
+    .select({ symbol: schema.researchFilings.symbol, n: sql<number>`count(*)` })
+    .from(schema.researchFilings)
+    .where(eq(schema.researchFilings.status, 'DONE'))
+    .groupBy(schema.researchFilings.symbol)
+    .all()
+  const have = new Map(
+    db
+      .select({ symbol: schema.researchFundamentals.symbol, n: schema.researchFundamentals.filings })
+      .from(schema.researchFundamentals)
+      .all()
+      .map((r) => [r.symbol, r.n])
+  )
+  const wanted = symbols ? new Set(symbols) : null
+  const stale = counts.filter((c) => (!wanted || wanted.has(c.symbol)) && have.get(c.symbol) !== c.n)
+  for (const c of stale) {
+    const f = fundamentalsOf(filingsOf(db, c.symbol))
+    const v = { symbol: c.symbol, filings: c.n, dataJson: JSON.stringify(f) }
+    db.insert(schema.researchFundamentals)
+      .values(v)
+      .onConflictDoUpdate({ target: schema.researchFundamentals.symbol, set: { filings: v.filings, dataJson: v.dataJson } })
+      .run()
+  }
+  return stale.length
+}
+
+export function saveIndices(db: Db, levels: IndexLevel[]): void {
+  db.transaction((tx) => {
+    for (const l of levels) {
+      const { name, ...rest } = l
+      tx.insert(schema.researchIndices).values(l).onConflictDoUpdate({ target: schema.researchIndices.name, set: rest }).run()
+    }
+  })
+}
+
+/** Every listed company with a price or results, as screener rows. */
+export function screenData(db: Db, held = heldStocks(db)): ScreenData {
+  refreshFundamentals(db)
+  const funds = new Map(
+    db
+      .select()
+      .from(schema.researchFundamentals)
+      .all()
+      .map((r) => [r.symbol, JSON.parse(r.dataJson) as Fundamentals])
+  )
+  const quotes = new Map(db.select().from(schema.researchQuotes).all().map((q) => [q.symbol, q as DayQuote]))
+  const industries = new Map(db.select({ s: schema.sectorMap.symbol, i: schema.sectorMap.industry }).from(schema.sectorMap).all().map((r) => [r.s, r.i]))
+  const companies = listedCompanies(db)
+  const rows: ScreenRow[] = []
+  for (const c of companies) {
+    const f = funds.get(c.symbol)
+    const q = quotes.get(c.symbol) ?? null
+    if (!f && !q) continue
+    rows.push(
+      screenRow({ symbol: c.symbol, name: c.name ?? c.symbol, industry: industries.get(c.symbol) ?? null, held: held.has(c.symbol) }, f ?? NO_FUNDAMENTALS, q)
+    )
+  }
+  return { rows, companies: companies.length, withResults: funds.size, pricesDate: latestQuoteDate(db) }
+}
+
+/** The indices worth a glance, in this order (NSE's own spellings). */
+const KEY_INDICES = [
+  'Nifty 50', 'Nifty Next 50', 'Nifty Bank', 'NIFTY MIDCAP 100', 'NIFTY SMLCAP 100', 'Nifty 500', 'India VIX',
+  'Nifty IT', 'Nifty Fin Service', 'Nifty Pharma', 'NIFTY HEALTHCARE', 'Nifty FMCG', 'Nifty Auto', 'Nifty Metal',
+  'Nifty Energy', 'NIFTY OIL AND GAS', 'Nifty Realty', 'Nifty Infra', 'Nifty PSU Bank', 'Nifty Media',
+  'NIFTY CONSR DURBL', 'Nifty Ind Defence', 'Nifty Capital Mkt', 'Nifty GS 10Yr'
+]
+
+export function marketMonitor(db: Db): MarketMonitor {
+  const held = heldStocks(db)
+  const { rows, pricesDate } = screenData(db, held)
+  const byName = new Map(db.select().from(schema.researchIndices).all().map((i) => [i.name, i as IndexLevel]))
+  const indices = KEY_INDICES.map((n) => byName.get(n)).filter((i): i is IndexLevel => !!i)
+  const today = rows.filter((r) => r.change !== null)
+  const breadth = { up: 0, down: 0, flat: 0, atHigh: 0, atLow: 0 }
+  for (const r of today) {
+    if (r.change! > 0.0005) breadth.up++
+    else if (r.change! < -0.0005) breadth.down++
+    else breadth.flat++
+  }
+  const quotes = db.select().from(schema.researchQuotes).all()
+  for (const q of quotes) {
+    if (q.high52 && q.close >= q.high52) breadth.atHigh++
+    if (q.low52 && q.close <= q.low52) breadth.atLow++
+  }
+  // Movers among companies of a meaningful size (₹1,000 crore and up).
+  const sized = today.filter((r) => (r.mcap ?? 0) >= 1e10)
+  const byChange = [...sized].sort((a, b) => b.change! - a.change!)
+  const sectors = new Map<string, { mcap: number; moved: number; weight: number; count: number }>()
+  for (const r of today) {
+    if (!r.industry || !r.mcap) continue
+    const s = sectors.get(r.industry) ?? { mcap: 0, moved: 0, weight: 0, count: 0 }
+    s.mcap += r.mcap
+    s.moved += r.mcap * r.change!
+    s.weight += r.mcap
+    s.count++
+    sectors.set(r.industry, s)
+  }
+  return {
+    date: pricesDate,
+    indices,
+    breadth,
+    gainers: byChange.slice(0, 10),
+    losers: byChange.slice(-10).reverse(),
+    sectors: [...sectors.entries()]
+      .map(([name, s]) => ({ name, mcap: s.mcap, change: s.weight ? s.moved / s.weight : null, count: s.count }))
+      .sort((a, b) => b.mcap - a.mcap),
+    yours: rows.filter((r) => r.held).sort((a, b) => (held.get(b.symbol)?.valueInr ?? 0) - (held.get(a.symbol)?.valueInr ?? 0))
+  }
+}

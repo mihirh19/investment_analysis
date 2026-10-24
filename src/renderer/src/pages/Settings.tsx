@@ -5,6 +5,7 @@ import { ErrorNote, PageHeader } from '../components/Shell'
 import { GoogleAccounts } from '../components/GoogleAccounts'
 import { PhoneApp } from '../components/PhoneApp'
 import { ClaudeSettings } from '../components/ClaudeSettings'
+import { AisSettings } from '../components/AisSettings'
 import { Button, Field, Input } from '../components/ui'
 import {
   openExternal,
@@ -53,6 +54,7 @@ export function Settings() {
       <Appearance />
       <GoogleAccounts />
       <ClaudeSettings />
+      <AisSettings />
       <PhoneApp />
 
       <section aria-labelledby="sources" className="max-w-[880px]">
@@ -319,6 +321,7 @@ function Disclosures() {
 }
 
 const THEMES: { key: Theme; label: string; note: string }[] = [
+  { key: 'terminal', label: 'Terminal', note: 'Black and amber, like a trading screen' },
   { key: 'system', label: 'Same as Windows', note: 'Follows the light or dark setting in Windows' },
   { key: 'light', label: 'Light', note: 'Paper and ink' },
   { key: 'dark', label: 'Dark', note: 'Easier on the eyes at night' }
@@ -327,13 +330,13 @@ const THEMES: { key: Theme; label: string; note: string }[] = [
 function Appearance() {
   const theme = useTheme()
   const set = useSetTheme()
-  const current = theme.data ?? 'system'
+  const current = theme.data ?? 'terminal'
   return (
     <section aria-labelledby="appearance" className="mb-12 max-w-[880px]">
       <h2 id="appearance" className="wide mb-2 text-[19px] font-semibold">
         Appearance
       </h2>
-      <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {THEMES.map((t) => {
           const on = current === t.key
           return (

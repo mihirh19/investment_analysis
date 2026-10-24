@@ -90,6 +90,15 @@ const clickText = (sel, text) =>
   ev(
     `(() => { const el = [...document.querySelectorAll(${JSON.stringify(sel)})].find(e => e.textContent.trim().startsWith(${JSON.stringify(text)})); if (!el) return 'NOT FOUND'; el.click(); return 'ok' })()`
   )
+// Polls an expression until it is truthy (or the time runs out); returns its last value.
+const waitFor = async (expression, ms = 10000) => {
+  const end = Date.now() + ms
+  for (;;) {
+    const v = await ev(expression)
+    if (v || Date.now() > end) return v
+    await sleep(400)
+  }
+}
 // Pages live in sidebar sections; a section's other pages are tabs above the page.
 const SECTION_OF = {
   Holdings: 'Investments', Performance: 'Investments', Analysis: 'Investments', 'Sectors & exposure': 'Investments', Funds: 'Investments', Dividends: 'Investments',
@@ -201,11 +210,10 @@ await sleep(800)
 await ok('open add-vehicle form')
 await clickText('[role=tab]', 'Family')
 await nav('Forecast & inflation')
-await sleep(1500)
-const fc = await ev(`document.body.innerText.includes('your money could be') && document.body.innerText.includes('Groceries and food')`)
+const fc = await waitFor(`document.body.innerText.includes('your money could be') && document.body.innerText.includes('Groceries and food')`)
 if (!fc) {
   failures++
-  console.log('FAIL forecast shows the headline and spending'.padEnd(46), fc)
+  console.log('FAIL forecast shows the headline and spending'.padEnd(46), fc, JSON.stringify(await ev(`location.hash + ' | ' + document.querySelector('main')?.innerText.slice(0, 400)`)))
 }
 await clickText('button', 'Add a goal')
 await sleep(800)
@@ -292,12 +300,20 @@ await nav('Settings & backup')
 await clickText('[role=radio]', 'Dark')
 await sleep(800)
 await ok('switch theme to dark')
+await clickText('[role=radio]', 'Terminal')
+await ok('switch theme to terminal')
+const terminalOn = await ev(`document.documentElement.classList.contains('terminal')`)
+if (!terminalOn) failures++
+console.log((terminalOn ? 'ok   ' : 'FAIL ') + 'terminal theme applied outside Research')
 await clickText('[role=radio]', 'Same as Windows')
 await ok('switch theme back to Windows')
 await clickText('button', 'Show recovery key')
 await ok('show recovery key')
 await clickText('button', 'Set up Google sign-in')
 await ok('open Google sign-in setup')
+const aisShown = await ev(`document.body.innerText.includes('Live ships') && document.body.innerText.includes('aisstream.io API key')`)
+if (!aisShown) failures++
+console.log((aisShown ? 'ok   ' : 'FAIL ') + 'settings: live ships key section')
 await nav('Import statements')
 await clickText('label', 'Fund portfolio')
 await ok('pick fund portfolio import')
@@ -330,11 +346,27 @@ await ok('farm: open the sale form')
 await clickText('button', 'Cancel')
 // Research: the family's stocks, then one company's overview, financials and chart.
 await nav('Research')
+await waitFor(`document.body.innerText.includes('Nifty Bank') && document.body.innerText.includes('Your stocks')`)
+const researchHome = await ev(`[document.body.innerText.includes('NSE indices'), document.body.innerText.includes('Nifty Bank'), document.body.innerText.includes('Your stocks'), document.documentElement.classList.contains('terminal')].join(',')`)
+if (researchHome !== 'true,true,true,true') { failures++; console.log(JSON.stringify(await ev(`location.hash + ' | ' + document.querySelector('main')?.innerText.slice(0, 400)`))) }
+console.log((researchHome === 'true,true,true,true' ? 'ok   ' : 'FAIL ') + 'research: monitor in the terminal look ' + researchHome)
+await sleep(4000)
+await ok('research: world markets loaded')
+await nav('Screener')
 await sleep(1500)
-const researchHome = await ev(`document.body.innerText.includes('Your stocks') && document.body.innerText.includes('Tata Consultancy')`)
-if (!researchHome) failures++
-console.log((researchHome ? 'ok   ' : 'FAIL ') + 'research: your stocks listed')
-await clickText('tbody tr', 'Tata Consultancy')
+const screened = await ev(`/compan(y|ies) match/.test(document.body.innerText)`)
+if (!screened) failures++
+console.log((screened ? 'ok   ' : 'FAIL ') + 'screener: results counted')
+for (const preset of ['Magic Formula', 'Coffee Can', 'Graham value']) {
+  await clickText('nav[aria-label=Screens] button', preset)
+  await ok(`screener: ${preset}`)
+}
+await clickText('button', '+ New screen')
+await clickText('button', '+ Add a filter')
+await ok('screener: own filters')
+await nav('Monitor')
+await sleep(1500)
+await clickText('section[aria-label="Your stocks"] tbody tr', 'TCS')
 await sleep(1500)
 const companyShown = await ev(`document.body.innerText.includes('52-week range') && document.body.innerText.includes('Market cap')`)
 if (!companyShown) failures++
@@ -351,6 +383,44 @@ for (const st of ['Yearly results', 'Balance sheet', 'Cash flow']) {
 await clickText('[role=tab]', 'Price chart')
 await sleep(2500)
 await ok('research: price chart')
+await clickText('[role=tab]', 'Peers')
+await sleep(1000)
+await ok('research: peers')
+// World map: deck.gl on the demo copy of the world data (its background updates stay off).
+const check = async (name, expression, ms = 10000) => {
+  const v = await waitFor(expression, ms)
+  if (!v) failures++
+  console.log((v ? 'ok   ' : 'FAIL ') + name)
+  return v
+}
+const pickOption = (label, value) =>
+  ev(`(() => { const s = document.querySelector('select[aria-label="${label}"]'); if (!s) return 'NOT FOUND'; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ${JSON.stringify(value)}); s.dispatchEvent(new Event('change', { bubbles: true })); return 'ok' })()`)
+const key = (k) => ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, bubbles: true }))`)
+await nav('World')
+await check('world: map drawn with layers and legend', `!!document.querySelector('[aria-label="World map"] canvas') && !!document.querySelector('[aria-label=Legend]') && document.body.innerText.includes('Suez Canal')`, 20000)
+await sleep(3000)
+await ok('world: map page')
+await pickOption('Colour countries by', 'inflation')
+await check('world: coloured by inflation', `document.querySelector('[aria-label=Legend]').innerText.includes('Inflation')`)
+await pickOption('Trade direction', 'X')
+await pickOption('Goods', '2709')
+await ok('world: crude oil exports')
+await pickOption('Find a country', 'CHN')
+await check('world: country panel with trade', `document.querySelector('[role=dialog]')?.innerText.includes('Trade with India') && document.querySelector('[role=dialog]').innerText.includes('Figures')`)
+await key('Escape')
+await check('world: panel closes on Escape', `!document.querySelector('[role=dialog]')`)
+await key('F5')
+await check('world: F5 hides chokepoints', `[...document.querySelectorAll('[aria-label="Map layers"] button')].find(b => b.textContent.includes('Chokepoints'))?.getAttribute('aria-pressed') === 'false'`)
+await key('F5')
+await clickText('section[aria-label=Chokepoints] tbody tr', 'Suez Canal')
+await check('world: chokepoint panel', `document.querySelector('[role=dialog]')?.innerText.includes('Transits a day')`)
+await pickOption('Colour countries by', 'growth')
+await check('world: year slider for yearly figures', `!!document.querySelector('input[type=range][aria-label=Year]')`)
+await clickText('[aria-label="Map layers"] button', 'F4')
+await sleep(4000)
+await ok('world: ships layer on')
+await clickText('[aria-label="Map layers"] button', 'F4')
+await ok('world: ships layer off')
 await clickText('aside > button', 'Go to')
 await ok('go to: open the box')
 await ev(`document.querySelector('[role=dialog] input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)

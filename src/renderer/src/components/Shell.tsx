@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useMarketStatus, useMarketSubscription, usePersons, useRefreshMarket, useResearchSubscription } from '../lib/api'
+import { useMarketStatus, useMarketSubscription, usePersons, useRefreshMarket, useResearchSubscription, useTheme } from '../lib/api'
 import { pageActive, sectionOf, SECTIONS } from '../lib/nav'
 import { GoTo, openGoTo } from './GoTo'
 import { AskPanel, openAsk } from './AskPanel'
@@ -70,11 +70,11 @@ function SectionTabs({ pathname }: { pathname: string }) {
   if (!s || s.pages.length < 2) return null
   return (
     <nav aria-label={`${s.label} pages`} className="-mt-3 mb-5 flex flex-wrap gap-x-1 border-b border-rule">
-      {s.pages.map((p) => (
+      {[...s.pages, ...(s.pages.some((p) => pageActive(p, pathname)) ? [] : [{ to: pathname, label: decodeURIComponent(pathname.split('/').pop() ?? '') }])].map((p) => (
         <NavLink
           key={p.to}
           to={p.to}
-          end={p.end}
+          end={'end' in p ? p.end : undefined}
           className={({ isActive }) =>
             '-mb-px border-b-2 px-3 pt-1 pb-2 text-[14.5px] ' +
             (isActive || pageActive(p, pathname)
@@ -132,9 +132,15 @@ function LiveStatus() {
 }
 
 export function Shell() {
+  const { pathname } = useLocation()
   useMarketSubscription()
   useResearchSubscription()
-  const { pathname } = useLocation()
+  const theme = useTheme().data ?? 'terminal'
+  // The terminal look: the default (or chosen in Settings), and always on in Research.
+  const terminal = theme === 'terminal' || pathname.startsWith('/research')
+  useEffect(() => {
+    document.documentElement.classList.toggle('terminal', terminal)
+  }, [terminal])
   const mainRef = useRef<HTMLElement>(null)
   // Block body on purpose: Chromium's scrollTo returns a Promise, which React would treat as a cleanup.
   useEffect(() => {
@@ -216,7 +222,7 @@ export function Shell() {
       </aside>
 
       <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1180px] px-10 pt-8 pb-16">
+        <div className={'mx-auto pt-8 pb-16 ' + (pathname === '/research/world' ? 'max-w-[1800px] px-6' : 'max-w-[1180px] px-10')}>
           <SectionTabs pathname={pathname} />
           <ErrorBoundary resetKey={pathname}>
             {/* Keyed by route so each page plays its entrance once. */}

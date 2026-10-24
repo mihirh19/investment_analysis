@@ -3,13 +3,14 @@ import { join } from 'node:path'
 import { app, BrowserWindow, dialog, nativeTheme, Notification, shell } from 'electron'
 import { CROPS } from '@shared/farm'
 import { newlyReachedTargets } from './farm'
-import { CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED } from '@shared/api'
+import { CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED, WORLD_UPDATED } from '@shared/api'
 import { openDatabase } from './db'
-import { applyDevPaths, captureScreens, seedDemo } from './dev'
+import { applyDevPaths, applyDevTheme, captureScreens, seedDemo } from './dev'
 import { registerIpc } from './ipc'
 import { decryptSecret, encryptSecret, loadOrCreateDbKey, writeDbKey } from './keystore'
 import { MarketData } from './market/refresh'
 import { ResearchSync } from './research/sync'
+import { WorldSync } from './world/sync'
 import { renderLinks } from './market/render'
 import { createServices, type Services } from './services'
 
@@ -69,6 +70,7 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(async () => {
     let market: MarketData
     let researchSync: ResearchSync
+    let worldSync: WorldSync
     let services: Services
     try {
       const userData = app.getPath('userData')
@@ -115,6 +117,10 @@ if (!app.requestSingleInstanceLock()) {
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
         }, 3000)
       })
+      // The World map's sources, each on its own timetable; off until the map is first opened.
+      worldSync = new WorldSync(db, () => {
+        for (const w of BrowserWindow.getAllWindows()) w.webContents.send(WORLD_UPDATED)
+      })
       services = createServices({
         db,
         casparserExe: app.isPackaged
@@ -124,13 +130,16 @@ if (!app.requestSingleInstanceLock()) {
         decrypt: decryptSecret,
         market,
         research: researchSync,
+        world: worldSync,
         dbKey: key,
-        applyTheme: (t) => (nativeTheme.themeSource = t),
+        applyTheme: (t) => (nativeTheme.themeSource = t === 'terminal' ? 'dark' : t),
         openUrl: (url) => shell.openExternal(url),
         emitChat: (e) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send(CHAT_EVENT, e)),
         replaceDatabase(filePath, newKey) {
           market.stop()
           researchSync.stop()
+          worldSync.stop()
+          services.stopShips()
           sqlite.close()
           for (const ext of ['', '-wal', '-shm']) rmSync(dbFile + ext, { force: true })
           copyFileSync(filePath, dbFile)
@@ -141,17 +150,23 @@ if (!app.requestSingleInstanceLock()) {
       })
       registerIpc(services)
       // The saved light/dark choice (the FP_THEME development switch wins when set).
-      if (!process.env.FP_THEME) nativeTheme.themeSource = services.getTheme()
+      if (!process.env.FP_THEME) {
+        const t = services.getTheme()
+        nativeTheme.themeSource = t === 'terminal' ? 'dark' : t
+      }
       await seedDemo(db, services)
+      applyDevTheme(services)
     } catch (err) {
       dialog.showErrorBox('Family Portfolio could not start', err instanceof Error ? err.message : String(err))
       app.quit()
       return
     }
     createWindow()
+    app.on('before-quit', () => services.stopShips())
     market.start()
     // After the first price refresh has had the network to itself.
     setTimeout(() => researchSync.start(), 45_000)
+    worldSync.start()
     // Connected Gmail accounts are checked for new statements a minute after start, then every 12 hours.
     const checkMail = () => {
       if (services.mailDue())

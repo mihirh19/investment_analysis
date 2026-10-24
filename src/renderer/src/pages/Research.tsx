@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ResearchStatus } from '@shared/research'
-import { ErrorNote, PageHeader } from '../components/Shell'
+import { PageHeader } from '../components/Shell'
 import { CompanyPage, VIEWS, type View } from '../components/Company'
+import { Monitor } from '../components/Monitor'
+import { Screener } from '../components/Screener'
 import { Button } from '../components/ui'
-import { useCompanySearch, useResearchHome, useSetResearchSync } from '../lib/api'
-import { bigMoney, lakhCrore, money, percent, shortDate, toneClass } from '../lib/format'
+import { useCompanySearch, useResearchHome, useSetResearchSync, useWorldMap } from '../lib/api'
+import { shortDate, timeAgo } from '../lib/format'
+
+// The map and its drawing library load only when the World tab is opened.
+const World = lazy(() => import('../components/World'))
 
 /** "infy fin" → INFY's financials. The last word picks the view when it names one. */
 export function parseCommand(text: string): { query: string; view: View | null } {
@@ -15,18 +20,49 @@ export function parseCommand(text: string): { query: string; view: View | null }
   return { query: (view && words.length > 1 ? words.slice(0, -1) : words).join(' '), view }
 }
 
-export function Research() {
+/** Words that open a page of the desk rather than a company. */
+const PAGES: Record<string, string> = {
+  scr: '/research/screener',
+  screener: '/research/screener',
+  mon: '/research',
+  monitor: '/research',
+  wld: '/research/world',
+  world: '/research/world',
+  map: '/research/world'
+}
+
+export function Research({ mode }: { mode?: 'screener' | 'world' }) {
   const { symbol } = useParams()
   const [params] = useSearchParams()
   const view = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'overview') as View
   return (
     <>
-      <PageHeader title="Research">
-        <SyncLine />
-      </PageHeader>
+      <PageHeader title={mode === 'screener' ? 'Screener' : mode === 'world' ? 'World' : 'Research'}>{mode === 'world' ? <WorldLine /> : <SyncLine />}</PageHeader>
       <CommandBar key={symbol ?? ''} />
-      {symbol ? <CompanyPage symbol={symbol.toUpperCase()} view={view} /> : <Home />}
+      {mode === 'screener' ? (
+        <Screener />
+      ) : mode === 'world' ? (
+        <Suspense fallback={<p className="text-[13.5px] text-ink-muted">Loading the map…</p>}>
+          <World />
+        </Suspense>
+      ) : symbol ? (
+        <CompanyPage symbol={symbol.toUpperCase()} view={view} />
+      ) : (
+        <Monitor />
+      )}
     </>
+  )
+}
+
+/** When the World map's data last changed, or that its updates are paused. */
+function WorldLine() {
+  const d = useWorldMap().data
+  if (!d) return null
+  const latest = d.sources.map((s) => s.updatedAt).filter((x): x is string => !!x).sort().at(-1) ?? null
+  return (
+    <span className="text-[13.5px] text-ink-muted" aria-live="polite">
+      {!d.enabled ? 'World updates paused' : d.refreshing ? 'Updating world data…' : latest ? `World data updated ${timeAgo(latest)}` : 'Fetching world data for the first time…'}
+    </span>
   )
 }
 
@@ -89,12 +125,18 @@ function CommandBar() {
             e.preventDefault()
             setActive((a) => Math.max(a - 1, 0))
           } else if (e.key === 'Enter') {
+            const page = PAGES[text.trim().toLowerCase()]
+            if (page) {
+              setText('')
+              navigate(page)
+              return
+            }
             // An exact symbol goes straight there, even before the list catches up.
             const exact = hits.find((h) => h.symbol === query.toUpperCase())
             go(exact?.symbol ?? shown[current]?.symbol)
           } else if (e.key === 'Escape') setOpen(false)
         }}
-        placeholder="Company or symbol, e.g. TCS or HDFC Bank. Add FIN or CHART to jump there."
+        placeholder="Company or symbol (TCS, HDFC Bank), then FIN, CHART or PEERS to jump there. SCR opens the screener, WLD the world map."
         className="w-full rounded-lg border border-rule-strong bg-sheet px-4 py-2.5 text-[16px] text-ink placeholder:text-ink-muted/80 focus:border-stamp focus:outline-none"
       />
       {open && shown.length > 0 && (
@@ -157,87 +199,5 @@ function SyncLine() {
         {s.enabled ? 'Pause' : 'Resume'}
       </Button>
     </div>
-  )
-}
-
-function Home() {
-  const home = useResearchHome()
-  const navigate = useNavigate()
-  const r = home.data
-  return (
-    <>
-      <ErrorNote error={home.error} />
-      {r?.status.lastError && r.status.state !== 'PAUSED' && (
-        <p className="mb-5 rounded-md border border-warn/40 bg-warn-wash px-3 py-2 text-[14px]">
-          NSE didn't answer the last request ({r.status.lastError}). The download tries again by itself.
-        </p>
-      )}
-      <section>
-        <h2 className="wide mb-1 text-[19px] font-semibold">Your stocks</h2>
-        <p className="mb-3 text-[14px] text-ink-muted">
-          The companies the family holds. Open one for its results, ratios and price history, or search above for any listed
-          company.
-        </p>
-        {r && r.yours.length === 0 && (
-          <p className="text-[14.5px] text-ink-muted">No Indian stocks held yet. Search above to look at any listed company.</p>
-        )}
-        {r && r.yours.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[14.5px]">
-              <thead>
-                <tr className="border-b border-rule-strong text-[13px] text-ink-muted">
-                  <th className="py-1.5 pr-3 text-left font-medium">Company</th>
-                  <th className="px-3 text-right font-medium">Price</th>
-                  <th className="px-3 text-right font-medium">Day</th>
-                  <th className="px-3 text-right font-medium">Market cap</th>
-                  <th className="px-3 text-right font-medium">P/E</th>
-                  <th className="px-3 text-right font-medium">ROE</th>
-                  <th className="px-3 text-right font-medium" title="Latest quarter against the same quarter a year before">
-                    Sales growth
-                  </th>
-                  <th className="pl-3 text-right font-medium">Yours</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.yours.map((c) => (
-                  <tr
-                    key={c.symbol}
-                    tabIndex={0}
-                    onClick={() => navigate(`/research/${encodeURIComponent(c.symbol)}`)}
-                    onKeyDown={(e) => e.key === 'Enter' && navigate(`/research/${encodeURIComponent(c.symbol)}`)}
-                    className="cursor-pointer border-b border-rule hover:bg-sheet focus:bg-sheet focus:outline-none"
-                  >
-                    <td className="py-2 pr-3">
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-[12.5px] text-ink-muted">
-                        {c.symbol}
-                        {c.industry ? ` · ${c.industry}` : ''}
-                      </div>
-                    </td>
-                    <td className="num px-3">{c.close === null ? '—' : money(c.close, 'INR', 2)}</td>
-                    <td className={`num px-3 ${toneClass(c.change)}`}>{percent(c.change)}</td>
-                    <td className="num px-3">{bigMoney(c.mcap)}</td>
-                    <td className="num px-3">{c.pe === null ? '—' : c.pe.toFixed(1)}</td>
-                    <td className="num px-3">{c.roe === null ? '—' : `${(c.roe * 100).toFixed(1)}%`}</td>
-                    <td className={`num px-3 ${toneClass(c.salesGrowthQ)}`}>{percent(c.salesGrowthQ)}</td>
-                    <td className="num pl-3">{lakhCrore(c.held?.valueInr)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-      <section className="mt-10 max-w-[70ch] text-[13.5px] text-ink-muted">
-        <h2 className="mb-1 text-[14px] font-semibold text-ink">Where the figures come from</h2>
-        <p>
-          Results are read from the XBRL files companies file with NSE each quarter (consolidated where filed). Prices, market
-          caps and P/E come from NSE's end-of-day files, and price history from Yahoo Finance. Ratios such as ROE and the
-          Piotroski score are worked out here from those filings. NSE's terms of use don't allow automated collection, so the
-          download goes slowly, one file at a time, for your own use on this computer, and nothing is shared. Pause it above
-          at any time.
-        </p>
-      </section>
-    </>
   )
 }

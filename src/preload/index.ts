@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { API_METHODS, CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED } from '@shared/api'
+import { API_METHODS, CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED, WORLD_UPDATED } from '@shared/api'
 import type { ChatEvent } from '@shared/ai'
 import type { Api } from '@shared/types'
 
@@ -21,6 +21,11 @@ const api = {
     const handler = () => listener()
     ipcRenderer.on(RESEARCH_UPDATED, handler)
     return () => ipcRenderer.removeListener(RESEARCH_UPDATED, handler)
+  },
+  onWorldUpdate(listener: () => void) {
+    const handler = () => listener()
+    ipcRenderer.on(WORLD_UPDATED, handler)
+    return () => ipcRenderer.removeListener(WORLD_UPDATED, handler)
   }
 } as unknown as Api
 

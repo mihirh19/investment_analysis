@@ -60,6 +60,11 @@ import { refreshResidex, residexCities, storedResidexCities } from './market/res
 import { schema, type Db } from './db'
 import * as research from './research/store'
 import type { Basis, ResearchHome, ResearchStatus } from '@shared/research'
+import type { Screen, WorldSeries } from '@shared/screener'
+import type { AisStatus, ShipsView, WorldMap } from '@shared/world'
+import * as worldStore from './world/store'
+import type { WorldSync } from './world/sync'
+import { ShipFeed } from './world/ships'
 import { importAmcPortfolio } from './importers/amcPortfolio'
 import { importBrokerHoldings, saveIndmoneyDates, setManualCost } from './importers/brokerHoldings'
 import { reclassifyDemat, tidyListedNames } from './importers/isin'
@@ -78,7 +83,7 @@ import {
   mapIndmoneyOrders
 } from './importers/trades'
 import { fetchNavAll, mfapiHistory, npsHistory, npsLatest, npsSchemes, type AmfiScheme } from './market/funds'
-import type { FetchFn } from './market/http'
+import { mapLimit, type FetchFn } from './market/http'
 import { yahooHistory } from './market/yahoo'
 import { listDividends } from './portfolio/dividends'
 import { computeExposure } from './portfolio/exposure'
@@ -112,11 +117,32 @@ export interface ServiceDeps {
     setEnabled(on: boolean): void
     open(symbol: string): Promise<void>
   }
+  /** The World map's background updates; absent in tests. */
+  world?: Pick<WorldSync, 'opened' | 'setEnabled' | 'enabled' | 'status' | 'run'>
 }
 
 const RANGE_DAYS = { '1mo': 31, '6mo': 183, '1y': 366, '5y': 1827 } as const
 
 const casPasswordKey = (personId: number) => `cas_password:${personId}`
+const SCREENS_KEY = 'research:screens'
+/** The person's own aisstream.io key for live ships (encrypted), and its last four characters. */
+const AIS_KEY = 'world:ais'
+/** The research monitor's world panel (Yahoo Finance symbols). */
+const WORLD: { key: string; label: string }[] = [
+  { key: '^NSEI', label: 'Nifty 50' },
+  { key: '^BSESN', label: 'Sensex' },
+  { key: '^NSEBANK', label: 'Bank Nifty' },
+  { key: '^GSPC', label: 'S&P 500' },
+  { key: '^IXIC', label: 'Nasdaq' },
+  { key: '^FTSE', label: 'FTSE 100' },
+  { key: '^N225', label: 'Nikkei 225' },
+  { key: '^HSI', label: 'Hang Seng' },
+  { key: 'USDINR=X', label: 'US dollar in rupees' },
+  { key: 'BZ=F', label: 'Brent crude, $' },
+  { key: 'GC=F', label: 'Gold, $ an ounce' },
+  { key: '^TNX', label: 'US 10-year yield, %' }
+]
+let world: { at: number; series: WorldSeries[] } | null = null
 export const THEME_KEY = 'ui:theme'
 
 export function createServices(deps: ServiceDeps) {
@@ -189,6 +215,29 @@ export function createServices(deps: ServiceDeps) {
 
   // Claude, with the person's own key; each feature switched on separately.
   const ai = createAi({ db, encrypt: deps.encrypt, decrypt: deps.decrypt })
+
+  // Live ships for the World map: Digitraffic always, aisstream.io with the person's own key.
+  const aisStored = (): { key: string; ending: string } | null => {
+    try {
+      const raw = getSetting(AIS_KEY)
+      return raw ? (JSON.parse(raw) as { key: string; ending: string }) : null
+    } catch {
+      return null
+    }
+  }
+  const aisStatus = (): AisStatus => {
+    const s = aisStored()
+    return { hasKey: !!s, keyEnding: s?.ending ?? null }
+  }
+  const ships = new ShipFeed(() => {
+    const s = aisStored()
+    try {
+      return s ? deps.decrypt(s.key) : null
+    } catch {
+      return null
+    }
+  }, deps.fetch)
+  const worldStatus = () => deps.world?.status() ?? { sources: [], enabled: false, refreshing: false }
   const PDF_PASSWORDS = 'pdf:passwords'
   const pdfPasswords = (): string[] => {
     const raw = getSetting(PDF_PASSWORDS)
@@ -377,10 +426,11 @@ export function createServices(deps: ServiceDeps) {
   const services = {
     getTheme(): Theme {
       const v = getSetting(THEME_KEY)
-      return v === 'light' || v === 'dark' ? v : 'system'
+      // The terminal look is the default; the others are a choice in Settings.
+      return v === 'light' || v === 'dark' || v === 'system' ? v : 'terminal'
     },
     setTheme(theme: Theme): null {
-      if (!['light', 'dark', 'system'].includes(theme)) throw new Error('Unknown theme')
+      if (!['light', 'dark', 'system', 'terminal'].includes(theme)) throw new Error('Unknown theme')
       setSetting(THEME_KEY, theme)
       deps.applyTheme?.(theme)
       return null
@@ -899,6 +949,60 @@ export function createServices(deps: ServiceDeps) {
     setResearchSync(on: boolean): ResearchStatus {
       deps.research?.setEnabled(on)
       return researchStatus()
+    },
+    getScreenData: () => research.screenData(db),
+    getMarketMonitor: () => research.marketMonitor(db),
+    async getWorldBoard(): Promise<WorldSeries[]> {
+      // Twenty minutes is fresh enough for a glance, and spares Yahoo a dozen calls per page view.
+      if (world && Date.now() - world.at < 20 * 60_000) return world.series
+      const got = await mapLimit(WORLD, 4, async (w) => ({ ...w, points: (await yahooHistory(w.key, '6mo', deps.fetch, '1d')).prices }))
+      const series = got.filter((r) => r.ok && r.value.points.length > 1).map((r) => (r as { value: WorldSeries }).value)
+      if (series.length === 0) throw new Error('Yahoo Finance sent no market data')
+      world = { at: Date.now(), series }
+      return series
+    },
+    /** Opening the map the first time starts its background updates. */
+    getWorldMap(): WorldMap {
+      deps.world?.opened()
+      return worldStore.worldMap(db, worldStatus())
+    },
+    setWorldSync(on: boolean): WorldMap {
+      deps.world?.setEnabled(on)
+      return worldStore.worldMap(db, worldStatus())
+    },
+    /** Fetches every World map source now, in the background (the map refreshes as each lands). */
+    refreshWorld(): null {
+      if (!deps.world) return null
+      if (!deps.world.enabled()) deps.world.setEnabled(true)
+      void deps.world.run(true)
+      return null
+    },
+    getWorldShips: (): Promise<ShipsView> => ships.view(),
+    getAisStatus: () => aisStatus(),
+    setAisKey(key: string): AisStatus {
+      const k = key.trim()
+      if (!/^[A-Za-z0-9_-]{20,100}$/.test(k)) throw new Error('That doesn’t look like an aisstream.io API key (letters and numbers, from your aisstream.io account page).')
+      setSetting(AIS_KEY, JSON.stringify({ key: deps.encrypt(k), ending: k.slice(-4) }))
+      ships.keyChanged()
+      return aisStatus()
+    },
+    removeAisKey(): AisStatus {
+      db.delete(schema.settings).where(eq(schema.settings.key, AIS_KEY)).run()
+      ships.keyChanged()
+      return aisStatus()
+    },
+    /** Closes the live-ships socket (the app is quitting or swapping its data). */
+    stopShips: () => ships.stop(),
+    getSavedScreens(): Screen[] {
+      try {
+        return JSON.parse(getSetting(SCREENS_KEY) ?? '[]') as Screen[]
+      } catch {
+        return []
+      }
+    },
+    saveScreens(screens: Screen[]): null {
+      setSetting(SCREENS_KEY, JSON.stringify(screens.slice(0, 50)))
+      return null
     },
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),

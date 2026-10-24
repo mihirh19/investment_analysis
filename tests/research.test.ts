@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDatabase, schema, type Db } from '../src/main/db'
-import { companyView, searchCompanies } from '../src/main/research/store'
+import { companyView, marketMonitor, screenData, searchCompanies } from '../src/main/research/store'
 import { parseResultsXbrl } from '../src/main/research/xbrl'
-import { latestRefs, NseClient, nseDate, parseDayFiles, parseIntegratedList, parseLegacyList } from '../src/main/research/nse'
+import { latestRefs, NseClient, nseDate, parseDayFiles, parseIndices, parseIntegratedList, parseLegacyList } from '../src/main/research/nse'
+import { applyScreen, fundamentalsOf, NO_FUNDAMENTALS, PRESET_SCREENS, screenRow, sortRows, type ScreenRow } from '../src/shared/screener'
 import { candidateDays, ResearchSync } from '../src/main/research/sync'
 import { arrange, computeMetrics, fyLabel, quarterLabel, type Filing } from '../src/shared/research'
 
@@ -243,6 +244,15 @@ describe('the download, end to end', () => {
     expect(companyView(db, 'HDFCBANK')?.results.error).toMatch(/404/)
     expect(searchCompanies(db, 'tata')[0]).toMatchObject({ symbol: 'TCS' })
     expect(searchCompanies(db, 'nifty')).toEqual([])
+    // The screener and the monitor read what the download stored.
+    const sd = screenData(db)
+    expect(sd).toMatchObject({ companies: 2, withResults: 1 })
+    const tcs = sd.rows.find((r) => r.symbol === 'TCS')!
+    expect(tcs.roe).toBeGreaterThan(0.3)
+    expect(tcs.pe).toBe(17.49)
+    const mon = marketMonitor(db)
+    expect(mon.indices.map((i) => i.name).slice(0, 3)).toEqual(['Nifty 50', 'Nifty Next 50', 'Nifty Bank'])
+    expect(mon.breadth.up + mon.breadth.down + mon.breadth.flat).toBe(2)
   })
 })
 
@@ -263,5 +273,62 @@ describe.skipIf(!process.env.FP_LIVE)('live NSE', () => {
     expect(v.metrics.piotroski).not.toBeNull()
     o.sqlite.close()
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('screener', () => {
+  const row = (symbol: string, f: Partial<ScreenRow>): ScreenRow => ({
+    ...screenRow({ symbol, name: symbol, industry: null, held: false }, NO_FUNDAMENTALS, null),
+    ...f
+  })
+
+  it('works out price figures from fundamentals and the day', () => {
+    const f = { ...NO_FUNDAMENTALS, shares: 100, equity: 5000, borrowings: 1000, cash: 500, ttmProfit: 800, ttmEbit: 1200, epsTtm: 8, dividendsFy: 200 }
+    const q = { symbol: 'X', date: '2026-10-23', close: 100, prevClose: 95, open: null, high: null, low: null, high52: 125, low52: 80, volume: null, mcap: null, pe: null }
+    const r = screenRow({ symbol: 'X', name: 'X Ltd', industry: 'IT', held: true }, f, q)
+    expect(r.mcap).toBe(10000)
+    expect(r.pe).toBe(12.5)
+    expect(r.pb).toBe(2)
+    expect(r.earningsYield).toBeCloseTo(1200 / 10500)
+    expect(r.dividendYield).toBe(0.02)
+    expect(r.fromHigh).toBeCloseTo(-0.2)
+    expect(r.change).toBeCloseTo(100 / 95 - 1)
+    expect(r.toGraham).toBeCloseTo(100 / Math.sqrt(22.5 * 8 * 50) - 1)
+  })
+
+  it('filters, leaves out lenders and missing figures, and ranks the Magic Formula', () => {
+    const rows = [
+      row('A', { mcap: 2e10, roce: 0.4, earningsYield: 0.05 }),
+      row('B', { mcap: 2e10, roce: 0.2, earningsYield: 0.12 }),
+      row('C', { mcap: 2e10, roce: 0.3, earningsYield: 0.1 }),
+      row('BANK', { mcap: 2e10, roce: 0.5, earningsYield: 0.2, bank: true }),
+      row('NOROCE', { mcap: 2e10, earningsYield: 0.3 })
+    ]
+    const magic = PRESET_SCREENS.find((s) => s.rank === 'magic')!
+    // Banks, and companies missing a figure, are left out.
+    const out = applyScreen(rows, magic).map((r) => r.symbol)
+    expect([...out].sort()).toEqual(['A', 'B', 'C'])
+    // Best on both counts comes first.
+    expect(applyScreen([...rows, row('TOP', { mcap: 2e10, roce: 0.9, earningsYield: 0.15 })], magic)[0].symbol).toBe('TOP')
+    const lowDebt = applyScreen([row('D', { debtToEquity: 0.05, roce: 0.25, mcap: 6e9 }), row('E', { debtToEquity: 0.5, roce: 0.3, mcap: 6e9 })], PRESET_SCREENS.find((s) => s.name === 'Low debt, high ROCE')!)
+    expect(lowDebt.map((r) => r.symbol)).toEqual(['D'])
+    expect(sortRows(rows, 'roce', 'desc').map((r) => r.symbol)).toEqual(['BANK', 'A', 'C', 'B', 'NOROCE'])
+  })
+
+  it('keeps the weakest five-year figures for the Coffee Can test', () => {
+    const y = (end: string, rev: number, pbt: number, equity: number): Filing => ({
+      symbol: 'Q', periodEnd: end, basis: 'C', bank: false, months: 12, quarter: {}, ytd: { revenue: rev, pbt, finance: 0, ownersProfit: pbt * 0.75 }, balance: { assets: equity * 1.5, equity, totalEquity: equity, borrowings: 0 }, shareCapital: 10, faceValue: 1
+    })
+    const f = fundamentalsOf([y('2022-03-31', 100, 30, 100), y('2023-03-31', 115, 35, 110), y('2024-03-31', 130, 40, 120), y('2025-03-31', 150, 45, 130), y('2026-03-31', 170, 50, 140)])
+    expect(f.years).toBe(5)
+    expect(f.salesGrowthMin5).toBeCloseTo(130 / 115 - 1)
+    // The first year has no year-start balance sheet, so its ROCE is on year-end capital: 30 / 100.
+    expect(f.roceMin5).toBeCloseTo(0.3)
+  })
+
+  it('reads index levels from the day file', () => {
+    const idx = parseIndices(readFileSync(fx('PR231026.zip')), '2026-10-23')
+    expect(idx.find((i) => i.name === 'Nifty 50')).toMatchObject({ close: 22600, prevClose: 22687.65, high52: 26373.2 })
+    expect(idx.map((i) => i.name)).toContain('Nifty Bank')
   })
 })

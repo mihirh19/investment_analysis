@@ -83,10 +83,13 @@ describe('theme setting', () => {
   it('is saved and handed to the window', () => {
     const applied: string[] = []
     const svc = createServices({ db, casparserExe: '', encrypt: (s) => s, decrypt: (s) => s, applyTheme: (t) => applied.push(t) })
-    expect(svc.getTheme()).toBe('system')
+    // The terminal look until another is chosen.
+    expect(svc.getTheme()).toBe('terminal')
     svc.setTheme('dark')
     expect(svc.getTheme()).toBe('dark')
     expect(applied).toEqual(['dark'])
+    svc.setTheme('system')
+    expect(svc.getTheme()).toBe('system')
     expect(() => svc.setTheme('blue' as never)).toThrow()
   })
 })

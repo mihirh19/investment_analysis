@@ -264,5 +264,47 @@
    "shareCapital": 15418600000,
    "faceValue": 1
   }
+ ],
+ "indices": [
+  {
+   "name": "Nifty 50",
+   "date": "2026-10-23",
+   "close": 22600,
+   "prevClose": 22687.65,
+   "high52": 26373.2,
+   "low52": 22179.9
+  },
+  {
+   "name": "Nifty IT",
+   "date": "2026-10-23",
+   "close": 31995.5,
+   "prevClose": 32081.25,
+   "high52": 40301.4,
+   "low52": 25699.1
+  },
+  {
+   "name": "Nifty Next 50",
+   "date": "2026-10-23",
+   "close": 65828.6,
+   "prevClose": 67354.15,
+   "high52": 75000.4,
+   "low52": 59896.1
+  },
+  {
+   "name": "Nifty Bank",
+   "date": "2026-10-23",
+   "close": 54287.35,
+   "prevClose": 54925.7,
+   "high52": 61764.85,
+   "low52": 49954.85
+  },
+  {
+   "name": "NIFTY MIDCAP 100",
+   "date": "2026-10-23",
+   "close": 55800.65,
+   "prevClose": 57063.95,
+   "high52": 64450.9,
+   "low52": 52032.85
+  }
  ]
 }

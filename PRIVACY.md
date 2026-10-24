@@ -19,7 +19,28 @@ The app's use of information received from Google APIs adheres to the [Google AP
 
 ## Other connections
 
-To show live prices and reference data, the app downloads public information (stock prices, fund NAVs, exchange rates, home price indices) from public sources. These requests do not include the user's holdings or personal details.
+To show live prices and reference data, the app downloads public information (stock prices, fund NAVs, exchange rates, home price indices, mandi crop prices) from public sources. These requests do not include the user's holdings or personal details.
+
+- **Research desk:** downloads NSE's public end-of-day price files and the results filings companies publish with NSE, slowly and one file at a time. The download can be paused in Research. Price history comes from Yahoo Finance.
+- **World map:** only after the map is first opened, the app downloads public figures from:
+  - IMF PortWatch (ArcGIS);
+  - UN Comtrade;
+  - the World Bank, the BIS and the OECD;
+  - Yahoo Finance;
+  - USGS and GDACS;
+  - the Shanghai Shipping Exchange;
+  - Fintraffic's Digitraffic (Baltic ship positions).
+
+  Updates can be paused on the map.
+- **Live ships worldwide:** if the user enters their own aisstream.io key, the key is stored encrypted on the computer and sent only to aisstream.io, to receive ship positions for a map area.
+
+None of these requests carry the user's holdings or personal details.
+
+**Claude (optional, off unless the user adds their own Anthropic API key):**
+- "Ask your money" and the phone's chat send the question and the figures needed to answer it to Anthropic's API, and may include Gmail search results when the user allows the chat to use Gmail.
+- Statement reading sends the statement's text.
+- The farm market note sends only public crop prices.
+- Each feature has its own switch in Settings → Claude.
 
 ## Contact
 

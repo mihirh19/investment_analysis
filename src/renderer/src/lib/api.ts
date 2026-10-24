@@ -7,6 +7,7 @@ import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Basis } from '@shared/research'
+import type { Screen } from '@shared/screener'
 import type {
   ApiResult,
   EpfInput,
@@ -383,3 +384,71 @@ export function useResearchSubscription() {
   const qc = useQueryClient()
   useEffect(() => api().onResearchUpdate(() => void qc.invalidateQueries({ queryKey: ['research'] })), [qc])
 }
+
+export const useScreenData = () =>
+  useQuery({ queryKey: ['research', 'screen'], queryFn: () => unwrap(api().getScreenData()), staleTime: 5 * 60_000 })
+
+export const useMarketMonitor = () =>
+  useQuery({ queryKey: ['research', 'monitor'], queryFn: () => unwrap(api().getMarketMonitor()) })
+
+export const useWorldBoard = () =>
+  useQuery({
+    // A "history" key: the minute-by-minute price refresh leaves it alone.
+    queryKey: ['history', 'world'],
+    queryFn: () => unwrap(api().getWorldBoard()),
+    staleTime: 20 * 60_000,
+    retry: 1
+  })
+
+export const useSavedScreens = () =>
+  useQuery({ queryKey: ['research', 'saved-screens'], queryFn: () => unwrap(api().getSavedScreens()) })
+
+export function useSaveScreens() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (screens: Screen[]) => unwrap(api().saveScreens(screens)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['research', 'saved-screens'] })
+  })
+}
+
+// ---------------- research desk: World map ----------------
+
+/** "history" keys: the half-minute price refresh leaves the (large) world data alone. */
+const WORLD_KEY = ['history', 'world-map'] as const
+
+export const useWorldMap = () =>
+  useQuery({ queryKey: WORLD_KEY, queryFn: () => unwrap(api().getWorldMap()), staleTime: 10 * 60_000 })
+
+/** Each World map source that finishes updating refreshes the map. */
+export function useWorldSubscription() {
+  const qc = useQueryClient()
+  useEffect(() => api().onWorldUpdate(() => void qc.invalidateQueries({ queryKey: WORLD_KEY })), [qc])
+}
+
+export function useSetWorldSync() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (on: boolean) => unwrap(api().setWorldSync(on)),
+    onSuccess: (map) => qc.setQueryData(WORLD_KEY, map)
+  })
+}
+
+export function useRefreshWorld() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: () => unwrap(api().refreshWorld()), onSuccess: () => qc.invalidateQueries({ queryKey: WORLD_KEY }) })
+}
+
+/** Ships at sea, every minute and a half while the ships layer is on. */
+export const useWorldShips = (enabled: boolean) =>
+  useQuery({
+    queryKey: ['history', 'world-ships'],
+    queryFn: () => unwrap(api().getWorldShips()),
+    enabled,
+    refetchInterval: enabled ? 90_000 : false,
+    staleTime: 60_000,
+    retry: false
+  })
+
+export const useAisStatus = () => useQuery({ queryKey: ['aisStatus'], queryFn: () => unwrap(api().getAisStatus()) })
+export const useSetAisKey = () => useWrite((key: string) => api().setAisKey(key))
+export const useRemoveAisKey = () => useWrite(() => api().removeAisKey())

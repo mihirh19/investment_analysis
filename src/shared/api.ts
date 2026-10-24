@@ -74,6 +74,18 @@ export const API_METHODS = [
   'searchCompanies',
   'getCompanyChart',
   'setResearchSync',
+  'getScreenData',
+  'getMarketMonitor',
+  'getWorldBoard',
+  'getSavedScreens',
+  'saveScreens',
+  'getWorldMap',
+  'setWorldSync',
+  'refreshWorld',
+  'getWorldShips',
+  'getAisStatus',
+  'setAisKey',
+  'removeAisKey',
   'getGoogleSetup',
   'saveGoogleClient',
   'connectGoogleAccount',
@@ -126,3 +138,4 @@ export const _allMethodsListed: Missing extends never ? true : Missing = true
 export const MARKET_UPDATED = 'market:updated'
 export const CHAT_EVENT = 'chat:event'
 export const RESEARCH_UPDATED = 'research:updated'
+export const WORLD_UPDATED = 'world:updated'

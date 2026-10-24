@@ -17,6 +17,8 @@ import type { FundComparisons, SectorInsights } from './insights'
 import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput, HoldingCosts, MarketNote } from './farm'
 import type { LoanInput, LoanPayment, LoansReport } from './loans'
 import type { Basis, CompanyHit, CompanyView, ResearchHome, ResearchStatus } from './research'
+import type { MarketMonitor, Screen, ScreenData, WorldSeries } from './screener'
+import type { AisStatus, ShipsView, WorldMap } from './world'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
@@ -797,7 +799,8 @@ export interface PerformanceReport {
   }
 }
 
-export type Theme = 'light' | 'dark' | 'system'
+/** 'terminal' is black and amber, like a trading terminal (dark underneath). */
+export type Theme = 'light' | 'dark' | 'system' | 'terminal'
 
 export interface HealthCheck {
   key: string
@@ -922,6 +925,25 @@ export interface RequestApi {
   getCompanyChart(symbol: string, range: '1mo' | '6mo' | '1y' | '5y' | 'max'): Promise<ApiResult<PricePoint[]>>
   /** Turns the background download of NSE's results and prices on or off. */
   setResearchSync(on: boolean): Promise<ApiResult<ResearchStatus>>
+  /** Every company with a price or results, with the screener's figures (filtered in the window). */
+  getScreenData(): Promise<ApiResult<ScreenData>>
+  /** NSE indices, breadth, movers, sectors and the family's stocks for the day. */
+  getMarketMonitor(): Promise<ApiResult<MarketMonitor>>
+  /** Six months of world indices, currency, oil, gold and US yields from Yahoo Finance. */
+  getWorldBoard(): Promise<ApiResult<WorldSeries[]>>
+  getSavedScreens(): Promise<ApiResult<Screen[]>>
+  saveScreens(screens: Screen[]): Promise<ApiResult<null>>
+  /** The World map's stored data; opening it the first time starts the background updates. */
+  getWorldMap(): Promise<ApiResult<WorldMap>>
+  /** Pauses or resumes the World map's background updates. */
+  setWorldSync(on: boolean): Promise<ApiResult<WorldMap>>
+  /** Fetches every World map source now (the map updates as each one lands). */
+  refreshWorld(): Promise<ApiResult<null>>
+  /** Ships at sea now: the Baltic from Digitraffic, and India's seas with the person's aisstream.io key. */
+  getWorldShips(): Promise<ApiResult<ShipsView>>
+  getAisStatus(): Promise<ApiResult<AisStatus>>
+  setAisKey(key: string): Promise<ApiResult<AisStatus>>
+  removeAisKey(): Promise<ApiResult<AisStatus>>
 
   /** Google accounts connected to fetch statements from Gmail (read-only). */
   getGoogleSetup(): Promise<ApiResult<GoogleSetup>>
@@ -1013,4 +1035,6 @@ export interface Api extends RequestApi {
   onChatEvent(listener: (e: ChatEvent) => void): () => void
   /** The research download stored more companies or prices. */
   onResearchUpdate(listener: () => void): () => void
+  /** A World map source finished updating. */
+  onWorldUpdate(listener: () => void): () => void
 }

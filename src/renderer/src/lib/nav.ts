@@ -10,6 +10,8 @@ export interface NavPage {
 export interface NavSection {
   label: string
   pages: NavPage[]
+  /** Deeper pages (a company under Research) belong to the section too. */
+  prefix?: string
 }
 
 export const SECTIONS: NavSection[] = [
@@ -51,7 +53,15 @@ export const SECTIONS: NavSection[] = [
       { to: '/rebalance', label: 'Rebalance' }
     ]
   },
-  { label: 'Research', pages: [{ to: '/research', label: 'Research' }] },
+  {
+    label: 'Research',
+    prefix: '/research',
+    pages: [
+      { to: '/research', label: 'Monitor', end: true },
+      { to: '/research/screener', label: 'Screener' },
+      { to: '/research/world', label: 'World' }
+    ]
+  },
   {
     label: 'Records',
     pages: [
@@ -66,4 +76,6 @@ export const SECTIONS: NavSection[] = [
 export const pageActive = (p: NavPage, pathname: string) =>
   p.end ? pathname === p.to : pathname === p.to || pathname.startsWith(`${p.to}/`)
 
-export const sectionOf = (pathname: string) => SECTIONS.find((s) => s.pages.some((p) => pageActive(p, pathname)))
+export const sectionOf = (pathname: string) =>
+  SECTIONS.find((s) => s.pages.some((p) => pageActive(p, pathname))) ??
+  SECTIONS.find((s) => s.prefix && pathname.startsWith(s.prefix))

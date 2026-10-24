@@ -15,16 +15,22 @@ import { loadPlan, savePlan } from './portfolio/forecast'
 import type { VehicleMeta } from '@shared/vehicles'
 import type { DayQuote, Filing } from '@shared/research'
 import { schema } from './db'
-import { markChecked, saveQuotes } from './research/store'
+import { markChecked, saveIndices, saveQuotes } from './research/store'
+import type { IndexLevel } from '@shared/screener'
 import { SYNC_KEY } from './research/sync'
+import * as worldStore from './world/store'
+import { WORLD_SYNC_KEY } from './world/sync'
+import type { Figure } from './world/parse'
+import type { FreightPoint, TradeRow, TrafficDay, WorldEvent, WorldMetricKey, WorldPlace } from '@shared/world'
 
 /**
  * Development-only helpers, never active in the packaged app:
  *   FP_USER_DATA=<dir>        keep data in a throwaway folder instead of the real profile
- *   FP_SEED_DIR=<dir>         import demo files named "<person>-*.cas.json" / "-zerodha-*.csv" / "-indmoney-*.csv" / "-*.assets.json" / "-*.vehicles.json" / "*.plan.json" / "*.research.json"
+ *   FP_SEED_DIR=<dir>         import demo files named "<person>-*.cas.json" / "-zerodha-*.csv" / "-indmoney-*.csv" / "-*.assets.json" / "-*.vehicles.json" / "*.plan.json" / "*.research.json" / "*.world.json"
  *   FP_SCREENSHOT_DIR=<dir>   capture each page to PNG, then quit (FP_ROUTES, FP_SCOPES pick which)
- *   FP_THEME=light|dark      force the colour scheme
+ *   FP_THEME=light|dark|terminal  force the colour scheme (terminal is saved as the theme setting)
  *   FP_SHOT_DELAY=<ms>       wait before the first screenshot (lets live prices load)
+ *   FP_SHOT_WAIT=<ms>        wait after opening each page before its screenshot (default 1500)
  */
 const enabled = () => !app.isPackaged
 
@@ -32,7 +38,13 @@ export function applyDevPaths(): void {
   if (!enabled()) return
   if (process.env.FP_USER_DATA) app.setPath('userData', process.env.FP_USER_DATA)
   const theme = process.env.FP_THEME
-  if (theme === 'light' || theme === 'dark') void app.whenReady().then(() => (nativeTheme.themeSource = theme))
+  if (theme === 'light' || theme === 'dark' || theme === 'terminal')
+    void app.whenReady().then(() => (nativeTheme.themeSource = theme === 'terminal' ? 'dark' : theme))
+}
+
+/** FP_THEME=terminal: the terminal look is a saved setting the window reads, so save it. */
+export function applyDevTheme(services: Services): void {
+  if (enabled() && process.env.FP_THEME === 'terminal') services.setTheme('terminal')
 }
 
 export async function seedDemo(db: Db, services: Services): Promise<void> {
@@ -57,6 +69,8 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
       for (const meta of JSON.parse(readFileSync(path, 'utf8')) as VehicleMeta[]) saveVehicle(db, { personId, meta })
     } else if (file.endsWith('.loans.json')) {
       for (const l of JSON.parse(readFileSync(path, 'utf8')) as Omit<LoanInput, 'personId'>[]) saveLoan(db, { ...l, personId })
+    } else if (file.endsWith('.world.json')) {
+      seedWorld(db, JSON.parse(readFileSync(path, 'utf8')) as WorldSeed)
     } else if (file.endsWith('.research.json')) {
       seedResearch(db, JSON.parse(readFileSync(path, 'utf8')))
     } else if (file.endsWith('.farm.json')) {
@@ -88,7 +102,7 @@ export function captureScreens(win: BrowserWindow): void {
       await win.webContents.executeJavaScript(`localStorage.setItem('scope', ${JSON.stringify(scope)})`)
       for (const route of routes) {
         await win.webContents.executeJavaScript(`location.hash = ${JSON.stringify('#' + route)}; location.reload()`)
-        await wait(1500)
+        await wait(Number(process.env.FP_SHOT_WAIT ?? 1500))
         const name = `${scope}${route.replace(/\//g, '_') || '_'}.png`
         try {
           writeFileSync(join(out, name), (await win.webContents.capturePage()).toPNG())
@@ -104,12 +118,13 @@ export function captureScreens(win: BrowserWindow): void {
 /** Stored results and prices for a few companies; the background download stays off on demo data. */
 function seedResearch(
   db: Db,
-  seed: { listings: { isin: string; symbol: string; name: string }[]; quotes: DayQuote[]; filings: Filing[] }
+  seed: { listings: { isin: string; symbol: string; name: string }[]; quotes: DayQuote[]; filings: Filing[]; indices?: IndexLevel[] }
 ): void {
   const at = new Date().toISOString()
   for (const l of seed.listings)
     db.insert(schema.nseListings).values({ ...l, kind: 'EQ', updatedAt: at }).onConflictDoNothing().run()
   saveQuotes(db, seed.quotes)
+  saveIndices(db, seed.indices ?? [])
   for (const f of seed.filings) {
     db.insert(schema.researchFilings)
       .values({ symbol: f.symbol, periodEnd: f.periodEnd, basis: f.basis, url: 'demo', status: 'DONE', dataJson: JSON.stringify(f) })
@@ -118,4 +133,24 @@ function seedResearch(
     markChecked(db, f.symbol, null)
   }
   db.insert(schema.settings).values({ key: SYNC_KEY, value: 'off' }).onConflictDoNothing().run()
+}
+
+interface WorldSeed {
+  figures: Partial<Record<WorldMetricKey, Figure[]>>
+  places: Omit<WorldPlace, 'followed' | 'latestDate' | 'recent' | 'yearAgo' | 'imports7' | 'exports7' | 'weekly'>[]
+  traffic: (TrafficDay & { id: string })[]
+  trade: TradeRow[]
+  events: WorldEvent[]
+  freight: FreightPoint[]
+}
+
+/** A saved copy of the World map's data; its background updates stay off on demo data. */
+function seedWorld(db: Db, seed: WorldSeed): void {
+  for (const [metric, rows] of Object.entries(seed.figures)) worldStore.saveFigures(db, metric as WorldMetricKey, rows ?? [])
+  worldStore.savePlaces(db, seed.places)
+  worldStore.saveTraffic(db, seed.traffic)
+  worldStore.saveTrade(db, seed.trade)
+  worldStore.saveEvents(db, seed.events)
+  worldStore.saveFreight(db, 'SCFI', seed.freight)
+  db.insert(schema.settings).values({ key: WORLD_SYNC_KEY, value: 'off' }).onConflictDoNothing().run()
 }

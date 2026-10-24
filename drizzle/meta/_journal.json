@@ -113,6 +113,20 @@
       "when": 1792826495000,
       "tag": "0015_research",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1792828781771,
+      "tag": "0016_screener",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1792833192242,
+      "tag": "0017_world",
+      "breakpoints": true
     }
   ]
 }

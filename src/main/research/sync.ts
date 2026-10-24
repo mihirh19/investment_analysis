@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import type { ResearchStatus } from '@shared/research'
 import { schema, type Db } from '../db'
 import type { FetchFn } from '../market/http'
-import { NseClient, parseDayFiles, peUrl, prUrl } from './nse'
+import { NseClient, parseDayFiles, parseIndices, peUrl, prUrl } from './nse'
 import { parseResultsXbrl } from './xbrl'
 import {
   companiesToCheck,
@@ -11,6 +11,8 @@ import {
   markChecked,
   pendingFilings,
   progress,
+  refreshFundamentals,
+  saveIndices,
   saveQuotes,
   saveRefs,
   storeFiling
@@ -140,6 +142,7 @@ export class ResearchSync {
             if (!this.enabled()) break
             await this.step(() => this.readFiling(f))
           }
+          refreshFundamentals(this.db, [...new Set(left.map((f) => f.symbol))])
         }
       } finally {
         this.current = null
@@ -189,7 +192,11 @@ export class ResearchSync {
           throw e
         }
       }
-      for (const f of pendingFilings(this.db, symbol, 60)) await this.readFiling(f)
+      try {
+        for (const f of pendingFilings(this.db, symbol, 60)) await this.readFiling(f)
+      } finally {
+        refreshFundamentals(this.db, [symbol])
+      }
       this.finished = [...this.finished.slice(-40), Date.now()]
       this.lastError = null
       this.onUpdate()
@@ -225,6 +232,7 @@ export class ResearchSync {
       }
       const pe = await this.nse.text(peUrl(day)).catch(() => null)
       saveQuotes(this.db, parseDayFiles(zip, day, pe))
+      saveIndices(this.db, parseIndices(zip, day))
       this.onUpdate()
       break
     }

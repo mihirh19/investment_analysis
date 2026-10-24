@@ -182,10 +182,10 @@ export function AreaStack({
 
 // ---------------- treemap (size = value, colour = gain or loss) ----------------
 
-/** Gain/loss → diverging fill: grey at 0, full blue at +40%, full red at −40%. */
-export function divergingFill(pct: number | null): { fill: string; strong: boolean } {
+/** Gain/loss → diverging fill: grey at 0, full colour at ±`full` (40% unless given). */
+export function divergingFill(pct: number | null, full = 0.4): { fill: string; strong: boolean } {
   if (pct === null) return { fill: 'var(--div-mid)', strong: false }
-  const t = Math.min(1, Math.abs(pct) / 0.4)
+  const t = Math.min(1, Math.abs(pct) / full)
   const mix = Math.round(15 + t * 85)
   return {
     fill: `color-mix(in oklab, ${pct >= 0 ? 'var(--div-pos)' : 'var(--div-neg)'} ${mix}%, var(--div-mid))`,
@@ -208,7 +208,10 @@ export function Treemap({
   format,
   label,
   height = 360,
-  onSelect
+  onSelect,
+  full = 0.4,
+  changeLabel = 'return',
+  sizeLabel = 'value'
 }: {
   items: TreeItem[]
   format: (v: number) => string
@@ -216,6 +219,10 @@ export function Treemap({
   height?: number
   /** Called with the item key when a tile is clicked. */
   onSelect?: (key: string) => void
+  /** The change that gets full colour (0.4 = 40%; a day's moves want much less). */
+  full?: number
+  changeLabel?: string
+  sizeLabel?: string
 }) {
   const theme = useChartTheme()
   const sorted = useMemo(() => items.filter((i) => i.value > 0).sort((a, b) => b.value - a.value), [items])
@@ -235,11 +242,11 @@ export function Treemap({
             borderRadius: 4,
             backgroundColor: (ctx: ScriptableContext<'treemap'>) => {
               const it = ctx.type === 'data' ? itemOf(ctx.raw) : undefined
-              return it ? resolveColor(divergingFill(it.gainPct).fill) : 'transparent'
+              return it ? resolveColor(divergingFill(it.gainPct, full).fill) : 'transparent'
             },
             hoverBackgroundColor: (ctx: ScriptableContext<'treemap'>) => {
               const it = ctx.type === 'data' ? itemOf(ctx.raw) : undefined
-              return it ? alpha(divergingFill(it.gainPct).fill, 0.85) : 'transparent'
+              return it ? alpha(divergingFill(it.gainPct, full).fill, 0.85) : 'transparent'
             },
             labels: {
               display: true,
@@ -249,7 +256,7 @@ export function Treemap({
               font: [{ size: 12, weight: 'bold', family: FONT }, { size: 12, family: FONT }],
               color: (ctx: ScriptableContext<'treemap'>) => {
                 const it = ctx.type === 'data' ? itemOf(ctx.raw) : undefined
-                return it && divergingFill(it.gainPct).strong ? white : ink
+                return it && divergingFill(it.gainPct, full).strong ? white : ink
               },
               formatter: (ctx: ScriptableContext<'treemap'>) => {
                 const it = itemOf(ctx.raw)
@@ -262,7 +269,7 @@ export function Treemap({
       },
       options: { interaction: { mode: 'nearest', intersect: true } } as ChartOptions<'treemap'>
     }
-  }, [sorted, label, theme])
+  }, [sorted, label, theme, full])
 
   return (
     <div className="w-full">
@@ -274,7 +281,7 @@ export function Treemap({
           style={{ background: 'linear-gradient(90deg, var(--div-neg), var(--div-mid), var(--div-pos))' }}
         />
         <span>Gain</span>
-        <span className="ml-2">Size shows value</span>
+        <span className="ml-2">Size shows {sizeLabel}</span>
       </div>
       <ChartBox
         type="treemap"
@@ -298,7 +305,7 @@ export function Treemap({
             <div>
               <div className="mb-0.5 font-medium text-ink">{it.name}</div>
               <TipRow
-                label={it.gainPct === null ? 'no cost on record' : `return ${pctText(it.gainPct)}`}
+                label={it.gainPct === null ? 'no cost on record' : `${changeLabel} ${pctText(it.gainPct)}`}
                 value={format(it.value)}
               />
             </div>

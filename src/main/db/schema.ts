@@ -500,3 +500,93 @@ export const researchCompanies = sqliteTable('research_companies', {
   checkedAt: text('checked_at'),
   error: text('error')
 })
+
+/** Each company's screener figures (Fundamentals as JSON), redone when its filings change. */
+export const researchFundamentals = sqliteTable('research_fundamentals', {
+  symbol: text('symbol').primaryKey(),
+  /** Filings read when these were worked out; a different count means they are out of date. */
+  filings: integer('filings').notNull(),
+  dataJson: text('data_json').notNull()
+})
+
+/** NSE index levels from the day's file (Nifty 50, Nifty Bank, …): the latest day only. */
+export const researchIndices = sqliteTable('research_indices', {
+  name: text('name').primaryKey(),
+  date: text('date').notNull(),
+  close: real('close').notNull(),
+  prevClose: real('prev_close'),
+  high52: real('high_52'),
+  low52: real('low_52')
+})
+
+/** World map: yearly (World Bank) or latest (BIS, OECD, Yahoo) figures per country. */
+export const worldFigures = sqliteTable(
+  'world_figures',
+  {
+    metric: text('metric').notNull(),
+    iso3: text('iso3').notNull(),
+    period: text('period').notNull(),
+    value: real('value').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.metric, t.iso3, t.period] })]
+)
+
+/** India's trade with each partner from UN Comtrade, by good (HS code) and year. */
+export const worldTrade = sqliteTable(
+  'world_trade',
+  {
+    partner: text('partner').notNull(),
+    partnerName: text('partner_name').notNull(),
+    flow: text('flow').$type<'X' | 'M'>().notNull(),
+    cmd: text('cmd').notNull(),
+    period: text('period').notNull(),
+    value: real('value').notNull(),
+    weight: real('weight')
+  },
+  (t) => [primaryKey({ columns: [t.partner, t.flow, t.cmd, t.period] })]
+)
+
+/** Shipping chokepoints and ports from IMF PortWatch's reference lists. */
+export const worldPlaces = sqliteTable('world_places', {
+  id: text('id').primaryKey(),
+  kind: text('kind').$type<'chokepoint' | 'port'>().notNull(),
+  name: text('name').notNull(),
+  iso3: text('iso3'),
+  lat: real('lat').notNull(),
+  lon: real('lon').notNull(),
+  locode: text('locode'),
+  vessels: real('vessels')
+})
+
+/** Daily vessel counts through each chokepoint, and calls and cargo at India's ports (IMF PortWatch). */
+export const worldTraffic = sqliteTable(
+  'world_traffic',
+  {
+    id: text('id').notNull(),
+    date: text('date').notNull(),
+    total: integer('total').notNull(),
+    tanker: integer('tanker').notNull(),
+    container: integer('container').notNull(),
+    dryBulk: integer('dry_bulk').notNull(),
+    imports: real('imports'),
+    exports: real('exports')
+  },
+  (t) => [primaryKey({ columns: [t.id, t.date] })]
+)
+
+/** Recent earthquakes and disasters (USGS, GDACS); replaced on each fetch. */
+export const worldEvents = sqliteTable('world_events', {
+  id: text('id').primaryKey(),
+  dataJson: text('data_json').notNull()
+})
+
+/** Weekly freight index readings (the SCFI). */
+export const worldFreight = sqliteTable(
+  'world_freight',
+  {
+    name: text('name').notNull(),
+    date: text('date').notNull(),
+    value: real('value').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.name, t.date] })]
+)

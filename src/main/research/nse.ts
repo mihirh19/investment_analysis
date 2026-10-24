@@ -1,6 +1,7 @@
 import { unzipSync, strFromU8 } from 'fflate'
 import { fetchWith, HttpError, type FetchFn } from '../market/http'
 import type { Basis, DayQuote } from '@shared/research'
+import type { IndexLevel } from '@shared/screener'
 
 // NSE's public results lists and end-of-day files. Requests go one at a time with a pause between
 // them; NSE is asked only what a person browsing its site would see.
@@ -163,6 +164,23 @@ export function parseDayFiles(zip: Uint8Array, date: string, peCsv: string | nul
     }
   }
   return [...out.values()]
+}
+
+/** The index lines at the top of the day's price file (Nifty 50, Nifty Bank, sector indices…). */
+export function parseIndices(zip: Uint8Array, date: string): IndexLevel[] {
+  const files = unzipSync(zip)
+  const name = Object.keys(files).find((n) => n.toLowerCase() === `pd${DDMMYYYY(date)}.csv`)
+  if (!name) return []
+  const [head, ...rows] = csvRows(strFromU8(files[name]))
+  const col = (h: string) => head.indexOf(h)
+  const c = { mkt: col('MKT'), name: col('SECURITY'), prev: col('PREV_CL_PR'), close: col('CLOSE_PRICE'), hi52: col('HI_52_WK'), lo52: col('LO_52_WK') }
+  const out: IndexLevel[] = []
+  for (const r of rows) {
+    const close = num(r[c.close])
+    if (r[c.mkt] !== 'Y' || !r[c.name] || close === null || close <= 0) continue
+    out.push({ name: r[c.name], date, close, prevClose: num(r[c.prev]), high52: num(r[c.hi52]) || null, low52: num(r[c.lo52]) || null })
+  }
+  return out
 }
 
 /**

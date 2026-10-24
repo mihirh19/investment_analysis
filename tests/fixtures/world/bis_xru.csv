@@ -1,0 +1,120 @@
+DATAFLOW,FREQ,REF_AREA,CURRENCY,COLLECTION,TIME_PERIOD,OBS_VALUE,UNIT_MULT,DECIMALS,AVAILABILITY,TITLE,OBS_STATUS,OBS_PRE_BREAK,OBS_CONF
+BIS:WS_XRU(1.0),M,TM,TMT,A,2026-08,3.5,0,6,A, Exchange rates against USD Turkmenistan - Turkmenistan new manat - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TM,TMT,A,2026-09,3.5,0,6,A, Exchange rates against USD Turkmenistan - Turkmenistan new manat - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,HN,HNL,A,2026-08,26.830629,0,6,A, Exchange rates against USD Honduras - Lempira - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MO,MOP,A,2026-08,8.078181,0,6,A, Exchange rates against USD Macao SAR - Pataca - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,NL,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Netherlands - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,NL,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Netherlands - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CA,CAD,A,2026-08,1.390785,0,6,A, Exchange rates against USD Canada - Canadian dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CA,CAD,A,2026-09,1.396137,0,6,A, Exchange rates against USD Canada - Canadian dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,HK,HKD,A,2026-08,7.842639,0,6,A, Exchange rates against USD Hong Kong SAR - Hong Kong dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,HK,HKD,A,2026-09,7.843252,0,6,A, Exchange rates against USD Hong Kong SAR - Hong Kong dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MN,MNT,A,2026-08,3594.465714,0,6,A, Exchange rates against USD Mongolia - Tugrik - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TH,THB,A,2026-08,33.011599,0,6,A, Exchange rates against USD Thailand - Baht - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TH,THB,A,2026-09,33.215203,0,6,A, Exchange rates against USD Thailand - Baht - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,ID,IDR,A,2026-08,17805.012581,0,6,A, Exchange rates against USD Indonesia - Rupiah - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,ID,IDR,A,2026-09,17742.538598,0,6,A, Exchange rates against USD Indonesia - Rupiah - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,US,USD,A,2026-08,1,0,6,A, Exchange rates against USD United States - US dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,US,USD,A,2026-09,1,0,6,A, Exchange rates against USD United States - US dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,SK,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Slovakia - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,SK,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Slovakia - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,HR,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Croatia - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,HR,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Croatia - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,DM,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD Dominica - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BE,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Belgium - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BE,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Belgium - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,GQ,XAF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Equatorial Guinea - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,NI,NIO,A,2026-08,36.6243,0,10,A, Exchange rates against USD Nicaragua - Cordoba - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,KM,KMF,A,2026-08,424.362726,0,6,A, Exchange rates against USD Comoros - Comorian franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,SZ,SZL,A,2026-08,16.179423,0,6,A, Exchange rates against USD Eswatini - Lilangeni - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CF,XAF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Central African Republic - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,NG,NGN,A,2026-08,1352.97313,0,6,A, Exchange rates against USD Nigeria - Naira - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BG,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Bulgaria - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BG,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Bulgaria - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,ML,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Mali - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CR,CRC,A,2026-08,450.138387,0,6,A, Exchange rates against USD Costa Rica - Costa Rica colon - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,ES,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Spain - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,ES,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Spain - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BH,BHD,A,2026-08,0.376,0,6,A, Exchange rates against USD Bahrain - Bahraini dinar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CG,XAF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Republic of Congo - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,WA,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Waemu - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MD,MDL,A,2026-08,17.309471,0,6,A, Exchange rates against USD Moldova - Moldovan leu - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,UZ,UZS,A,2026-08,11801.23,0,6,A, Exchange rates against USD Uzbekistan - Sum - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,UZ,UZS,A,2026-09,11821.18,0,6,A, Exchange rates against USD Uzbekistan - Sum - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,SN,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Senegal - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,QA,QAR,A,2026-08,3.64,0,6,A, Exchange rates against USD Qatar - Qatari riyal - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,QA,QAR,A,2026-09,3.64,0,6,A, Exchange rates against USD Qatar - Qatari riyal - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,NA,NAD,A,2026-08,16.1794,0,6,A, Exchange rates against USD Namibia - Namibian dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,GE,GEL,A,2026-08,2.6177,0,6,A, Exchange rates against USD Georgia - Lari - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,GA,XAF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Gabon - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CZ,CZK,A,2026-08,20.85691,0,6,A, Exchange rates against USD Czechia - Czech koruna - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CZ,CZK,A,2026-09,21.105178,0,6,A, Exchange rates against USD Czechia - Czech koruna - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,KE,KES,A,2026-08,129.42,0,6,A, Exchange rates against USD Kenya - Kenyan shilling - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BN,BND,A,2026-08,1.276795,0,6,A, Exchange rates against USD Brunei - Brunei dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BN,BND,A,2026-09,1.272976,0,6,A, Exchange rates against USD Brunei - Brunei dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,CI,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Côte d'Ivoire - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TG,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Togo - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,KN,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD St Kitts and Nevis - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,AI,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD Anguilla - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,UA,UAH,A,2026-08,44.699438,0,6,A, Exchange rates against USD Ukraine - Hryvnia - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,UA,UAH,A,2026-09,44.663682,0,6,A, Exchange rates against USD Ukraine - Hryvnia - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,FI,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Finland - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,FI,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Finland - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MY,MYR,A,2026-08,4.065023,0,6,A, Exchange rates against USD Malaysia - Malaysian ringgit - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MY,MYR,A,2026-09,4.070393,0,6,A, Exchange rates against USD Malaysia - Malaysian ringgit - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,JP,JPY,A,2026-08,158.801365,0,6,A, Exchange rates against USD Japan - Yen - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,JP,JPY,A,2026-09,156.388,0,6,A, Exchange rates against USD Japan - Yen - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BS,BSD,A,2026-08,1,0,6,A, Exchange rates against USD The Bahamas - Bahamian dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,LS,LSL,A,2026-08,16.179423,0,6,A, Exchange rates against USD Lesotho - Loti - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,LU,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Luxembourg - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,LU,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Luxembourg - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MX,MXN,A,2026-08,17.063554,0,6,A, Exchange rates against USD Mexico - Mexican peso - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MX,MXN,A,2026-09,17.240098,0,6,A, Exchange rates against USD Mexico - Mexican peso - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,JO,JOD,A,2026-08,0.71,0,6,A, Exchange rates against USD Jordan - Jordanian dinar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BR,BRL,A,2026-08,5.1481447010831,0,16,A, Exchange rates against USD Brazil - Brazilian real - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BR,BRL,A,2026-09,5.1445005885517,0,16,A, Exchange rates against USD Brazil - Brazilian real - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,AN,ANG,A,2026-08,1.79,0,6,A, Exchange rates against USD Netherlands Antilles - Netherlands Antillean guilder - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BF,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Burkina Faso - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TW,TWD,A,2026-08,32.022857,0,6,A, Exchange rates against USD Chinese Taipei - New Taiwan dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TW,TWD,A,2026-09,31.738095,0,6,A, Exchange rates against USD Chinese Taipei - New Taiwan dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,PT,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Portugal - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,PT,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Portugal - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,JM,JMD,A,2026-08,158.335075,0,6,A, Exchange rates against USD Jamaica - Jamaican dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,LC,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD St Lucia - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BW,BWP,A,2026-08,13.1325,0,6,A, Exchange rates against USD Botswana - Pula - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,AO,AOA,A,2026-08,912.7195714286,0,10,A, Exchange rates against USD Angola - Angolan Kwanza - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,LK,LKR,A,2026-08,331.954762,0,6,A, Exchange rates against USD Sri Lanka - Sri Lanka rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,LK,LKR,A,2026-09,329.474762,0,6,A, Exchange rates against USD Sri Lanka - Sri Lanka rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TT,TTD,A,2026-08,6.737544,0,6,A, Exchange rates against USD Trinidad and Tobago - Trinidad and Tobago dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TT,TTD,A,2026-09,6.748212,0,6,A, Exchange rates against USD Trinidad and Tobago - Trinidad and Tobago dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MV,MVR,A,2026-08,15.42,0,6,A, Exchange rates against USD Maldives - Rufiyaa - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BT,BTN,A,2026-08,95.47411,0,6,A, Exchange rates against USD Bhutan - Ngultrum - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,AR,ARS,A,2026-08,1499.962935,0,16,A, Exchange rates against USD Argentina - Argentine peso - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,AR,ARS,A,2026-09,1513.8869727273,0,16,A, Exchange rates against USD Argentina - Argentine peso - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TR,TRY,A,2026-08,47.88148539527,0,16,A, Exchange rates against USD Türkiye - Turkish lira - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,TR,TRY,A,2026-09,48.654471745425,0,16,A, Exchange rates against USD Türkiye - Turkish lira - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,DZ,DZD,A,2026-08,132.86383,0,6,A, Exchange rates against USD Algeria - Algerian dinar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MU,MUR,A,2026-08,47.250981,0,6,A, Exchange rates against USD Mauritius - Mauritius rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MU,MUR,A,2026-09,47.737637,0,6,A, Exchange rates against USD Mauritius - Mauritius rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BZ,BZD,A,2026-08,2,0,6,A, Exchange rates against USD Belize - Belize dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,NE,XOF,A,2026-08,565.816968,0,6,A, Exchange rates against USD Niger - CFA franc - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,MS,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD Montserrat - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BY,BYN,A,2026-08,3.0396,0,6,A, Exchange rates against USD Belarus - Belarusian Ruble - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,BY,BYN,A,2026-09,3.0285,0,6,A, Exchange rates against USD Belarus - Belarusian Ruble - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,AG,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD Antigua and Barbuda - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,IN,INR,A,2026-08,95.446733,0,6,A, Exchange rates against USD India - Indian rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,IN,INR,A,2026-09,95.471159,0,6,A, Exchange rates against USD India - Indian rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,IT,EUR,A,2026-08,0.862603,0,6,A, Exchange rates against USD Italy - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,IT,EUR,A,2026-09,0.86863,0,6,A, Exchange rates against USD Italy - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,XW,XDR,A,2026-08,0.7306,0,4,A, Exchange rates against USD World - Special drawing right - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,XW,XDR,A,2026-09,0.7318,0,4,A, Exchange rates against USD World - Special drawing right - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,PA,PAB,A,2026-08,1,0,6,A, Exchange rates against USD Panama - Balboa - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,GD,XCD,A,2026-08,2.7,0,6,A, Exchange rates against USD Grenada - Eastern Caribbean dollar - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,SM,EUR,A,2026-08,0.862582,0,6,A, Exchange rates against USD San Marino - Euro - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,ER,ERN,A,2026-08,15.075,0,6,A, Exchange rates against USD Eritrea - Nakfa - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,IL,ILS,A,2026-08,2.990695,0,6,A, Exchange rates against USD Israel - New shekel - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,IL,ILS,A,2026-09,3.032013,0,6,A, Exchange rates against USD Israel - New shekel - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,SC,SCR,A,2026-08,14.600948,0,6,A, Exchange rates against USD Seychelles - Seychelles rupee - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,OM,OMR,A,2026-08,0.3845,0,6,A, Exchange rates against USD Oman - Omani rial - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,OM,OMR,A,2026-09,0.3845,0,6,A, Exchange rates against USD Oman - Omani rial - Monthly - Average of observations through period,A,,F
+BIS:WS_XRU(1.0),M,KZ,KZT,A,2026-08,464.55,0,6,A, Exchange rates against USD Kazakhstan - Tenge - Monthly - Average of observations through period,A,,F

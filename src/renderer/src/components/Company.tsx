@@ -11,14 +11,16 @@ import {
 } from '@shared/research'
 import { ErrorNote } from './Shell'
 import { Columns, PriceLine, dayLabel } from './charts'
-import { useCompany, useCompanyChart } from '../lib/api'
+import { BASE_COLUMNS, ScreenTable } from './ScreenTable'
+import { useCompany, useCompanyChart, useScreenData } from '../lib/api'
 import { axisCrore, bigMoney, compactMoney, lakhCrore, money, percent, shortDate, toneClass, units } from '../lib/format'
 
-export type View = 'overview' | 'financials' | 'chart'
+export type View = 'overview' | 'financials' | 'chart' | 'peers'
 export const VIEWS: { key: View; label: string; codes: string[] }[] = [
   { key: 'overview', label: 'Overview', codes: ['ov', 'overview'] },
   { key: 'financials', label: 'Financials', codes: ['fin', 'financials', 'fa'] },
-  { key: 'chart', label: 'Price chart', codes: ['ch', 'chart', 'gp'] }
+  { key: 'chart', label: 'Price chart', codes: ['ch', 'chart', 'gp'] },
+  { key: 'peers', label: 'Peers', codes: ['peer', 'peers', 'rv'] }
 ]
 
 const crore = (v: number | null | undefined) =>
@@ -62,7 +64,7 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
             {v.label}
           </button>
         ))}
-        {c.bases.length > 1 && view !== 'chart' && (
+        {c.bases.length > 1 && (view === 'overview' || view === 'financials') && (
           <div role="radiogroup" aria-label="Figures for" className="ml-auto flex items-center gap-1 pb-1.5">
             {(['C', 'S'] as const).map((b) => (
               <button
@@ -84,6 +86,7 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
       {view === 'overview' && <Overview c={c} />}
       {view === 'financials' && <Financials c={c} />}
       {view === 'chart' && <Chart symbol={symbol} name={c.name} />}
+      {view === 'peers' && <Peers c={c} />}
     </article>
   )
 }
@@ -470,5 +473,24 @@ function Chart({ symbol, name }: { symbol: string; name: string }) {
         )}
       </div>
     </section>
+  )
+}
+
+// ---------------- peers ----------------
+
+/** Companies in the same industry (NSE's classification for the Nifty 500), largest first. */
+function Peers({ c }: { c: CompanyView }) {
+  const data = useScreenData()
+  if (!c.industry) return <p className="text-ink-muted">NSE gives an industry for Nifty 500 companies only, so there is no peer group for {c.name}.</p>
+  if (data.isLoading) return <p className="text-ink-muted">Finding companies in {c.industry}…</p>
+  if (data.error) return <ErrorNote error={data.error} />
+  const peers = (data.data?.rows ?? []).filter((r) => r.industry === c.industry).sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
+  return (
+    <>
+      <p className="mb-2 text-[13.5px] text-ink-muted">
+        {peers.length} companies in {c.industry}, largest first. Click a heading to sort.
+      </p>
+      <ScreenTable rows={peers.slice(0, 40)} columns={[...BASE_COLUMNS, 'opm', 'pb', 'dividendYield']} highlight={c.symbol} initialSort={null} label={`${c.industry} peers`} />
+    </>
   )
 }

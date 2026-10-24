@@ -129,6 +129,49 @@ body {
   }
 }
 
+/* Terminal: black and amber, like a trading screen. Chosen in Settings, and always on in Research.
+   The chart series are the dark theme's, reordered so the single-series charts draw in amber. */
+html.terminal {
+  --paper: #000000;
+  --sheet: #0c0c0c;
+  --ink: #ececec;
+  --ink-muted: #9a9a9a;
+  --rule: #242424;
+  --rule-strong: #3d3d3d;
+  --stamp: #ffa630;
+  --stamp-wash: #2e1f08;
+  --gain: #3fd17c;
+  --loss: #ff5c52;
+  --warn: #ffd43b;
+  --warn-wash: #2b2507;
+  --series-1: #ffa630;
+  --series-2: #3987e5;
+  --series-3: #199e70;
+  --series-4: #d55181;
+  --series-5: #9085e9;
+  --series-6: #e66767;
+  --series-7: #d95926;
+  --series-8: #6fb7c4;
+  --series-other: #5b5b5b;
+  --div-pos: #1fa95a;
+  --div-neg: #e0433a;
+  --div-mid: #1c1c1c;
+  color-scheme: dark;
+}
+/* In the components layer, so a size or colour utility on the same element still wins. */
+@layer components {
+  /* Figures in a fixed-width face, the way terminals print them. */
+  html.terminal .num {
+    font-family: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+    font-variation-settings: normal;
+    letter-spacing: -0.02em;
+  }
+  /* Amber buttons carry black text. */
+  html.terminal .bg-stamp {
+    color: #000;
+  }
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;
