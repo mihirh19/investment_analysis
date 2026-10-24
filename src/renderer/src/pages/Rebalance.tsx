@@ -121,7 +121,7 @@ function Headline({ r }: { r: RebalanceReport }) {
     ['Left out', compactMoney(r.excludedInr), 'property, crypto, policies and other']
   ]
   return (
-    <dl className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+    <dl className="grid grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
       {cards.map(([k, v, sub], i) => (
         <div key={k} className="anim-page border-t border-rule-strong pt-2" style={stagger(i, 60)}>
           <dt className="text-[13px] text-ink-muted">{k}</dt>
@@ -307,7 +307,7 @@ function TargetsEditor({ r, personId, scopeLabel }: { r: RebalanceReport; person
           </Button>
         </div>
       ) : (
-        <div className="grid max-w-[880px] grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+        <div className="grid max-w-[880px] grid-cols-1 gap-x-12 gap-y-6 @3xl:grid-cols-2">
           <div>
             {BUCKETS.map((b) =>
               field(BUCKET_LABELS[b], form.buckets[b], (v) => setForm((f) => ({ ...f, buckets: { ...f.buckets, [b]: v } })), BUCKET_NOTES[b])

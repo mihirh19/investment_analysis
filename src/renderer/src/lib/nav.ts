@@ -1,9 +1,11 @@
-// The app's pages, grouped into a few sections. The sidebar lists sections; a section with more
-// than one page shows its pages as tabs above the page.
+// The app's screens, grouped into sections. Each opens as a tab in the terminal; a section with
+// more than one screen shows its others as tabs along the top of the screen. Codes are what the
+// command line takes, terminal-style (HOLD, FARM, SCR…).
 
 export interface NavPage {
   to: string
   label: string
+  code: string
   end?: boolean
 }
 
@@ -15,67 +17,80 @@ export interface NavSection {
 }
 
 export const SECTIONS: NavSection[] = [
-  { label: 'Overview', pages: [{ to: '/', label: 'Overview', end: true }] },
+  { label: 'Overview', pages: [{ to: '/', label: 'Overview', code: 'HOME', end: true }] },
   {
     label: 'Investments',
     pages: [
-      { to: '/holdings', label: 'Holdings' },
-      { to: '/performance', label: 'Performance' },
-      { to: '/analysis', label: 'Analysis' },
-      { to: '/exposure', label: 'Sectors & exposure' },
-      { to: '/funds', label: 'Funds' },
-      { to: '/dividends', label: 'Dividends' }
+      { to: '/holdings', label: 'Holdings', code: 'HOLD' },
+      { to: '/performance', label: 'Performance', code: 'PERF' },
+      { to: '/analysis', label: 'Analysis', code: 'ANLY' },
+      { to: '/exposure', label: 'Sectors & exposure', code: 'EXPO' },
+      { to: '/funds', label: 'Funds', code: 'FUND' },
+      { to: '/dividends', label: 'Dividends', code: 'DIV' }
     ]
   },
   {
     label: 'Assets',
     pages: [
-      { to: '/property', label: 'Property & rent' },
-      { to: '/farm', label: 'Farm' },
-      { to: '/vehicles', label: 'Vehicles' },
-      { to: '/retirement', label: 'EPF & NPS' },
-      { to: '/insurance', label: 'Insurance' },
-      { to: '/other-assets', label: 'Other assets' }
+      { to: '/property', label: 'Property & rent', code: 'PROP' },
+      { to: '/farm', label: 'Farm', code: 'FARM' },
+      { to: '/vehicles', label: 'Vehicles', code: 'VEH' },
+      { to: '/retirement', label: 'EPF & NPS', code: 'EPF' },
+      { to: '/insurance', label: 'Insurance', code: 'INS' },
+      { to: '/other-assets', label: 'Other assets', code: 'OTH' }
     ]
   },
-  { label: 'Loans & EMIs', pages: [{ to: '/loans', label: 'Loans & EMIs' }] },
+  { label: 'Loans & EMIs', pages: [{ to: '/loans', label: 'Loans & EMIs', code: 'LOAN' }] },
   {
     label: 'Spending & tax',
     pages: [
-      { to: '/spending', label: 'Spending' },
-      { to: '/tax', label: 'Tax' }
+      { to: '/spending', label: 'Spending', code: 'SPND' },
+      { to: '/tax', label: 'Tax', code: 'TAX' }
     ]
   },
   {
     label: 'Planning',
     pages: [
-      { to: '/forecast', label: 'Forecast & inflation' },
-      { to: '/rebalance', label: 'Rebalance' }
+      { to: '/forecast', label: 'Forecast & inflation', code: 'PLAN' },
+      { to: '/rebalance', label: 'Rebalance', code: 'REBL' }
     ]
   },
   {
     label: 'Research',
     prefix: '/research',
     pages: [
-      { to: '/research', label: 'Monitor', end: true },
-      { to: '/research/screener', label: 'Screener' },
-      { to: '/research/world', label: 'World' }
+      { to: '/research', label: 'Monitor', code: 'MON', end: true },
+      { to: '/research/screener', label: 'Screener', code: 'SCR' },
+      { to: '/research/flows', label: 'Money flows', code: 'FLOW' },
+      { to: '/research/world', label: 'World', code: 'WLD' }
     ]
   },
   {
     label: 'Records',
     pages: [
-      { to: '/activity', label: 'Activity' },
-      { to: '/import', label: 'Import statements' },
-      { to: '/people', label: 'People & accounts' },
-      { to: '/settings', label: 'Settings & backup' }
+      { to: '/activity', label: 'Activity', code: 'ACT' },
+      { to: '/import', label: 'Import statements', code: 'IMP' },
+      { to: '/people', label: 'People & accounts', code: 'PPL' },
+      { to: '/settings', label: 'Settings & backup', code: 'SET' }
     ]
   }
 ]
 
-export const pageActive = (p: NavPage, pathname: string) =>
+export const ALL_PAGES = SECTIONS.flatMap((s) => s.pages.map((p) => ({ ...p, section: s.label })))
+
+export const pageActive = (p: Pick<NavPage, 'to' | 'end'>, pathname: string) =>
   p.end ? pathname === p.to : pathname === p.to || pathname.startsWith(`${p.to}/`)
 
 export const sectionOf = (pathname: string) =>
   SECTIONS.find((s) => s.pages.some((p) => pageActive(p, pathname))) ??
   SECTIONS.find((s) => s.prefix && pathname.startsWith(s.prefix))
+
+/** A tab's title for a route: the screen's name, or a company's symbol. */
+export function titleFor(route: string): string {
+  const path = route.split('?')[0]
+  const page = ALL_PAGES.find((p) => path === p.to)
+  if (page) return page.label
+  const company = /^\/research\/([^/]+)$/.exec(path)
+  if (company) return decodeURIComponent(company[1]).toUpperCase()
+  return ALL_PAGES.find((p) => pageActive(p, path))?.label ?? 'Screen'
+}

@@ -135,7 +135,7 @@ export function FundComparisonsSection({ personId }: { personId?: number }) {
         of its own companies; which rows matter is your call. Returns are past ones, from AMFI
         {d.schemesAsOf ? ` (${d.schemesAsOf})` : ''}, before tax.
       </p>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @7xl:grid-cols-2">
         {d.pairs.slice(0, 8).map((p) => (
           <Pair key={`${p.funds[0].instrumentId}-${p.funds[1].instrumentId}`} p={p} />
         ))}

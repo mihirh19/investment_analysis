@@ -155,7 +155,7 @@ function Headline({ f }: { f: ForecastData }) {
   if (!last) return null
   const personal = f.personalInflation
   return (
-    <section aria-label="Forecast summary" className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <section aria-label="Forecast summary" className="grid grid-cols-1 gap-8 @5xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
         <div className="text-[15px] text-ink-muted">In {last.year} your money could be</div>
         <div className="wide num text-[52px] leading-none font-semibold tracking-tight">{lakhCrore(last.nominal)}</div>
@@ -671,7 +671,7 @@ function Retirement({ f, plan, update }: Edit) {
         </label>
       </div>
       {r ? (
-        <div className="mt-4 grid max-w-[720px] grid-cols-1 gap-6 sm:grid-cols-3">
+        <div className="mt-4 grid max-w-[720px] grid-cols-1 gap-6 @2xl:grid-cols-3">
           <div>
             <div className="text-[13px] text-ink-muted">Needed in {r.year}</div>
             <div className="num text-[22px] font-semibold">{lakhCrore(r.needed)}</div>
@@ -718,7 +718,7 @@ function Assumptions({ f, plan, update }: Edit) {
       title="Assumptions"
       note="Yearly returns before tax for each kind of investment. Today's amounts are what you hold now; funds count by their category (hybrids split)."
     >
-      <div className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-10 @5xl:grid-cols-2">
         <table className="w-full text-[14px]">
           <thead>
             <tr className="border-b border-rule-strong text-left text-[13px] text-ink-muted">
@@ -744,7 +744,7 @@ function Assumptions({ f, plan, update }: Edit) {
             ))}
           </tbody>
         </table>
-        <div className="mt-6 space-y-5 text-[14px] lg:mt-0">
+        <div className="mt-6 space-y-5 text-[14px] @5xl:mt-0">
           <div>
             <div className="mb-1 font-medium">General inflation, for &ldquo;today&rsquo;s money&rdquo;</div>
             <div className="flex flex-wrap items-center gap-2">

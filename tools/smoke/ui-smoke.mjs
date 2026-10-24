@@ -99,21 +99,15 @@ const waitFor = async (expression, ms = 10000) => {
     await sleep(400)
   }
 }
-// Pages live in sidebar sections; a section's other pages are tabs above the page.
-const SECTION_OF = {
-  Holdings: 'Investments', Performance: 'Investments', Analysis: 'Investments', 'Sectors & exposure': 'Investments', Funds: 'Investments', Dividends: 'Investments',
-  'Property & rent': 'Assets', Farm: 'Assets', Vehicles: 'Assets', 'EPF & NPS': 'Assets', Insurance: 'Assets', 'Other assets': 'Assets',
-  Spending: 'Spending & tax', Tax: 'Spending & tax', 'Forecast & inflation': 'Planning', Rebalance: 'Planning',
-  Activity: 'Records', 'Import statements': 'Records', 'People & accounts': 'Records', 'Settings & backup': 'Records'
-}
+// Every screen opens in a terminal tab: through a screen's own section tabs when it is a sibling,
+// otherwise from the Menu (which opens it in the tab that has focus). "Research" is the Monitor.
 const nav = async (label) => {
-  if ((await clickText('main nav a', label)) === 'ok') return 'ok'
-  if (SECTION_OF[label]) {
-    await clickText('nav[aria-label=Sections] a', SECTION_OF[label])
-    await sleep(300)
-    return clickText('main nav a', label)
-  }
-  return clickText('nav[aria-label=Sections] a', label)
+  const want = label === 'Research' ? 'Monitor' : label
+  const inTab = await ev(`(() => { const a = [...document.querySelectorAll('[data-screen] nav a')].find((e) => e.textContent.trim() === ${JSON.stringify(want)}); if (!a) return 'NOT FOUND'; a.click(); return 'ok' })()`)
+  if (inTab === 'ok') return 'ok'
+  await ev(`[...document.querySelectorAll('header button')].find((b) => b.textContent.trim() === 'Menu')?.click()`)
+  await sleep(250)
+  return ev(`(() => { const b = [...document.querySelectorAll('[aria-label=Menu] button')].find((e) => e.textContent.trim().endsWith(${JSON.stringify(want)}) && !e.title); if (!b) return 'NOT FOUND'; b.click(); return 'ok' })()`)
 }
 const ok = async (step) => {
   await sleep(1200)
@@ -347,9 +341,9 @@ await clickText('button', 'Cancel')
 // Research: the family's stocks, then one company's overview, financials and chart.
 await nav('Research')
 await waitFor(`document.body.innerText.includes('Nifty Bank') && document.body.innerText.includes('Your stocks')`)
-const researchHome = await ev(`[document.body.innerText.includes('NSE indices'), document.body.innerText.includes('Nifty Bank'), document.body.innerText.includes('Your stocks'), document.documentElement.classList.contains('terminal')].join(',')`)
-if (researchHome !== 'true,true,true,true') { failures++; console.log(JSON.stringify(await ev(`location.hash + ' | ' + document.querySelector('main')?.innerText.slice(0, 400)`))) }
-console.log((researchHome === 'true,true,true,true' ? 'ok   ' : 'FAIL ') + 'research: monitor in the terminal look ' + researchHome)
+const researchHome = await ev(`[document.body.innerText.includes('NSE indices'), document.body.innerText.includes('Nifty Bank'), document.body.innerText.includes('Your stocks')].join(',')`)
+if (researchHome !== 'true,true,true') { failures++; console.log(JSON.stringify(await ev(`location.hash + ' | ' + document.querySelector('main')?.innerText.slice(0, 400)`))) }
+console.log((researchHome === 'true,true,true' ? 'ok   ' : 'FAIL ') + 'research: monitor tab ' + researchHome)
 await sleep(4000)
 await ok('research: world markets loaded')
 await nav('Screener')
@@ -391,6 +385,9 @@ const check = async (name, expression, ms = 10000) => {
   const v = await waitFor(expression, ms)
   if (!v) failures++
   console.log((v ? 'ok   ' : 'FAIL ') + name)
+  // On a failure, which tabs were open (and which were showing) says most about what went wrong.
+  if (!v) console.log('     tabs:', await ev(`[...document.querySelectorAll('.dv-tab')].map((t) => (t.classList.contains('dv-active-tab') ? '*' : '') + t.textContent.trim()).join(' | ')`))
+  if (!v) console.log('     saved:', await ev(`window.api.getWorkspaces().then((r) => JSON.stringify(r.data.map((w) => [w.id, Object.values(w.layout?.panels ?? {}).map((p) => p.contentComponent + ':' + (p.params?.route ?? ''))])))`))
   return v
 }
 const pickOption = (label, value) =>
@@ -409,27 +406,63 @@ await pickOption('Find a country', 'CHN')
 await check('world: country panel with trade', `document.querySelector('[role=dialog]')?.innerText.includes('Trade with India') && document.querySelector('[role=dialog]').innerText.includes('Figures')`)
 await key('Escape')
 await check('world: panel closes on Escape', `!document.querySelector('[role=dialog]')`)
-await key('F5')
-await check('world: F5 hides chokepoints', `[...document.querySelectorAll('[aria-label="Map layers"] button')].find(b => b.textContent.includes('Chokepoints'))?.getAttribute('aria-pressed') === 'false'`)
-await key('F5')
+await key('5')
+await check('world: key 5 hides chokepoints', `[...document.querySelectorAll('[aria-label="Map layers"] button')].find(b => b.textContent.includes('Chokepoints'))?.getAttribute('aria-pressed') === 'false'`)
+await key('5')
 await clickText('section[aria-label=Chokepoints] tbody tr', 'Suez Canal')
 await check('world: chokepoint panel', `document.querySelector('[role=dialog]')?.innerText.includes('Transits a day')`)
 await pickOption('Colour countries by', 'growth')
 await check('world: year slider for yearly figures', `!!document.querySelector('input[type=range][aria-label=Year]')`)
-await clickText('[aria-label="Map layers"] button', 'F4')
+await clickText('[aria-label="Map layers"] button', '4')
 await sleep(4000)
 await ok('world: ships layer on')
-await clickText('[aria-label="Map layers"] button', 'F4')
+await clickText('[aria-label="Map layers"] button', '4')
 await ok('world: ships layer off')
-await clickText('aside > button', 'Go to')
-await ok('go to: open the box')
-await ev(`document.querySelector('[role=dialog] input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
-await clickText('aside > button', 'Ask your money')
-await ok('open the chat from the sidebar')
 const typeInto = (sel, value) =>
   ev(
     `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return 'NOT FOUND'; Object.getOwnPropertyDescriptor(el.__proto__, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return 'ok' })()`
   )
+// Money flows: FII/DII, F&O positions, FPI, mutual funds and big deals, on the demo copy.
+await nav('Money flows')
+await check('flows: FII and DII shown', `document.body.innerText.includes('FII net, 23 Oct 2026') && document.body.innerText.includes('DII net')`)
+for (const v of ['F&O positions', 'Foreign investors by month', 'Mutual funds', 'Big deals']) {
+  await clickText('[aria-label="Flows view"] button', v)
+  await ok(`flows: ${v}`)
+}
+await check('flows: deals and 5% stakes listed', `document.body.innerText.includes('SAMHI') && document.body.innerText.includes('5% stakes crossed')`)
+// The terminal itself: function keys open screens in tabs, a new tab, tool panels, workspaces.
+const tabs = () => ev(`[...document.querySelectorAll('.dv-tab')].map((t) => t.textContent.trim()).join('|')`)
+await key('F2')
+await check('terminal: F2 shows Holdings in the tab', `[...document.querySelectorAll('.dv-tab.dv-active-tab')].some((t) => t.textContent.includes('Holdings'))`)
+const before = (await tabs()).split('|').length
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7', shiftKey: true, bubbles: true }))`)
+await check('terminal: Shift+F7 opens Farm in a new tab', `document.querySelectorAll('.dv-tab').length === ${before + 1} && [...document.querySelectorAll('.dv-tab')].some((t) => t.textContent.includes('Farm'))`)
+await ok('terminal: farm tab')
+await key('F5')
+await check('terminal: F5 adds a chart panel', `[...document.querySelectorAll('.dv-tab')].filter((t) => t.textContent.trim() === 'Chart').length >= 2`, 15000)
+await ok('terminal: chart panel')
+await ev(`[...document.querySelectorAll('header button')].find((b) => b.textContent.trim() === 'Menu')?.click()`)
+await check('terminal: menu lists every screen', `!!document.querySelector('[aria-label=Menu]') && document.querySelector('[aria-label=Menu]').innerText.includes('FARM')`)
+await clickText('[aria-label=Menu] button[title]', '+Notes')
+await check('terminal: notes panel from the menu', `!!document.querySelector('textarea[aria-label^="Notes on"]')`)
+await typeInto('textarea[aria-label^="Notes on"]', 'Smoke note')
+await sleep(1500)
+await ok('terminal: note saved')
+for (const ws of ['Markets', 'Company', 'Screener', 'Home']) {
+  await clickText('[aria-label=Workspaces] [role=tab]', ws)
+  await sleep(3000)
+  await ok(`terminal: ${ws} workspace`)
+}
+await pickOption('Watchlist', 'new')
+await sleep(1500)
+await typeInto('input[aria-label="Add a symbol"]', 'INFY')
+await ev(`document.querySelector('input[aria-label="Add a symbol"]').form.requestSubmit()`)
+await check('terminal: a new watchlist with a symbol', `[...document.querySelectorAll('table th')].some((t) => t.textContent.trim() === 'INFY')`, 10000)
+await ev(`document.querySelector('header button[aria-label="Command line"]').click()`)
+await ok('command line: open')
+await ev(`document.querySelector('[role=dialog] input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+await clickText('header button', 'Ask your money')
+await ok('open the chat from the top bar')
 const chat = 'aside[aria-label="Ask your money"]'
 await typeInto('#ask-key', 'sk-ant-api03-smoketestsmoketestsmoketest')
 await clickText(`${chat} button`, 'Save key and start')

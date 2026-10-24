@@ -211,7 +211,7 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
         <h2 className="mb-3 text-[15px] font-semibold text-ink-muted">
           This financial year ({t.currentFy}), sales so far
         </h2>
-        <dl className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
           {(
             [
               [
@@ -266,7 +266,7 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
         title="Ideas before 31 March"
         note="Suggestions from your open lots. Selling resets the buy price and date of whatever you buy back; check exit loads and charges first."
       >
-        <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-10 @7xl:grid-cols-2">
           <div>
             <h3 className="mb-1 text-[15px] font-semibold">Book tax-free gains</h3>
             <p className="mb-2 text-[13px] text-ink-muted">
@@ -320,7 +320,7 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
             )}
           </div>
 
-          <div className="xl:col-span-2">
+          <div className="@7xl:col-span-2">
             <h3 className="mb-1 text-[15px] font-semibold">Losses you could book</h3>
             <p className="mb-2 text-[13px] text-ink-muted">
               Selling these books a loss: a short-term loss can be set off against any capital gain, a long-term loss
@@ -423,7 +423,7 @@ function TaxBody({ t, family }: { t: TaxReport; family: boolean }) {
         title="If you sold everything today"
         note="Gains on the units you still hold, split by how long each lot has been held."
       >
-        <dl className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
           {(
             [
               ['Short-term gains', t.unrealized.shortTermGain],

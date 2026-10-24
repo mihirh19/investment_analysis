@@ -34,7 +34,7 @@ export function Screener() {
 
   const d = data.data
   return (
-    <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
+    <div className="grid gap-6 @5xl:grid-cols-[230px_minmax(0,1fr)]">
       <nav aria-label="Screens" className="flex flex-col gap-px text-[14px]">
         <div className="mb-1 text-[12.5px] text-ink-muted">Ready-made</div>
         {PRESET_SCREENS.map((s) => (

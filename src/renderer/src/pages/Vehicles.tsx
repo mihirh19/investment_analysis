@@ -129,7 +129,7 @@ export function Vehicles() {
       <ErrorNote error={q.error} />
 
       {list.length > 0 && (
-        <div className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="mb-8 grid gap-6 @5xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div>
             <h2 className="mb-2 text-[15px] font-semibold">
               {due.length ? `${due.length} thing${due.length > 1 ? 's' : ''} to sort out` : 'Everything is in order'}
@@ -265,7 +265,7 @@ function VehicleSection({
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-x-10 gap-y-8 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-x-10 gap-y-8 @7xl:grid-cols-2">
         <div className="min-w-0">
           <Reminders v={v} />
           <Insurance v={v} />
@@ -768,7 +768,7 @@ function Costs({ v }: { v: VehicleView }) {
         <Rows rows={rows} />
       </div>
       {open ? (
-        <form onSubmit={submit} className="anim-pop mt-3 grid grid-cols-2 gap-3 rounded-md border border-rule bg-sheet p-4 sm:grid-cols-3">
+        <form onSubmit={submit} className="anim-pop mt-3 grid grid-cols-2 gap-3 rounded-md border border-rule bg-sheet p-4 @2xl:grid-cols-3">
           <Field label="On">
             <Input type="date" required max={today()} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
           </Field>
@@ -993,7 +993,7 @@ function VehicleForm({ v, onDone }: { v: VehicleView | null; onDone: () => void 
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 @5xl:grid-cols-4">
         <Field label="Whose">
           <Select value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
             {persons.map((x) => (

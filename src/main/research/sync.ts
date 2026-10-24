@@ -2,10 +2,18 @@ import { eq } from 'drizzle-orm'
 import type { ResearchStatus } from '@shared/research'
 import { schema, type Db } from '../db'
 import type { FetchFn } from '../market/http'
-import { NseClient, parseDayFiles, parseIndices, peUrl, prUrl } from './nse'
+import { HttpError } from '../market/http'
+import { deliveryUrl, NseClient, parseDayFiles, parseDeliveryFile, parseIndices, peUrl, prUrl } from './nse'
 import { parseResultsXbrl } from './xbrl'
 import {
+  BAR_YEARS,
+  barDaysSeen,
+  barProgress,
   companiesToCheck,
+  markNoBars,
+  pruneBars,
+  refreshTechnicals,
+  saveBars,
   heldStocks,
   latestQuoteDate,
   markChecked,
@@ -56,6 +64,7 @@ export class ResearchSync {
   /** Finish times of recent companies, for the time-left estimate. */
   private finished: number[] = []
   private inFlight = new Map<string, Promise<void>>()
+  private technicalsDone = false
 
   constructor(
     private readonly db: Db,
@@ -103,6 +112,7 @@ export class ResearchSync {
       filings: p.filings,
       etaMinutes: enabled && perMin && left > 0 ? Math.round(left / perMin) : null,
       pricesDate: latestQuoteDate(this.db),
+      history: { ...barProgress(this.db), want: BAR_YEARS * 250 },
       lastError: this.lastError,
       current: this.current
     }
@@ -128,6 +138,7 @@ export class ResearchSync {
         if (!this.enabled() || Date.now() < this.restUntil) return
         await this.step(() => this.dailyFiles())
         await this.step(() => this.newFilings())
+        await this.step(() => this.priceHistory())
         const held = new Set(heldStocks(this.db).keys())
         while (this.enabled() && Date.now() >= this.restUntil) {
           const next = companiesToCheck(this.db, held)[0]
@@ -237,6 +248,44 @@ export class ResearchSync {
       break
     }
     this.lastDaily = Date.now()
+  }
+
+  /**
+   * NSE's daily delivery file for every trading day of the last two years that isn't stored yet,
+   * newest first, then each stock's technicals worked out again. The first run is about 500 small
+   * files; after that it is one a day.
+   */
+  private async priceHistory(): Promise<void> {
+    const seen = barDaysSeen(this.db)
+    const days = candidateDays(istNow(), BAR_YEARS * 261).filter((d) => !seen.has(d))
+    const recent = candidateDays(istNow(), 3)
+    let added = 0
+    for (const day of days) {
+      if (!this.enabled() || Date.now() < this.restUntil) break
+      this.current = `prices of ${day}`
+      try {
+        const bars = parseDeliveryFile(await this.nse.text(deliveryUrl(day)))
+        saveBars(this.db, day, bars)
+        added++
+        if (added % 25 === 0) this.onUpdate()
+      } catch (e) {
+        // No file: a holiday. The last few days may simply not be published yet, so they're asked again.
+        if (e instanceof HttpError && e.status === 404) {
+          if (!recent.includes(day)) markNoBars(this.db, day)
+          continue
+        }
+        throw e
+      } finally {
+        this.current = null
+      }
+    }
+    if (added > 0 || !this.technicalsDone) {
+      const first = candidateDays(istNow(), BAR_YEARS * 261).at(-1)
+      if (first) pruneBars(this.db, first)
+      if (barProgress(this.db).days > 0) refreshTechnicals(this.db)
+      this.technicalsDone = true
+      this.onUpdate()
+    }
   }
 
   /** Results filed across the market since the last look (the backlog covers older ones). */

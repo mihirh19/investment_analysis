@@ -196,7 +196,7 @@ function EpfCard({ a, showPerson, onEdit }: { a: EpfAccountView; showPerson: boo
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-8 @5xl:grid-cols-2">
         <table className="text-[14px]">
           <thead>
             <tr className="border-b border-rule text-left text-[13px] text-ink-muted">
@@ -501,7 +501,7 @@ function NpsAccountForm({ onDone, onUnits }: { onDone: () => void; onUnits: () =
         Copy the figures from Zerodha Coin (NPS), your bank or eNPS: for each scheme, what it is worth now (Current) and
         what went in (Invested). The units are worked out from today&rsquo;s NAV.
       </p>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 @5xl:grid-cols-5">
         <Field label="Whose">
           <Select value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
             {persons.map((p) => (

@@ -63,7 +63,7 @@ export function Insurance() {
 
       {list.length > 0 && (
         <>
-          <dl className="grid max-w-[880px] grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+          <dl className="grid max-w-[880px] grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
             {[
               ['Life cover', lakhCrore(lifeCover)],
               ['Premiums a year', money(premiums)],

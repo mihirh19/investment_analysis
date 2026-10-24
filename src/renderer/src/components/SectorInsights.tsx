@@ -124,7 +124,7 @@ function SectorDetail({ row, market, onClose }: { row: SectorRow; market: Sector
         Nifty 500.
       </p>
       {row.indices.length > 0 ? (
-        <div className="mb-5 grid gap-3 md:grid-cols-2">
+        <div className="mb-5 grid gap-3 @3xl:grid-cols-2">
           {row.indices.map((s) => (
             <IndexCard key={s.key} s={s} market={market} />
           ))}

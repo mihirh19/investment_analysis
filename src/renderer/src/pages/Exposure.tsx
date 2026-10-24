@@ -198,7 +198,7 @@ export function Exposure() {
 
       <Debt e={e} pick={debtPick} onPick={setDebtPick} pct={pct} />
 
-      <div className="mt-12 grid grid-cols-1 gap-12 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="mt-12 grid grid-cols-1 gap-12 @7xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section aria-labelledby="companies">
           <h2 id="companies" className="wide mb-3 text-[19px] font-semibold">
             Biggest companies you own
@@ -498,7 +498,7 @@ function Debt({
         group or an issuer to see each paper.
       </p>
 
-      <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+      <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-3 @2xl:grid-cols-4">
         <div>
           <dt className="text-[13px] text-ink-muted">Sovereign or AAA</dt>
           <dd className="num text-left text-[22px] font-semibold">{pct(safest, d.totalInr)}</dd>
@@ -523,7 +523,7 @@ function Debt({
         )}
       </dl>
 
-      <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-10 @7xl:grid-cols-2">
         <div>
           <h3 className="mb-2 text-[15px] font-semibold">By type</h3>
           <HBars

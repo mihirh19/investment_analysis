@@ -8,6 +8,7 @@ import {
   type Filing,
   type Flow
 } from './research'
+import type { Technicals } from './technicals'
 
 // The screener: a few figures per company from its filings (no price in them: that changes daily),
 // combined with the day's price, then filtered.
@@ -120,8 +121,31 @@ export function fundamentalsOf(filings: Filing[]): Fundamentals {
   }
 }
 
-/** One company in the screener: its fundamentals with the day's price worked in. */
-export interface ScreenRow extends Fundamentals {
+/** The price-history figures a screener row carries (all null until the history is downloaded). */
+export type TechFields = Omit<Technicals, 'date' | 'momentum'>
+export const NO_TECHNICALS: TechFields = {
+  ret1w: null,
+  ret1m: null,
+  ret3m: null,
+  ret6m: null,
+  ret1y: null,
+  rsi14: null,
+  vsSma50: null,
+  vsSma200: null,
+  sma50vs200: null,
+  crossDays: null,
+  volumeSpike: null,
+  delivPct: null,
+  delivSpike: null,
+  turnover20: null,
+  newHigh: null,
+  volatility: null,
+  drawdown1y: null,
+  rsRating: null
+}
+
+/** One company in the screener: its fundamentals and price history with the day's price worked in. */
+export interface ScreenRow extends Fundamentals, TechFields {
   symbol: string
   name: string
   industry: string | null
@@ -143,8 +167,11 @@ export interface ScreenRow extends Fundamentals {
 export function screenRow(
   base: { symbol: string; name: string; industry: string | null; held: boolean },
   f: Fundamentals,
-  q: DayQuote | null
+  q: DayQuote | null,
+  t: Technicals | null = null
 ): ScreenRow {
+  const tech: TechFields = { ...NO_TECHNICALS }
+  if (t) for (const k of Object.keys(NO_TECHNICALS) as (keyof TechFields)[]) tech[k] = t[k]
   const close = q?.close ?? null
   const mcap = q?.mcap ?? (close !== null && f.shares ? close * f.shares : null)
   const pe = q?.pe ?? (mcap && f.ttmProfit && f.ttmProfit > 0 ? mcap / f.ttmProfit : null)
@@ -154,6 +181,7 @@ export function screenRow(
   return {
     ...base,
     ...f,
+    ...tech,
     close,
     change: q?.prevClose && close !== null ? close / q.prevClose - 1 : null,
     mcap,
@@ -233,7 +261,26 @@ export const SCREEN_FIELDS: ScreenField[] = [
   { key: 'ttmProfit', label: 'Profit, last 4 quarters', short: 'Profit', kind: 'money', better: 'high', help: 'Belonging to the company’s shareholders' },
   { key: 'fromHigh', label: 'From 52-week high', short: 'vs high', kind: 'pct', better: 'low', help: 'Negative: below the high' },
   { key: 'toGraham', label: 'Price against Graham number', short: 'vs Graham', kind: 'pct', better: 'low', help: 'Below 0: priced under √(22.5 × EPS × book value)' },
-  { key: 'years', label: 'Years of results', short: 'Years', kind: 'count', better: 'high', help: 'Full years filed with NSE as XBRL' }
+  { key: 'years', label: 'Years of results', short: 'Years', kind: 'count', better: 'high', help: 'Full years filed with NSE as XBRL' },
+  // From the daily price history.
+  { key: 'ret1w', label: 'Return, 1 week', short: '1W', kind: 'pct', better: 'high', help: 'Price change over 5 trading days, adjusted for splits and bonuses' },
+  { key: 'ret1m', label: 'Return, 1 month', short: '1M', kind: 'pct', better: 'high', help: 'Over 21 trading days' },
+  { key: 'ret3m', label: 'Return, 3 months', short: '3M', kind: 'pct', better: 'high', help: 'Over 63 trading days' },
+  { key: 'ret6m', label: 'Return, 6 months', short: '6M', kind: 'pct', better: 'high', help: 'Over 126 trading days' },
+  { key: 'ret1y', label: 'Return, 1 year', short: '1Y', kind: 'pct', better: 'high', help: 'Over 250 trading days' },
+  { key: 'rsRating', label: 'Relative strength (1–99)', short: 'RS', kind: 'score', better: 'high', help: 'The last year’s return, latest quarter counting double, ranked against every stock' },
+  { key: 'rsi14', label: 'RSI (14 days)', short: 'RSI', kind: 'times', better: 'low', help: 'Below 30 is usually read as oversold, above 70 as overbought' },
+  { key: 'vsSma50', label: 'Price vs 50-day average', short: 'vs 50D', kind: 'pct', better: 'high', help: 'Above 0: trading above its 50-day average' },
+  { key: 'vsSma200', label: 'Price vs 200-day average', short: 'vs 200D', kind: 'pct', better: 'high', help: 'Above 0: trading above its 200-day average' },
+  { key: 'sma50vs200', label: '50-day vs 200-day average', short: '50/200', kind: 'pct', better: 'high', help: 'Above 0: the 50-day average is over the 200-day (a golden-cross state)' },
+  { key: 'crossDays', label: 'Days since the 50/200 cross', short: 'Cross d', kind: 'count', better: 'low', help: 'Trading days since the 50-day average last crossed the 200-day' },
+  { key: 'volumeSpike', label: 'Volume vs 20-day average', short: 'Vol ×', kind: 'ratio', better: 'high', help: '2 means twice the usual volume today' },
+  { key: 'delivPct', label: 'Delivery %', short: 'Deliv', kind: 'times', better: 'high', help: 'Share of today’s traded quantity taken as delivery' },
+  { key: 'delivSpike', label: 'Delivery % vs 20-day average', short: 'Deliv ×', kind: 'ratio', better: 'high', help: 'Above 1: more delivery than usual' },
+  { key: 'turnover20', label: 'Traded value a day (20-day average)', short: 'Value/day', kind: 'money', better: 'high', help: 'How easily the stock can be bought and sold' },
+  { key: 'newHigh', label: 'At a 52-week closing high', short: '52W high', kind: 'count', better: 'high', help: '1 when today’s close is the highest of the past year' },
+  { key: 'volatility', label: 'Volatility (yearly)', short: 'Volatility', kind: 'pct', better: 'low', help: 'Spread of daily moves over the past year, scaled to a year' },
+  { key: 'drawdown1y', label: 'Worst fall in the past year', short: 'Max fall', kind: 'pct', better: 'high', help: 'Deepest drop from a peak in the last 12 months' }
 ]
 
 export interface ScreenFilter {
@@ -342,6 +389,56 @@ export const PRESET_SCREENS: Screen[] = [
       { field: 'debtToEquity', op: '<=', value: 0.5 }
     ],
     sort: { field: 'fromHigh', dir: 'asc' }
+  },
+  {
+    name: 'Momentum leaders',
+    about: 'Relative strength of 85 or more, above the 200-day average, and traded enough to buy and sell easily.',
+    filters: [
+      { field: 'rsRating', op: '>=', value: 85 },
+      { field: 'vsSma200', op: '>=', value: 0 },
+      { field: 'turnover20', op: '>=', value: 5 * CR }
+    ],
+    sort: { field: 'rsRating', dir: 'desc' }
+  },
+  {
+    name: '52-week high on volume',
+    about: 'Closed at a one-year high today on at least one and a half times the usual volume.',
+    filters: [
+      { field: 'newHigh', op: '>=', value: 1 },
+      { field: 'volumeSpike', op: '>=', value: 1.5 },
+      { field: 'mcap', op: '>=', value: 500 * CR }
+    ],
+    sort: { field: 'volumeSpike', dir: 'desc' }
+  },
+  {
+    name: 'Fresh golden cross',
+    about: 'The 50-day average crossed above the 200-day within the last 10 trading days.',
+    filters: [
+      { field: 'sma50vs200', op: '>=', value: 0 },
+      { field: 'crossDays', op: '<=', value: 10 },
+      { field: 'mcap', op: '>=', value: 500 * CR }
+    ],
+    sort: { field: 'crossDays', dir: 'asc' }
+  },
+  {
+    name: 'Quality, oversold',
+    about: 'ROE of 15% or more and little debt, with RSI under 35 after a fall.',
+    filters: [
+      { field: 'rsi14', op: '<=', value: 35 },
+      { field: 'roe', op: '>=', value: 0.15 },
+      { field: 'debtToEquity', op: '<=', value: 0.5 }
+    ],
+    sort: { field: 'rsi14', dir: 'asc' }
+  },
+  {
+    name: 'Delivery build-up',
+    about: 'Delivery % well above its usual level on higher volume: shares changing hands to be held.',
+    filters: [
+      { field: 'delivSpike', op: '>=', value: 1.5 },
+      { field: 'volumeSpike', op: '>=', value: 1.5 },
+      { field: 'turnover20', op: '>=', value: 2 * CR }
+    ],
+    sort: { field: 'delivSpike', dir: 'desc' }
   },
   {
     name: 'Dividend payers',

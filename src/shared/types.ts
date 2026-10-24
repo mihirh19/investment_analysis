@@ -16,8 +16,9 @@ import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
 import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput, HoldingCosts, MarketNote } from './farm'
 import type { LoanInput, LoanPayment, LoansReport } from './loans'
-import type { Basis, CompanyHit, CompanyView, ResearchHome, ResearchStatus } from './research'
+import type { Basis, ChartBars, ChartInterval, CompanyHit, CompanyView, ExcelSheet, LiveQuote, ResearchHome, ResearchStatus, SavedWorkspace, Watchlist } from './research'
 import type { MarketMonitor, Screen, ScreenData, WorldSeries } from './screener'
+import type { FlowsReport, FlowsStatus } from './flows'
 import type { AisStatus, ShipsView, WorldMap } from './world'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
@@ -931,6 +932,24 @@ export interface RequestApi {
   getMarketMonitor(): Promise<ApiResult<MarketMonitor>>
   /** Six months of world indices, currency, oil, gold and US yields from Yahoo Finance. */
   getWorldBoard(): Promise<ApiResult<WorldSeries[]>>
+  /** Candles for a chart from Yahoo Finance: full daily history, or recent intraday bars (delayed). */
+  getChartBars(symbol: string, interval: ChartInterval): Promise<ApiResult<ChartBars>>
+  /** Latest prices (delayed, from Yahoo Finance) for up to 60 symbols, with the day's sparkline. */
+  getQuotes(symbols: string[]): Promise<ApiResult<LiveQuote[]>>
+  /** The research workspaces (layouts of panels), or [] before any is saved. */
+  getWorkspaces(): Promise<ApiResult<SavedWorkspace[]>>
+  saveWorkspaces(list: SavedWorkspace[]): Promise<ApiResult<null>>
+  listWatchlists(): Promise<ApiResult<Watchlist[]>>
+  saveWatchlist(list: { id?: number; name: string; symbols: string[] }): Promise<ApiResult<number>>
+  deleteWatchlist(id: number): Promise<ApiResult<null>>
+  getNote(symbol: string): Promise<ApiResult<{ text: string; updatedAt: string } | null>>
+  saveNote(symbol: string, text: string): Promise<ApiResult<null>>
+  /** Asks where to save, then writes the sheets as an Excel file; null if the person cancelled. */
+  exportExcel(fileName: string, sheets: ExcelSheet[]): Promise<ApiResult<string | null>>
+  /** FII/DII, F&O positions, FPI and mutual fund flows, big deals. Opening it the first time starts the downloads. */
+  getFlows(): Promise<ApiResult<FlowsReport>>
+  refreshFlows(): Promise<ApiResult<FlowsStatus>>
+  setFlowsSync(on: boolean): Promise<ApiResult<FlowsStatus>>
   getSavedScreens(): Promise<ApiResult<Screen[]>>
   saveScreens(screens: Screen[]): Promise<ApiResult<null>>
   /** The World map's stored data; opening it the first time starts the background updates. */

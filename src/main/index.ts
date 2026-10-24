@@ -10,6 +10,7 @@ import { registerIpc } from './ipc'
 import { decryptSecret, encryptSecret, loadOrCreateDbKey, writeDbKey } from './keystore'
 import { MarketData } from './market/refresh'
 import { ResearchSync } from './research/sync'
+import { FlowsSync } from './flows/sync'
 import { WorldSync } from './world/sync'
 import { renderLinks } from './market/render'
 import { createServices, type Services } from './services'
@@ -70,6 +71,7 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(async () => {
     let market: MarketData
     let researchSync: ResearchSync
+    let flowsSync: FlowsSync
     let worldSync: WorldSync
     let services: Services
     try {
@@ -121,6 +123,13 @@ if (!app.requestSingleInstanceLock()) {
       worldSync = new WorldSync(db, () => {
         for (const w of BrowserWindow.getAllWindows()) w.webContents.send(WORLD_UPDATED)
       })
+      // FII/DII, F&O positions, FPI and fund flows: quiet until the Flows screen is first opened.
+      flowsSync = new FlowsSync(db, () => {
+        pending ??= setTimeout(() => {
+          pending = null
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
+        }, 3000)
+      })
       services = createServices({
         db,
         casparserExe: app.isPackaged
@@ -130,6 +139,7 @@ if (!app.requestSingleInstanceLock()) {
         decrypt: decryptSecret,
         market,
         research: researchSync,
+        flows: flowsSync,
         world: worldSync,
         dbKey: key,
         applyTheme: (t) => (nativeTheme.themeSource = t === 'terminal' ? 'dark' : t),
@@ -138,6 +148,7 @@ if (!app.requestSingleInstanceLock()) {
         replaceDatabase(filePath, newKey) {
           market.stop()
           researchSync.stop()
+          flowsSync.stop()
           worldSync.stop()
           services.stopShips()
           sqlite.close()
@@ -166,6 +177,7 @@ if (!app.requestSingleInstanceLock()) {
     market.start()
     // After the first price refresh has had the network to itself.
     setTimeout(() => researchSync.start(), 45_000)
+    setTimeout(() => flowsSync.start(), 75_000)
     worldSync.start()
     // Connected Gmail accounts are checked for new statements a minute after start, then every 12 hours.
     const checkMail = () => {

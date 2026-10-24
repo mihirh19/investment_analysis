@@ -8,7 +8,7 @@ export function Block({ className = '' }: { className?: string }) {
 export function PageSkeleton({ label = 'Loading' }: { label?: string }) {
   return (
     <div role="status" aria-label={label}>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="border-t border-rule-strong pt-2">
             <Block className="mb-2 h-3 w-24" />

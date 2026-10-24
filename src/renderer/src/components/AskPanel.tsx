@@ -180,18 +180,10 @@ export function AskPanel() {
 
   return (
     <>
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed right-6 bottom-6 z-40 rounded-full bg-stamp px-5 py-3 text-[15px] font-semibold text-white shadow-lg hover:brightness-110 dark:text-[#10162a]"
-        >
-          Ask your money
-        </button>
-      )}
       {open && (
         <aside
           aria-label="Ask your money"
-          className={`fixed top-0 right-0 bottom-0 z-40 flex flex-col border-l border-rule-strong bg-paper shadow-2xl ${wide ? 'left-60' : 'w-[min(460px,100vw)]'}`}
+          className={`fixed top-0 right-0 bottom-0 z-40 flex flex-col border-l border-rule-strong bg-paper shadow-2xl ${wide ? 'left-0' : 'w-[min(460px,100vw)]'}`}
         >
           <div className="flex items-center justify-between border-b border-rule px-4 py-3">
             <h2 className="text-[16px] font-semibold">Ask your money</h2>

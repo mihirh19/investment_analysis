@@ -155,6 +155,48 @@ export interface CompanyView {
   results: { state: 'DONE' | 'WAITING' | 'NONE'; stored: number; checkedAt: string | null; error: string | null }
 }
 
+export type ChartInterval = '1m' | '5m' | '15m' | '1h' | '1d'
+
+export interface ChartBars {
+  symbol: string
+  interval: ChartInterval
+  bars: { time: string | number; open: number; high: number; low: number; close: number; volume: number | null }[]
+  currency: string
+  /** Intraday bars come from Yahoo Finance with a delay. */
+  delayed: boolean
+}
+
+/** A watchlist line: the latest price (delayed) and the day so far. */
+export interface LiveQuote {
+  symbol: string
+  price: number
+  prevClose: number | null
+  change: number | null
+  /** ISO time of the price. */
+  time: string
+  /** The day's 5-minute closes, for a sparkline. */
+  points: number[]
+}
+
+/** A saved research workspace: its name and dockview's layout (panels, splits, tabs) as JSON. */
+export interface SavedWorkspace {
+  id: string
+  name: string
+  layout: unknown
+}
+
+export interface Watchlist {
+  id: number
+  name: string
+  symbols: string[]
+}
+
+/** A sheet for Excel export: a header row, then data rows. */
+export interface ExcelSheet {
+  name: string
+  rows: (string | number | null)[][]
+}
+
 export interface CompanyHit {
   symbol: string
   name: string
@@ -170,6 +212,8 @@ export interface ResearchStatus {
   /** Minutes left at the current pace, while downloading. */
   etaMinutes: number | null
   pricesDate: string | null
+  /** Daily price history: trading days stored, out of about `want`. */
+  history: { days: number; first: string | null; last: string | null; want: number }
   lastError: string | null
   current: string | null
 }

@@ -1,31 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useCompanySearch } from '../lib/api'
-import { SECTIONS } from '../lib/nav'
+import { ALL_PAGES } from '../lib/nav'
+import { useTerminal } from '../lib/terminal'
+import { PANELS } from './workspace/panels'
+import { parseCommand } from '../pages/Research'
 
 const OPEN_EVENT = 'fp:open-goto'
-/** Opens the "Go to" box from anywhere (the sidebar button, Ctrl+K). */
+/** Opens the command line from anywhere (the top bar, Ctrl+K). */
 export const openGoTo = () => window.dispatchEvent(new Event(OPEN_EVENT))
 
 interface Item {
   key: string
   label: string
   hint: string
-  to: string
+  code?: string
+  run: (newTab: boolean) => void
 }
 
-const PAGES: Item[] = SECTIONS.flatMap((s) =>
-  s.pages.map((p) => ({ key: p.to, label: p.label, hint: s.pages.length > 1 ? s.label : 'Page', to: p.to }))
-)
-
-/** Ctrl+K: type a page or a company and press Enter. */
+/**
+ * The command line: a screen by name or code (HOLD, FARM, SCR…), a tool panel (Chart, Watchlist…),
+ * or a company ("INFY", "INFY FIN"). Enter opens it in the tab you are on; Ctrl+Enter in a new tab.
+ */
 export function GoTo() {
+  const terminal = useTerminal()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
-  const navigate = useNavigate()
-  const companies = useCompanySearch(open ? query : '')
+  const { query: company, view } = parseCommand(query)
+  const companies = useCompanySearch(open ? company : '')
 
   useEffect(() => {
     const show = () => {
@@ -52,60 +55,79 @@ export function GoTo() {
 
   const items = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const pages = q ? PAGES.filter((p) => `${p.label} ${p.hint}`.toLowerCase().includes(q)) : PAGES
+    const screens: Item[] = ALL_PAGES.map((p) => ({
+      key: p.to,
+      label: p.label,
+      hint: p.section,
+      code: p.code,
+      run: (newTab: boolean) => terminal?.openScreen(p.to, { newTab })
+    }))
+    const tools: Item[] = Object.entries(PANELS).map(([k, v]) => ({
+      key: `panel:${k}`,
+      label: `${v.title} panel`,
+      hint: v.about,
+      run: () => terminal?.openPanel(k)
+    }))
+    const match = (it: Item) => !q || it.code?.toLowerCase() === q || `${it.label} ${it.hint} ${it.code ?? ''}`.toLowerCase().includes(q)
+    // A code typed exactly comes first.
+    const found = [...screens, ...tools].filter(match).sort((a, b) => Number(b.code?.toLowerCase() === q) - Number(a.code?.toLowerCase() === q))
     const firms: Item[] =
-      q.length >= 2
+      company.length >= 2
         ? (companies.data ?? []).slice(0, 8).map((c) => ({
             key: `c:${c.symbol}`,
             label: c.name,
             hint: c.held ? `${c.symbol} · you hold it` : c.symbol,
-            to: `/research/${encodeURIComponent(c.symbol)}`
+            run: (newTab: boolean) =>
+              terminal?.openScreen(`/research/${encodeURIComponent(c.symbol)}${view && view !== 'overview' ? `?view=${view}` : ''}`, { newTab })
           }))
         : []
-    return [...pages.slice(0, q ? 6 : PAGES.length), ...firms]
-  }, [query, companies.data])
+    return [...found.slice(0, q ? 8 : found.length), ...firms]
+  }, [query, companies.data, company, view, terminal])
 
   if (!open) return null
-  const go = (it: Item | undefined) => {
+  const go = (it: Item | undefined, newTab: boolean) => {
     if (!it) return
     setOpen(false)
-    navigate(it.to)
+    it.run(newTab)
   }
   const current = Math.min(active, items.length - 1)
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/25 pt-[12vh]" onMouseDown={() => setOpen(false)}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[10vh]" onMouseDown={() => setOpen(false)}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Go to a page or company"
-        className="w-[min(560px,92vw)] overflow-hidden rounded-lg border border-rule-strong bg-sheet shadow-xl"
+        aria-label="Command line"
+        className="w-[min(640px,92vw)] overflow-hidden rounded-sm border border-stamp bg-sheet shadow-2xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <input
-          ref={input}
-          role="combobox"
-          aria-expanded="true"
-          aria-controls="goto-list"
-          aria-activedescendant={items[current] ? `goto-${current}` : undefined}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setActive(0)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setOpen(false)
-            else if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              setActive((a) => Math.min(a + 1, items.length - 1))
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              setActive((a) => Math.max(a - 1, 0))
-            } else if (e.key === 'Enter') go(items[current])
-          }}
-          placeholder="Go to a page, or type a company (TCS, Infosys…)"
-          className="w-full border-b border-rule bg-transparent px-4 py-3 text-[16px] outline-none placeholder:text-ink-muted"
-        />
-        <ul id="goto-list" role="listbox" aria-label="Matches" className="max-h-[50vh] overflow-y-auto py-1">
+        <div className="flex items-center gap-2 border-b border-rule px-3">
+          <span aria-hidden className="font-mono text-[15px] text-stamp">&gt;</span>
+          <input
+            ref={input}
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="goto-list"
+            aria-activedescendant={items[current] ? `goto-${current}` : undefined}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setActive(0)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setOpen(false)
+              else if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setActive((a) => Math.min(a + 1, items.length - 1))
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setActive((a) => Math.max(a - 1, 0))
+              } else if (e.key === 'Enter') go(items[current], e.ctrlKey || e.metaKey)
+            }}
+            placeholder="Screen, code (HOLD, FARM, SCR) or company (INFY, INFY FIN)"
+            className="w-full bg-transparent py-2.5 text-[15px] outline-none placeholder:text-ink-muted"
+          />
+        </div>
+        <ul id="goto-list" role="listbox" aria-label="Matches" className="max-h-[55vh] overflow-y-auto py-1">
           {items.map((it, i) => (
             <li
               key={it.key}
@@ -113,22 +135,20 @@ export function GoTo() {
               role="option"
               aria-selected={i === current}
               onMouseEnter={() => setActive(i)}
-              onClick={() => go(it)}
-              className={
-                'flex cursor-pointer items-baseline justify-between gap-4 px-4 py-1.5 text-[14.5px] ' +
-                (i === current ? 'bg-stamp-wash text-stamp' : 'text-ink')
-              }
+              onClick={(e) => go(it, e.ctrlKey || e.metaKey)}
+              onAuxClick={(e) => e.button === 1 && go(it, true)}
+              className={'flex cursor-pointer items-baseline gap-3 px-3 py-1 text-[14px] ' + (i === current ? 'bg-stamp-wash text-stamp' : 'text-ink')}
             >
+              <span className="w-12 shrink-0 font-mono text-[11.5px] font-semibold text-stamp">{it.code ?? ''}</span>
               <span className="truncate">{it.label}</span>
-              <span className="shrink-0 text-[12.5px] text-ink-muted">{it.hint}</span>
+              <span className="ml-auto shrink-0 text-[12px] text-ink-muted">{it.hint}</span>
             </li>
           ))}
           {items.length === 0 && (
-            <li className="px-4 py-3 text-[14px] text-ink-muted">
-              {companies.isFetching ? 'Looking…' : 'Nothing by that name. Try a stock symbol such as INFY.'}
-            </li>
+            <li className="px-3 py-3 text-[13.5px] text-ink-muted">{companies.isFetching ? 'Looking…' : 'Nothing by that name. Try a code such as HOLD, or a stock symbol such as INFY.'}</li>
           )}
         </ul>
+        <div className="border-t border-rule px-3 py-1 text-[11.5px] text-ink-muted">Enter opens here · Ctrl+Enter in a new tab · Esc closes</div>
       </div>
     </div>
   )

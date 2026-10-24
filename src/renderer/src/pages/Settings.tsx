@@ -56,6 +56,7 @@ export function Settings() {
       <ClaudeSettings />
       <AisSettings />
       <PhoneApp />
+      <Licences />
 
       <section aria-labelledby="sources" className="max-w-[880px]">
         <div className="mb-2 flex items-baseline justify-between">
@@ -336,7 +337,7 @@ function Appearance() {
       <h2 id="appearance" className="wide mb-2 text-[19px] font-semibold">
         Appearance
       </h2>
-      <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-1 gap-2 @2xl:grid-cols-2 @5xl:grid-cols-4">
         {THEMES.map((t) => {
           const on = current === t.key
           return (
@@ -358,6 +359,30 @@ function Appearance() {
         })}
       </div>
       <ErrorNote error={set.error} />
+    </section>
+  )
+}
+
+/** Credits the data sources and libraries ask for, including TradingView's notice for its charts. */
+function Licences() {
+  return (
+    <section aria-labelledby="licences" className="mb-12 max-w-[880px] text-[13.5px] text-ink-muted">
+      <h2 id="licences" className="wide mb-2 text-[19px] font-semibold text-ink">
+        About and licences
+      </h2>
+      <p className="mb-2">
+        Price charts use TradingView Lightweight Charts™, Copyright (c) 2025 TradingView, Inc.{' '}
+        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="text-stamp hover:underline">
+          tradingview.com
+        </a>
+        , under the Apache License 2.0. The terminal’s tabs and splits use dockview (MIT).
+      </p>
+      <p>
+        Data: NSE (prices, results filings, F&O positions, deals, disclosures), NSDL (foreign portfolio investment), AMFI (mutual fund flows and NAVs),
+        Yahoo Finance (price history and quotes, delayed), IMF PortWatch, UN Comtrade, the World Bank, BIS, OECD, USGS, GDACS, Fintraffic / digitraffic.fi
+        (CC BY 4.0), shipping lanes by newzealandpaul/Shipping-Lanes (CC BY 4.0), and country borders from Natural Earth. All are fetched by this computer
+        for its own use and nothing is shared.
+      </p>
     </section>
   )
 }

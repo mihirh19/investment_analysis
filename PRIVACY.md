@@ -22,6 +22,11 @@ The app's use of information received from Google APIs adheres to the [Google AP
 To show live prices and reference data, the app downloads public information (stock prices, fund NAVs, exchange rates, home price indices, mandi crop prices) from public sources. These requests do not include the user's holdings or personal details.
 
 - **Research desk:** downloads NSE's public end-of-day price files and the results filings companies publish with NSE, slowly and one file at a time. The download can be paused in Research. Price history comes from Yahoo Finance.
+- **Money flows:** only after the screen is first opened, the app downloads the following, slowly. Updates can be paused on the screen.
+  - From NSE: FII/DII figures, F&O participant positions, bulk and block deals, and takeover disclosures.
+  - From NSDL: its foreign portfolio investment reports.
+  - From AMFI: its monthly mutual fund reports.
+- **Charts and watchlists:** delayed prices and price history come from Yahoo Finance.
 - **World map:** only after the map is first opened, the app downloads public figures from:
   - IMF PortWatch (ArcGIS);
   - UN Comtrade;

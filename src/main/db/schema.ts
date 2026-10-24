@@ -590,3 +590,140 @@ export const worldFreight = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.name, t.date] })]
 )
+
+/** Daily prices for every listed stock from NSE's delivery file (as printed: not adjusted). */
+export const researchBars = sqliteTable(
+  'research_bars',
+  {
+    symbol: text('symbol').notNull(),
+    date: text('date').notNull(),
+    open: real('open'),
+    high: real('high'),
+    low: real('low'),
+    close: real('close').notNull(),
+    prevClose: real('prev_close'),
+    volume: real('volume'),
+    delivPct: real('deliv_pct')
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.date] }), index('research_bars_date').on(t.date)]
+)
+
+/** Which trading days' files have been read (or found missing: holidays). */
+export const researchBarDays = sqliteTable('research_bar_days', {
+  date: text('date').primaryKey(),
+  status: text('status').$type<'DONE' | 'NONE'>().notNull(),
+  rows: integer('rows').notNull().default(0)
+})
+
+/** Each stock's price-based figures (Technicals as JSON) for the latest day. */
+export const researchTechnicals = sqliteTable('research_technicals', {
+  symbol: text('symbol').primaryKey(),
+  date: text('date').notNull(),
+  dataJson: text('data_json').notNull()
+})
+
+/** The family's watchlists and per-company notes. */
+export const watchlists = sqliteTable('watchlists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  /** Symbols in the order shown, as JSON. */
+  symbolsJson: text('symbols_json').notNull().default('[]'),
+  sort: integer('sort').notNull().default(0)
+})
+
+export const companyNotes = sqliteTable('company_notes', {
+  symbol: text('symbol').primaryKey(),
+  text: text('text').notNull(),
+  updatedAt: text('updated_at').notNull()
+})
+
+// ---------------- money flows: FII/DII, F&O positions, FPI, mutual funds, big deals ----------------
+
+export const flowCash = sqliteTable(
+  'flow_cash',
+  {
+    date: text('date').notNull(),
+    category: text('category').$type<'FII' | 'DII'>().notNull(),
+    buy: real('buy').notNull(),
+    sell: real('sell').notNull(),
+    net: real('net').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.date, t.category] })]
+)
+
+/** Open F&O contracts by type of trader (FoPosition as JSON). */
+export const flowFo = sqliteTable(
+  'flow_fo',
+  {
+    date: text('date').notNull(),
+    client: text('client').notNull(),
+    dataJson: text('data_json').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.date, t.client] })]
+)
+
+export const flowFpi = sqliteTable('flow_fpi', {
+  month: text('month').primaryKey(),
+  equity: real('equity').notNull(),
+  debt: real('debt').notNull(),
+  hybrid: real('hybrid').notNull(),
+  mutualFunds: real('mutual_funds').notNull(),
+  aif: real('aif').notNull(),
+  total: real('total').notNull()
+})
+
+export const flowMf = sqliteTable(
+  'flow_mf',
+  {
+    month: text('month').notNull(),
+    category: text('category').notNull(),
+    grp: text('grp').notNull(),
+    schemes: integer('schemes').notNull(),
+    folios: integer('folios').notNull(),
+    raised: real('raised').notNull(),
+    redeemed: real('redeemed').notNull(),
+    net: real('net').notNull(),
+    aum: real('aum')
+  },
+  (t) => [primaryKey({ columns: [t.month, t.grp, t.category] })]
+)
+
+export const flowDeals = sqliteTable(
+  'flow_deals',
+  {
+    date: text('date').notNull(),
+    kind: text('kind').$type<'BULK' | 'BLOCK'>().notNull(),
+    symbol: text('symbol').notNull(),
+    company: text('company').notNull(),
+    client: text('client').notNull(),
+    side: text('side').$type<'BUY' | 'SELL'>().notNull(),
+    qty: real('qty').notNull(),
+    price: real('price').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.date, t.kind, t.symbol, t.client, t.side, t.qty, t.price] }), index('flow_deals_symbol').on(t.symbol)]
+)
+
+export const flowStakes = sqliteTable(
+  'flow_stakes',
+  {
+    id: text('id').primaryKey(),
+    date: text('date').notNull(),
+    symbol: text('symbol').notNull(),
+    company: text('company').notNull(),
+    party: text('party').notNull(),
+    side: text('side').$type<'BUY' | 'SELL'>().notNull(),
+    shares: real('shares'),
+    changePct: real('change_pct'),
+    afterPct: real('after_pct'),
+    mode: text('mode'),
+    promoter: integer('promoter', { mode: 'boolean' }).notNull()
+  },
+  (t) => [index('flow_stakes_date').on(t.date)]
+)
+
+/** Which files or periods have been fetched (or found missing), so none is asked for twice. */
+export const flowFetched = sqliteTable('flow_fetched', {
+  key: text('key').primaryKey(),
+  status: text('status').$type<'DONE' | 'NONE'>().notNull(),
+  at: text('at').notNull()
+})

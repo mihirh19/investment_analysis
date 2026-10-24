@@ -157,7 +157,7 @@ export function Performance() {
       </PageHeader>
       <ErrorNote error={q.error} />
 
-      <section aria-label="Headline returns" className="grid grid-cols-1 gap-8 lg:grid-cols-[auto_1fr]">
+      <section aria-label="Headline returns" className="grid grid-cols-1 gap-8 @5xl:grid-cols-[auto_1fr]">
         <div>
           <div className="text-[14px] text-ink-muted">Return per year on your money (XIRR)</div>
           <div className={`wide text-[56px] leading-none font-semibold tracking-tight ${toneClass(p.xirr.overall)}`}>
@@ -180,7 +180,7 @@ export function Performance() {
             EPF and insurance are left out.
           </p>
         </div>
-        <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 @2xl:grid-cols-4">
           {(
             [
               ['Time-weighted, per year', pct(all?.twr), `since ${shortDate(p.dates[0])}`],
@@ -343,7 +343,7 @@ export function Performance() {
             }}
           />
         </div>
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.3fr_1fr]">
+        <div className="grid grid-cols-1 gap-8 @7xl:grid-cols-[1.3fr_1fr]">
           <div className="overflow-x-auto">
             <table className="w-full text-[15px]">
               <thead>

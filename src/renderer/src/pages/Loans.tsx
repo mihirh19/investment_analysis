@@ -43,7 +43,7 @@ export function Loans() {
       <ErrorNote error={q.error} />
 
       {r && open.length > 0 && (
-        <div className="mb-8 grid gap-6 sm:grid-cols-3">
+        <div className="mb-8 grid gap-6 @2xl:grid-cols-3">
           <div>
             <div className="text-[13px] text-ink-muted">Owed today</div>
             <div className="wide num text-[28px] font-semibold text-loss">{inr(r.owedInr)}</div>
@@ -140,7 +140,7 @@ function LoanCard({ l, showPerson }: { l: LoanView; showPerson: boolean }) {
           <div className="mt-1 text-[12px] text-ink-muted">{Math.round(l.repaidShare * 100)}% of what was borrowed repaid</div>
         </div>
       )}
-      <dl className="mt-3 grid gap-x-6 gap-y-1 text-[14px] sm:grid-cols-2">
+      <dl className="mt-3 grid gap-x-6 gap-y-1 text-[14px] @2xl:grid-cols-2">
         {facts.map(([k, v]) => (
           <div key={k} className="flex gap-2">
             <dt className="w-36 shrink-0 text-ink-muted">{k}</dt>

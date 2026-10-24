@@ -45,13 +45,13 @@ import {
 } from '../lib/world'
 
 const LAYERS: { key: LayerKey; label: string; fkey: string }[] = [
-  { key: 'countries', label: 'Countries', fkey: 'F1' },
-  { key: 'flows', label: 'Trade', fkey: 'F2' },
-  { key: 'ports', label: 'Ports', fkey: 'F3' },
-  { key: 'ships', label: 'Ships', fkey: 'F4' },
-  { key: 'chokepoints', label: 'Chokepoints', fkey: 'F5' },
-  { key: 'events', label: 'Disasters', fkey: 'F6' },
-  { key: 'lanes', label: 'Lanes', fkey: 'F7' }
+  { key: 'countries', label: 'Countries', fkey: '1' },
+  { key: 'flows', label: 'Trade', fkey: '2' },
+  { key: 'ports', label: 'Ports', fkey: '3' },
+  { key: 'ships', label: 'Ships', fkey: '4' },
+  { key: 'chokepoints', label: 'Chokepoints', fkey: '5' },
+  { key: 'events', label: 'Disasters', fkey: '6' },
+  { key: 'lanes', label: 'Lanes', fkey: '7' }
 ]
 const DEFAULT_LAYERS: Record<LayerKey, boolean> = {
   countries: true,
@@ -206,14 +206,12 @@ export default function World() {
     return `${countryName(iso3)}\n${def.label}: ${f ? `${metricText(def, f.value)} (${f.period})` : 'no figure'}`
   }
 
-  // F1–F7 (or 1–7 outside a text box) switch layers; Escape closes the panel.
+  // 1–7 (outside a text box) switch layers; Escape closes the panel. F-keys belong to the terminal.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)
-      const fi = /^F([1-7])$/.exec(e.key)
-      const ni = !typing && !e.ctrlKey && !e.altKey && /^[1-7]$/.test(e.key) ? Number(e.key) : null
-      const i = fi ? Number(fi[1]) : ni
+      const i = !typing && !e.ctrlKey && !e.altKey && /^[1-7]$/.test(e.key) ? Number(e.key) : null
       if (i) {
         e.preventDefault()
         const k = LAYERS[i - 1].key
@@ -430,7 +428,7 @@ export default function World() {
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 @5xl:grid-cols-3">
         <Panel title="Chokepoints" note="vessels a day, latest week">
           <PlaceTable
             places={(d?.places ?? []).filter((p) => p.kind === 'chokepoint' && p.followed)}

@@ -129,7 +129,7 @@ export function ImportPage() {
     <>
       <PageHeader title="Import statements" />
 
-      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-10 @7xl:grid-cols-[minmax(0,1fr)_360px]">
         <div>
           <fieldset>
             <legend className="mb-2 text-[14px] font-medium">What are you importing?</legend>

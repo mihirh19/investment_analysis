@@ -209,7 +209,7 @@ function PropertySection({
       </div>
       <p className="mt-3 max-w-[90ch] text-[14px] text-ink-muted">{p.valuationNote}</p>
 
-      <div className="mt-6 grid grid-cols-1 gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
+      <div className="mt-6 grid grid-cols-1 gap-x-10 gap-y-8 @7xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
         <div className="min-w-0">
           <Market p={p} />
           <Estimates p={p} />
@@ -492,7 +492,7 @@ function Rent({ p }: { p: PropertyView }) {
           )}
 
           {r.months.length > 0 && (
-            <ul className="mb-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4 2xl:grid-cols-6" aria-label="Rent by month">
+            <ul className="mb-3 grid grid-cols-3 gap-1.5 @2xl:grid-cols-4 @[96rem]:grid-cols-6" aria-label="Rent by month">
               {r.months.map((x) => {
                 const s = STATUS[x.status]
                 return (
@@ -990,7 +990,7 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
   return (
     <form onSubmit={submit} className="anim-pop mb-10 rounded-md border border-rule bg-sheet p-5">
       <h2 className="mb-4 text-[17px] font-semibold">{p ? `Edit ${m!.name}` : 'Add a property'}</h2>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 @5xl:grid-cols-4">
         <Field label="Whose">
           <Select value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
             {persons.map((x) => (
@@ -1098,7 +1098,7 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
 
       <fieldset className="mt-6">
         <legend className="mb-2 text-[14px] font-medium">How to value it</legend>
-        <div className="grid gap-2 lg:grid-cols-3">
+        <div className="grid gap-2 @5xl:grid-cols-3">
           {(
             [
               ['INDEX', 'Grow with city prices', 'Your latest estimate, or the price paid, moved up or down with the city’s RESIDEX price.'],
@@ -1132,7 +1132,7 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
         )}
       </fieldset>
 
-      <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-4 @5xl:grid-cols-4">
         {needsArea && (
           <Field label="Locality premium (%)" hint="+20 if pricier than the city average, −10 if cheaper">
             <Input type="number" step="any" value={v.premiumPct} onChange={(e) => set('premiumPct', e.target.value)} />

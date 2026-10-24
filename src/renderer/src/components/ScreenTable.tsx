@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { SCREEN_FIELDS, sortRows, type FieldKey, type FieldKind, type ScreenRow } from '@shared/screener'
 import { bigMoney, money, toneClass } from '../lib/format'
+import { useOpenSymbol } from '../lib/links'
 
 /** A figure the way the screener shows it. */
 export function fieldText(kind: FieldKind, v: unknown): string {
@@ -56,11 +56,10 @@ export function ScreenTable({
   initialSort?: { field: FieldKey; dir: 'asc' | 'desc' } | null
   label: string
 }) {
-  const navigate = useNavigate()
   const [sort, setSort] = useState(initialSort ?? null)
   const [shown, setShown] = useState(limit)
   const sorted = sort ? sortRows(rows, sort.field, sort.dir) : rows
-  const open = (s: string) => navigate(`/research/${encodeURIComponent(s)}`)
+  const open = useOpenSymbol()
   const head = (k: FieldKey) => {
     const f = fieldOf(k)
     const on = sort?.field === k

@@ -248,7 +248,7 @@ function ClientSetup({ onDone }: { onDone: () => void }) {
         </li>
       </ol>
       <form
-        className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_auto] sm:items-end"
+        className="grid gap-3 @2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_auto] @2xl:items-end"
         onSubmit={(e) => {
           e.preventDefault()
           save.mutate([{ clientId, clientSecret, web }], { onSuccess: onDone })
@@ -263,7 +263,7 @@ function ClientSetup({ onDone }: { onDone: () => void }) {
         <Button type="submit" disabled={save.isPending}>
           Save
         </Button>
-        <label className="flex items-center gap-2 text-[13px] sm:col-span-3">
+        <label className="flex items-center gap-2 text-[13px] @2xl:col-span-3">
           <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} />
           It is a Web application client (needed for the phone app)
         </label>

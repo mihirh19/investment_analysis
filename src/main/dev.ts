@@ -17,6 +17,8 @@ import type { DayQuote, Filing } from '@shared/research'
 import { schema } from './db'
 import { markChecked, saveIndices, saveQuotes } from './research/store'
 import type { IndexLevel } from '@shared/screener'
+import type { CashFlow, DealRow, FoPosition, FpiMonth, MfCategoryMonth, StakeDisclosure } from '@shared/flows'
+import { FLOWS_KEY } from './flows/sync'
 import { SYNC_KEY } from './research/sync'
 import * as worldStore from './world/store'
 import { WORLD_SYNC_KEY } from './world/sync'
@@ -71,6 +73,8 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
       for (const l of JSON.parse(readFileSync(path, 'utf8')) as Omit<LoanInput, 'personId'>[]) saveLoan(db, { ...l, personId })
     } else if (file.endsWith('.world.json')) {
       seedWorld(db, JSON.parse(readFileSync(path, 'utf8')) as WorldSeed)
+    } else if (file.endsWith('.flows.json')) {
+      seedFlows(db, JSON.parse(readFileSync(path, 'utf8')))
     } else if (file.endsWith('.research.json')) {
       seedResearch(db, JSON.parse(readFileSync(path, 'utf8')))
     } else if (file.endsWith('.farm.json')) {
@@ -153,4 +157,20 @@ function seedWorld(db: Db, seed: WorldSeed): void {
   worldStore.saveEvents(db, seed.events)
   worldStore.saveFreight(db, 'SCFI', seed.freight)
   db.insert(schema.settings).values({ key: WORLD_SYNC_KEY, value: 'off' }).onConflictDoNothing().run()
+}
+
+/** A few days of flows from the test samples; the downloads stay off on demo data. */
+function seedFlows(
+  db: Db,
+  seed: { cash: CashFlow[]; fo: FoPosition[]; fpi: FpiMonth[]; mf: MfCategoryMonth[]; deals: DealRow[]; stakes: StakeDisclosure[] }
+): void {
+  db.transaction((tx) => {
+    for (const r of seed.cash) tx.insert(schema.flowCash).values(r).onConflictDoNothing().run()
+    for (const r of seed.fo) tx.insert(schema.flowFo).values({ date: r.date, client: r.client, dataJson: JSON.stringify(r) }).onConflictDoNothing().run()
+    for (const r of seed.fpi) tx.insert(schema.flowFpi).values(r).onConflictDoNothing().run()
+    for (const r of seed.mf) tx.insert(schema.flowMf).values({ ...r, grp: r.group }).onConflictDoNothing().run()
+    for (const r of seed.deals) tx.insert(schema.flowDeals).values(r).onConflictDoNothing().run()
+    for (const r of seed.stakes) tx.insert(schema.flowStakes).values(r).onConflictDoNothing().run()
+    tx.insert(schema.settings).values({ key: FLOWS_KEY, value: 'off' }).onConflictDoNothing().run()
+  })
 }

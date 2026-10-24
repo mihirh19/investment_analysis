@@ -6,7 +6,7 @@ import type { CropKey, FarmEntryInput, FarmSeasonInput, HoldingCosts } from '@sh
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Basis } from '@shared/research'
+import type { Basis, ChartInterval, ExcelSheet, SavedWorkspace } from '@shared/research'
 import type { Screen } from '@shared/screener'
 import type {
   ApiResult,
@@ -452,3 +452,81 @@ export const useWorldShips = (enabled: boolean) =>
 export const useAisStatus = () => useQuery({ queryKey: ['aisStatus'], queryFn: () => unwrap(api().getAisStatus()) })
 export const useSetAisKey = () => useWrite((key: string) => api().setAisKey(key))
 export const useRemoveAisKey = () => useWrite(() => api().removeAisKey())
+
+export const useChartBars = (symbol: string | null, interval: ChartInterval) =>
+  useQuery({
+    // A "history" key, so the minute-by-minute price refresh doesn't refetch every chart.
+    queryKey: ['history', 'bars', symbol, interval],
+    queryFn: () => unwrap(api().getChartBars(symbol!, interval)),
+    enabled: !!symbol,
+    staleTime: interval === '1d' ? 30 * 60_000 : 60_000,
+    // Intraday charts move on their own during market hours.
+    refetchInterval: interval === '1d' ? false : 60_000,
+    retry: 1
+  })
+
+export const useWatchlists = () => useQuery({ queryKey: ['research', 'watchlists'], queryFn: () => unwrap(api().listWatchlists()) })
+
+export function useSaveWatchlist() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (list: { id?: number; name: string; symbols: string[] }) => unwrap(api().saveWatchlist(list)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['research', 'watchlists'] })
+  })
+}
+
+export function useDeleteWatchlist() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => unwrap(api().deleteWatchlist(id)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['research', 'watchlists'] })
+  })
+}
+
+export const useNote = (symbol: string) =>
+  useQuery({ queryKey: ['research', 'note', symbol], queryFn: () => unwrap(api().getNote(symbol)) })
+
+export function useSaveNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ symbol, text }: { symbol: string; text: string }) => unwrap(api().saveNote(symbol, text)),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['research', 'note', v.symbol] })
+  })
+}
+
+/** Saves sheets as an Excel file (asks where); resolves to the path, or null if cancelled. */
+export const exportExcel = (fileName: string, sheets: ExcelSheet[]) => unwrap(api().exportExcel(fileName, sheets))
+
+export const useQuotes = (symbols: string[]) =>
+  useQuery({
+    queryKey: ['history', 'quotes', [...symbols].sort().join(',')],
+    queryFn: () => unwrap(api().getQuotes(symbols)),
+    enabled: symbols.length > 0,
+    // Delayed prices: a fresh look every half minute is plenty.
+    refetchInterval: 30_000,
+    staleTime: 25_000
+  })
+
+export const useWorkspaces = () =>
+  // A "history" key: neither the price refresh nor the research download should reload layouts.
+  useQuery({ queryKey: ['history', 'workspaces'], queryFn: () => unwrap(api().getWorkspaces()), staleTime: Infinity })
+
+export const saveWorkspaces = (list: SavedWorkspace[]) => unwrap(api().saveWorkspaces(list))
+
+export const useFlows = () =>
+  useQuery({
+    queryKey: ['research', 'flows'],
+    queryFn: () => unwrap(api().getFlows()),
+    // While the first downloads run, look again every half minute.
+    refetchInterval: (q) => (q.state.data?.status.refreshing ? 30_000 : false)
+  })
+
+export function useRefreshFlows() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: () => unwrap(api().refreshFlows()), onSuccess: () => qc.invalidateQueries({ queryKey: ['research', 'flows'] }) })
+}
+
+export function useSetFlowsSync() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (on: boolean) => unwrap(api().setFlowsSync(on)), onSuccess: () => qc.invalidateQueries({ queryKey: ['research', 'flows'] }) })
+}

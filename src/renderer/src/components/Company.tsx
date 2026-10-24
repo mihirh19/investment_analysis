@@ -10,9 +10,10 @@ import {
   type Metrics
 } from '@shared/research'
 import { ErrorNote } from './Shell'
-import { Columns, PriceLine, dayLabel } from './charts'
+import { Columns } from './charts'
 import { BASE_COLUMNS, ScreenTable } from './ScreenTable'
-import { useCompany, useCompanyChart, useScreenData } from '../lib/api'
+import { StockChart, useStoredChart } from './StockChart'
+import { useCompany, useScreenData } from '../lib/api'
 import { axisCrore, bigMoney, compactMoney, lakhCrore, money, percent, shortDate, toneClass, units } from '../lib/format'
 
 export type View = 'overview' | 'financials' | 'chart' | 'peers'
@@ -85,13 +86,13 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
       </div>
       {view === 'overview' && <Overview c={c} />}
       {view === 'financials' && <Financials c={c} />}
-      {view === 'chart' && <Chart symbol={symbol} name={c.name} />}
+      {view === 'chart' && <Chart symbol={symbol} />}
       {view === 'peers' && <Peers c={c} />}
     </article>
   )
 }
 
-function Header({ c }: { c: CompanyView }) {
+export function Header({ c }: { c: CompanyView }) {
   const q = c.quote
   const change = q?.prevClose ? q.close - q.prevClose : null
   return (
@@ -147,7 +148,7 @@ function Range52({ low, high, close }: { low: number; high: number; close: numbe
   )
 }
 
-function ResultsNote({ c }: { c: CompanyView }) {
+export function ResultsNote({ c }: { c: CompanyView }) {
   const r = c.results
   if (r.state === 'DONE') return null
   return (
@@ -163,7 +164,7 @@ function ResultsNote({ c }: { c: CompanyView }) {
 
 // ---------------- overview ----------------
 
-function Overview({ c }: { c: CompanyView }) {
+export function Overview({ c }: { c: CompanyView }) {
   const m = c.metrics
   const quarters = [...c.quarters].reverse().slice(-12)
   const rev = (f: Flow) => f.revenue ?? f.totalIncome
@@ -172,7 +173,7 @@ function Overview({ c }: { c: CompanyView }) {
     <>
       <Ratios m={m} bank={c.bank} />
       {quarters.length > 1 && (
-        <div className="mt-8 grid gap-8 lg:grid-cols-2">
+        <div className="mt-8 grid gap-8 @5xl:grid-cols-2">
           <section>
             <h3 className="mb-2 text-[15px] font-semibold">{c.bank ? 'Total income' : 'Sales'} by quarter</h3>
             <Columns
@@ -201,7 +202,7 @@ function Overview({ c }: { c: CompanyView }) {
             Piotroski score {m.piotroski.score} of 9 <span className="font-normal text-ink-muted">({m.piotroski.year} against the year before)</span>
           </h3>
           <p className="mb-2 text-[13.5px] text-ink-muted">Nine yes-or-no checks of financial strength; 7 or more is usually read as strong, 3 or less as weak.</p>
-          <ul className="grid gap-x-6 gap-y-0.5 text-[14px] sm:grid-cols-2">
+          <ul className="grid gap-x-6 gap-y-0.5 text-[14px] @2xl:grid-cols-2">
             {m.piotroski.tests.map((t) => (
               <li key={t.label} className="flex gap-2">
                 <span aria-hidden className={t.pass ? 'text-gain' : 'text-loss'}>
@@ -243,7 +244,7 @@ function Ratios({ m, bank }: { m: Metrics; bank: boolean }) {
         ] as [string, string, string][]))
   ]
   return (
-    <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
+    <dl className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-8 gap-y-3">
       {items.map(([label, value, hint]) => (
         <div key={label} title={hint}>
           <dt className="text-[13px] text-ink-muted">{label}</dt>
@@ -325,7 +326,7 @@ const STATEMENTS: { key: Statement; label: string }[] = [
   { key: 'cash', label: 'Cash flow' }
 ]
 
-function Financials({ c }: { c: CompanyView }) {
+export function Financials({ c }: { c: CompanyView }) {
   const [which, setWhich] = useState<Statement>('quarters')
   if (c.quarters.length === 0 && c.balances.length === 0)
     return <p className="text-ink-muted">No results stored for this company yet.</p>
@@ -422,64 +423,15 @@ function Table<T extends { periodEnd: string; basis: Basis }>({
 
 // ---------------- price chart ----------------
 
-const RANGES = [
-  { key: '1mo', label: '1M' },
-  { key: '6mo', label: '6M' },
-  { key: '1y', label: '1Y' },
-  { key: '5y', label: '5Y' },
-  { key: 'max', label: 'Max' }
-] as const
-
-function Chart({ symbol, name }: { symbol: string; name: string }) {
-  const [range, setRange] = useState<(typeof RANGES)[number]['key']>('1y')
-  const h = useCompanyChart(symbol, range)
-  const points = h.data ?? []
-  const change = points.length > 1 ? points[points.length - 1].close / points[0].close - 1 : null
-  const label = RANGES.find((r) => r.key === range)!.label
-  return (
-    <section>
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <div className="text-[14px]">
-          {change !== null && (
-            <span className={`num ${toneClass(change)}`}>
-              {percent(change)} over {label === 'Max' ? `since ${dayLabel(points[0].date)}` : label}
-            </span>
-          )}
-        </div>
-        <div role="radiogroup" aria-label="Range" className="flex gap-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              role="radio"
-              aria-checked={range === r.key}
-              onClick={() => setRange(r.key)}
-              className={
-                'rounded px-2.5 py-0.5 text-[13px] ' +
-                (range === r.key ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-sheet')
-              }
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className={h.isFetching ? 'opacity-60' : ''}>
-        {h.error ? (
-          <ErrorNote error={h.error} />
-        ) : points.length > 1 ? (
-          <PriceLine points={points} label={`${name} share price, ${label}`} format={(v) => money(v, 'INR', 2)} axisFormat={compactMoney} height={320} />
-        ) : (
-          !h.isLoading && <p className="text-ink-muted">No price history from Yahoo Finance for {symbol}.</p>
-        )}
-      </div>
-    </section>
-  )
+function Chart({ symbol }: { symbol: string }) {
+  const [settings, setSettings] = useStoredChart('chart:company')
+  return <StockChart symbol={symbol} settings={settings} onSettings={setSettings} height={480} />
 }
 
 // ---------------- peers ----------------
 
 /** Companies in the same industry (NSE's classification for the Nifty 500), largest first. */
-function Peers({ c }: { c: CompanyView }) {
+export function Peers({ c }: { c: CompanyView }) {
   const data = useScreenData()
   if (!c.industry) return <p className="text-ink-muted">NSE gives an industry for Nifty 500 companies only, so there is no peer group for {c.name}.</p>
   if (data.isLoading) return <p className="text-ink-muted">Finding companies in {c.industry}…</p>

@@ -114,6 +114,27 @@ export function registerIpc(services: Services): void {
     getMarketMonitor: () => services.getMarketMonitor(),
     getWorldBoard: () => services.getWorldBoard(),
     getSavedScreens: () => services.getSavedScreens(),
+    getFlows: () => services.getFlows(),
+    refreshFlows: () => services.refreshFlows(),
+    setFlowsSync: (on) => services.setFlowsSync(on),
+    getChartBars: (symbol, interval) => services.getChartBars(symbol, interval),
+    getQuotes: (symbols) => services.getQuotes(symbols),
+    getWorkspaces: () => services.getWorkspaces(),
+    saveWorkspaces: (list) => services.saveWorkspaces(list),
+    listWatchlists: () => services.listWatchlists(),
+    saveWatchlist: (list) => services.saveWatchlist(list),
+    deleteWatchlist: (id) => services.deleteWatchlist(id),
+    getNote: (symbol) => services.getNote(symbol),
+    saveNote: (symbol, text) => services.saveNote(symbol, text),
+    exportExcel: async (fileName, sheets) => {
+      const safe = fileName.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'export'
+      const res = await dialog.showSaveDialog(focused(), {
+        title: 'Save as Excel',
+        defaultPath: join(app.getPath('documents'), safe.endsWith('.xlsx') ? safe : `${safe}.xlsx`),
+        filters: [{ name: 'Excel workbook', extensions: ['xlsx'] }]
+      })
+      return res.canceled || !res.filePath ? null : services.writeExcel(res.filePath, sheets)
+    },
     saveScreens: (screens) => services.saveScreens(screens),
     getWorldMap: () => services.getWorldMap(),
     setWorldSync: (on) => services.setWorldSync(on),

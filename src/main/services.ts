@@ -59,8 +59,11 @@ import type { VehicleInput } from '@shared/vehicles'
 import { refreshResidex, residexCities, storedResidexCities } from './market/residex'
 import { schema, type Db } from './db'
 import * as research from './research/store'
-import type { Basis, ResearchHome, ResearchStatus } from '@shared/research'
+import type { Basis, ChartBars, ChartInterval, ExcelSheet, LiveQuote, ResearchHome, ResearchStatus, SavedWorkspace, Watchlist } from '@shared/research'
+import XLSX from 'xlsx'
 import type { Screen, WorldSeries } from '@shared/screener'
+import type { FlowsReport, FlowsStatus } from '@shared/flows'
+import { flowsReport } from './flows/sync'
 import type { AisStatus, ShipsView, WorldMap } from '@shared/world'
 import * as worldStore from './world/store'
 import type { WorldSync } from './world/sync'
@@ -83,8 +86,8 @@ import {
   mapIndmoneyOrders
 } from './importers/trades'
 import { fetchNavAll, mfapiHistory, npsHistory, npsLatest, npsSchemes, type AmfiScheme } from './market/funds'
-import { mapLimit, type FetchFn } from './market/http'
-import { yahooHistory } from './market/yahoo'
+import { getJson, mapLimit, type FetchFn } from './market/http'
+import { parseYahooQuotes, yahooBars, yahooHistory } from './market/yahoo'
 import { listDividends } from './portfolio/dividends'
 import { computeExposure } from './portfolio/exposure'
 import { listHoldings } from './portfolio/holdings'
@@ -111,6 +114,13 @@ export interface ServiceDeps {
   openUrl?(url: string): void | Promise<void>
   /** Sends "Ask your money" progress to the window. */
   emitChat?(e: ChatEvent): void
+  /** The money-flow downloads; absent in tests. */
+  flows?: {
+    status(): FlowsStatus
+    opened(): void
+    setEnabled(on: boolean): void
+    run(): Promise<void>
+  }
   /** The research desk's background download; absent in tests. */
   research?: {
     status(): ResearchStatus
@@ -125,6 +135,7 @@ const RANGE_DAYS = { '1mo': 31, '6mo': 183, '1y': 366, '5y': 1827 } as const
 
 const casPasswordKey = (personId: number) => `cas_password:${personId}`
 const SCREENS_KEY = 'research:screens'
+const WORKSPACES_KEY = 'research:workspaces'
 /** The person's own aisstream.io key for live ships (encrypted), and its last four characters. */
 const AIS_KEY = 'world:ais'
 /** The research monitor's world panel (Yahoo Finance symbols). */
@@ -143,6 +154,13 @@ const WORLD: { key: string; label: string }[] = [
   { key: '^TNX', label: 'US 10-year yield, %' }
 ]
 let world: { at: number; series: WorldSeries[] } | null = null
+/** Chart candles kept briefly: daily for half an hour, intraday for a minute. */
+const chartCache = new Map<string, { at: number; data: ChartBars }>()
+const CHART_INTERVALS: ChartInterval[] = ['1m', '5m', '15m', '1h', '1d']
+/** Watchlist prices, kept for 30 seconds per symbol. */
+const quoteCache = new Map<string, { at: number; q: LiveQuote }>()
+/** A plain symbol is an NSE stock; indices, currencies and futures go as Yahoo writes them. */
+const yahooSymbol = (s: string) => (/[\^=.]/.test(s) ? s : `${s}.NS`)
 export const THEME_KEY = 'ui:theme'
 
 export function createServices(deps: ServiceDeps) {
@@ -153,6 +171,9 @@ export function createServices(deps: ServiceDeps) {
 
   function getSetting(key: string): string | null {
     return db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value ?? null
+  }
+  function flowsStatus(): FlowsStatus {
+    return deps.flows?.status() ?? { enabled: false, refreshing: false, lastError: null, sources: [] }
   }
   /** Without the background download (tests), the stored figures still report their progress. */
   function researchStatus(): ResearchStatus {
@@ -166,6 +187,7 @@ export function createServices(deps: ServiceDeps) {
       filings: p.filings,
       etaMinutes: null,
       pricesDate: research.latestQuoteDate(db),
+      history: { ...research.barProgress(db), want: research.BAR_YEARS * 250 },
       lastError: null,
       current: null
     }
@@ -993,6 +1015,120 @@ export function createServices(deps: ServiceDeps) {
     },
     /** Closes the live-ships socket (the app is quitting or swapping its data). */
     stopShips: () => ships.stop(),
+    async getChartBars(symbol: string, interval: ChartInterval): Promise<ChartBars> {
+      if (!CHART_INTERVALS.includes(interval)) throw new Error('Unknown chart interval')
+      const s = symbol.trim().toUpperCase()
+      if (!/^[\^A-Z0-9&.=_-]{1,30}$/.test(s)) throw new Error('Unknown symbol')
+      const key = `${s}|${interval}`
+      const hit = chartCache.get(key)
+      const ttl = interval === '1d' ? 30 * 60_000 : 60_000
+      if (hit && Date.now() - hit.at < ttl) return hit.data
+      // Indices, currencies and futures go as Yahoo knows them; a plain symbol is an NSE stock.
+      const yahoo = /[\^=.]/.test(s) ? s : `${s}.NS`
+      const { bars, currency } = await yahooBars(yahoo, interval, deps.fetch)
+      if (bars.length === 0) throw new Error(`Yahoo Finance has no ${interval === '1d' ? 'price history' : 'intraday prices'} for ${s}`)
+      const data: ChartBars = { symbol: s, interval, bars, currency, delayed: interval !== '1d' }
+      chartCache.set(key, { at: Date.now(), data })
+      if (chartCache.size > 60) chartCache.delete(chartCache.keys().next().value!)
+      return data
+    },
+    async getQuotes(symbols: string[]): Promise<LiveQuote[]> {
+      const wanted = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter((s) => /^[\^A-Z0-9&.=_-]{1,30}$/.test(s)))].slice(0, 60)
+      const stale = wanted.filter((s) => {
+        const hit = quoteCache.get(s)
+        return !hit || Date.now() - hit.at > 30_000
+      })
+      for (let i = 0; i < stale.length; i += 20) {
+        const batch = stale.slice(i, i + 20)
+        const bySymbol = new Map(batch.map((s) => [yahooSymbol(s), s]))
+        const json = await getJson<unknown>(
+          `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent([...bySymbol.keys()].join(','))}&range=1d&interval=5m`,
+          { fetch: deps.fetch }
+        )
+        for (const q of parseYahooQuotes(json)) {
+          const s = bySymbol.get(q.symbol)
+          if (s) quoteCache.set(s, { at: Date.now(), q: { ...q, symbol: s } })
+        }
+      }
+      return wanted.map((s) => quoteCache.get(s)?.q).filter((q): q is LiveQuote => !!q)
+    },
+    getWorkspaces(): SavedWorkspace[] {
+      try {
+        const v = JSON.parse(getSetting(WORKSPACES_KEY) ?? '[]') as SavedWorkspace[]
+        return Array.isArray(v) ? v : []
+      } catch {
+        return []
+      }
+    },
+    saveWorkspaces(list: SavedWorkspace[]): null {
+      const json = JSON.stringify(list.slice(0, 20))
+      // A layout is a few kilobytes; anything far bigger is not a layout.
+      if (json.length > 2_000_000) throw new Error('That workspace is too large to save.')
+      setSetting(WORKSPACES_KEY, json)
+      return null
+    },
+    listWatchlists(): Watchlist[] {
+      return db
+        .select()
+        .from(schema.watchlists)
+        .orderBy(schema.watchlists.sort, schema.watchlists.id)
+        .all()
+        .map((w) => ({ id: w.id, name: w.name, symbols: JSON.parse(w.symbolsJson) as string[] }))
+    },
+    saveWatchlist(list: { id?: number; name: string; symbols: string[] }): number {
+      const name = list.name.trim()
+      if (!name) throw new Error('Give the list a name.')
+      const symbols = [...new Set(list.symbols.map((x) => x.trim().toUpperCase()).filter(Boolean))].slice(0, 200)
+      const v = { name, symbolsJson: JSON.stringify(symbols) }
+      if (list.id) {
+        db.update(schema.watchlists).set(v).where(eq(schema.watchlists.id, list.id)).run()
+        return list.id
+      }
+      return Number(db.insert(schema.watchlists).values(v).run().lastInsertRowid)
+    },
+    deleteWatchlist(id: number): null {
+      db.delete(schema.watchlists).where(eq(schema.watchlists.id, id)).run()
+      return null
+    },
+    getNote(symbol: string) {
+      const r = db.select().from(schema.companyNotes).where(eq(schema.companyNotes.symbol, symbol.toUpperCase())).get()
+      return r ? { text: r.text, updatedAt: r.updatedAt } : null
+    },
+    saveNote(symbol: string, text: string): null {
+      const s = symbol.toUpperCase()
+      if (!text.trim()) {
+        db.delete(schema.companyNotes).where(eq(schema.companyNotes.symbol, s)).run()
+        return null
+      }
+      const v = { symbol: s, text: text.slice(0, 20_000), updatedAt: new Date().toISOString() }
+      db.insert(schema.companyNotes).values(v).onConflictDoUpdate({ target: schema.companyNotes.symbol, set: { text: v.text, updatedAt: v.updatedAt } }).run()
+      return null
+    },
+    writeExcel(filePath: string, sheets: ExcelSheet[]): string {
+      const wb = XLSX.utils.book_new()
+      const used = new Set<string>()
+      for (const sh of sheets) {
+        // Excel sheet names: 31 characters, none of : \ / ? * [ ], and unique.
+        let name = sh.name.replace(/[:\\/?*[\]]/g, ' ').slice(0, 31) || 'Sheet'
+        for (let i = 2; used.has(name); i++) name = `${name.slice(0, 28)} ${i}`
+        used.add(name)
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sh.rows), name)
+      }
+      XLSX.writeFile(wb, filePath)
+      return filePath
+    },
+    getFlows(): FlowsReport {
+      deps.flows?.opened()
+      return flowsReport(db, flowsStatus())
+    },
+    async refreshFlows(): Promise<FlowsStatus> {
+      void deps.flows?.run()
+      return flowsStatus()
+    },
+    setFlowsSync(on: boolean): FlowsStatus {
+      deps.flows?.setEnabled(on)
+      return flowsStatus()
+    },
     getSavedScreens(): Screen[] {
       try {
         return JSON.parse(getSetting(SCREENS_KEY) ?? '[]') as Screen[]

@@ -92,7 +92,7 @@ function FundsBody({ r, family, personId }: { r: FundsReport; family: boolean; p
 
   return (
     <>
-      <dl className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
         {(
           [
             ['In funds and ETFs', money(r.totalFundsInr), `${r.funds.length} fund${r.funds.length === 1 ? '' : 's'}`],
@@ -131,7 +131,7 @@ function FundsBody({ r, family, personId }: { r: FundsReport; family: boolean; p
         note="The share of each pair's money in the same companies and bonds (adding the smaller weight of each one they share), from the latest monthly portfolios. Above about 50%, the second fund adds little variety. Click a square to see what they share."
       >
         {portfolios.length >= 2 ? (
-          <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-8 @7xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <Heatmap
               rows={portfolios.map((p) => p.label)}
               cols={cols}
@@ -244,7 +244,7 @@ function FundsBody({ r, family, personId }: { r: FundsReport; family: boolean; p
         </div>
       </Section>
 
-      <div className="grid grid-cols-1 gap-x-12 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-12 @7xl:grid-cols-2">
         <Section id="houses" title="By fund house" note="One fund house running most of your money concentrates its investment style and its operational risk.">
           <HBars
             label="Fund money by fund house"

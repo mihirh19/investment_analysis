@@ -1,0 +1,1361 @@
+{
+ "cash": [
+  {
+   "date": "2026-10-23",
+   "category": "DII",
+   "buy": 19232.31,
+   "sell": 15996.95,
+   "net": 3235.36
+  },
+  {
+   "date": "2026-10-23",
+   "category": "FII",
+   "buy": 14445.54,
+   "sell": 13557.89,
+   "net": 887.65
+  },
+  {
+   "date": "2026-10-22",
+   "category": "FII",
+   "buy": 12000,
+   "sell": 10790,
+   "net": 1210
+  },
+  {
+   "date": "2026-10-22",
+   "category": "DII",
+   "buy": 15000,
+   "sell": 15640,
+   "net": -640
+  },
+  {
+   "date": "2026-10-21",
+   "category": "FII",
+   "buy": 12000,
+   "sell": 14310,
+   "net": -2310
+  },
+  {
+   "date": "2026-10-21",
+   "category": "DII",
+   "buy": 15000,
+   "sell": 12110,
+   "net": 2890
+  },
+  {
+   "date": "2026-10-20",
+   "category": "FII",
+   "buy": 12000,
+   "sell": 12890,
+   "net": -890
+  },
+  {
+   "date": "2026-10-20",
+   "category": "DII",
+   "buy": 15000,
+   "sell": 13550,
+   "net": 1450
+  },
+  {
+   "date": "2026-10-19",
+   "category": "FII",
+   "buy": 12000,
+   "sell": 11580,
+   "net": 420
+  },
+  {
+   "date": "2026-10-19",
+   "category": "DII",
+   "buy": 15000,
+   "sell": 14700,
+   "net": 300
+  }
+ ],
+ "fo": [
+  {
+   "date": "2026-10-23",
+   "client": "Client",
+   "futIdxLong": 277991,
+   "futIdxShort": 62683,
+   "futStkLong": 3391908,
+   "futStkShort": 267908,
+   "callIdxLong": 4389644,
+   "putIdxLong": 2945175,
+   "callIdxShort": 4163685,
+   "putIdxShort": 3834236
+  },
+  {
+   "date": "2026-10-23",
+   "client": "DII",
+   "futIdxLong": 50634,
+   "futIdxShort": 11254,
+   "futStkLong": 396357,
+   "futStkShort": 4714270,
+   "callIdxLong": 11091,
+   "putIdxLong": 93253,
+   "callIdxShort": 1936,
+   "putIdxShort": 246
+  },
+  {
+   "date": "2026-10-23",
+   "client": "FII",
+   "futIdxLong": 36986,
+   "futIdxShort": 317169,
+   "futStkLong": 3644206,
+   "futStkShort": 2843116,
+   "callIdxLong": 962005,
+   "putIdxLong": 1287232,
+   "callIdxShort": 1241948,
+   "putIdxShort": 714301
+  },
+  {
+   "date": "2026-10-23",
+   "client": "Pro",
+   "futIdxLong": 70318,
+   "futIdxShort": 44823,
+   "futStkLong": 902880,
+   "futStkShort": 510057,
+   "callIdxLong": 1457878,
+   "putIdxLong": 1265440,
+   "callIdxShort": 1413048,
+   "putIdxShort": 1042317
+  }
+ ],
+ "fpi": [
+  {
+   "month": "2026-01",
+   "equity": -35962,
+   "debt": 6013,
+   "hybrid": 232,
+   "mutualFunds": 482,
+   "aif": -4,
+   "total": -29240
+  },
+  {
+   "month": "2026-02",
+   "equity": 22615,
+   "debt": 18791,
+   "hybrid": -3896,
+   "mutualFunds": 294,
+   "aif": 0,
+   "total": 37804
+  },
+  {
+   "month": "2026-03",
+   "equity": -117775,
+   "debt": -8469,
+   "hybrid": 1868,
+   "mutualFunds": -1362,
+   "aif": 0,
+   "total": -125736
+  },
+  {
+   "month": "2026-04",
+   "equity": -60847,
+   "debt": -10826,
+   "hybrid": 444,
+   "mutualFunds": 344,
+   "aif": 1,
+   "total": -70885
+  },
+  {
+   "month": "2026-05",
+   "equity": -32963,
+   "debt": 2757,
+   "hybrid": 985,
+   "mutualFunds": -267,
+   "aif": 5,
+   "total": -29484
+  },
+  {
+   "month": "2026-06",
+   "equity": -49340,
+   "debt": 55518,
+   "hybrid": -1363,
+   "mutualFunds": -147,
+   "aif": 0,
+   "total": 4669
+  },
+  {
+   "month": "2026-07",
+   "equity": 20200,
+   "debt": 18661,
+   "hybrid": 166,
+   "mutualFunds": 1000,
+   "aif": 4,
+   "total": 40031
+  },
+  {
+   "month": "2026-08",
+   "equity": 29631,
+   "debt": -1457,
+   "hybrid": -2663,
+   "mutualFunds": -19,
+   "aif": 0,
+   "total": 25492
+  },
+  {
+   "month": "2026-09",
+   "equity": -35861,
+   "debt": -20727,
+   "hybrid": -2078,
+   "mutualFunds": 222,
+   "aif": 0,
+   "total": -58443
+  },
+  {
+   "month": "2026-10",
+   "equity": -48056,
+   "debt": -1453,
+   "hybrid": -173,
+   "mutualFunds": 9840,
+   "aif": 0,
+   "total": -39843
+  }
+ ],
+ "mf": [
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Overnight Fund",
+   "schemes": 40,
+   "folios": 820060,
+   "raised": 720356.24836343,
+   "redeemed": 727637.44419465,
+   "net": -7281.19583121967,
+   "aum": 84032.57445358
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Liquid Fund",
+   "schemes": 43,
+   "folios": 4129998,
+   "raised": 543731.2220959,
+   "redeemed": 639474.42486608,
+   "net": -95743.2027701796,
+   "aum": 625847.00810743
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Ultra Short Term Fund",
+   "schemes": 26,
+   "folios": 787333,
+   "raised": 20073.04987896,
+   "redeemed": 31801.91892911,
+   "net": -11728.86905015,
+   "aum": 120693.10446163
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Ultra Short to Short Term Fund",
+   "schemes": 25,
+   "folios": 830223,
+   "raised": 7511.30435363,
+   "redeemed": 14143.54354423,
+   "net": -6632.23919060001,
+   "aum": 107367.70884009
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Money Market Fund",
+   "schemes": 27,
+   "folios": 541179,
+   "raised": 63592.95966501,
+   "redeemed": 114439.17157542,
+   "net": -50846.21191041,
+   "aum": 290669.68802331
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Short Term Fund",
+   "schemes": 26,
+   "folios": 576764,
+   "raised": 1783.23352867,
+   "redeemed": 3024.7847095,
+   "net": -1241.55118083,
+   "aum": 103982.31507417
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Medium Term Fund",
+   "schemes": 13,
+   "folios": 238536,
+   "raised": 241.13246457,
+   "redeemed": 693.79709979,
+   "net": -452.66463522,
+   "aum": 25000.16312695
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Medium to Long Term Fund",
+   "schemes": 13,
+   "folios": 100152,
+   "raised": 18.69219388,
+   "redeemed": 123.72508355,
+   "net": -105.03288967,
+   "aum": 9805.35871079
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Long Term Fund",
+   "schemes": 11,
+   "folios": 71298,
+   "raised": 139.62228788,
+   "redeemed": 543.04883194,
+   "net": -403.42654406,
+   "aum": 10923.5762383
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Dynamic Term Fund",
+   "schemes": 22,
+   "folios": 211879,
+   "raised": 74.82861661,
+   "redeemed": 693.45652906,
+   "net": -618.62791245,
+   "aum": 29316.87398691
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Corporate Bond Fund",
+   "schemes": 21,
+   "folios": 572966,
+   "raised": 2165.19108632,
+   "redeemed": 6817.43007445,
+   "net": -4652.23898813,
+   "aum": 171902.80578315
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Credit Risk Fund",
+   "schemes": 13,
+   "folios": 214555,
+   "raised": 375.71904983,
+   "redeemed": 248.46280819,
+   "net": 127.25624164,
+   "aum": 22174.61129887
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Banking and PSU Debt Fund",
+   "schemes": 20,
+   "folios": 250247,
+   "raised": 540.19913465,
+   "redeemed": 2951.75145194,
+   "net": -2411.55231729,
+   "aum": 77073.49660797
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Gilt Fund",
+   "schemes": 23,
+   "folios": 188465,
+   "raised": 1493.34813754,
+   "redeemed": 893.169715980001,
+   "net": 600.178421559999,
+   "aum": 29559.21428411
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "10-year Constant Maturity Gilt Fund",
+   "schemes": 5,
+   "folios": 34362,
+   "raised": 12.68413801,
+   "redeemed": 177.23807182,
+   "net": -164.55393381,
+   "aum": 3861.55973591
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Floating Interest Rates Fund",
+   "schemes": 12,
+   "folios": 190094,
+   "raised": 729.72059318,
+   "redeemed": 2440.06324873,
+   "net": -1710.34265555,
+   "aum": 51139.55970942
+  },
+  {
+   "month": "2026-09",
+   "group": "Debt",
+   "category": "Sectoral Fund",
+   "schemes": 1,
+   "folios": 1037,
+   "raised": 176.6874647,
+   "redeemed": 68.16901647,
+   "net": 108.51844823,
+   "aum": 694.6739075
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Multi Cap Fund",
+   "schemes": 33,
+   "folios": 12074365,
+   "raised": 6254.86434398,
+   "redeemed": 2395.31094495,
+   "net": 3859.55339903,
+   "aum": 248188.15584668
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Large Cap Fund",
+   "schemes": 35,
+   "folios": 16960523,
+   "raised": 5087.84507706,
+   "redeemed": 4228.37813941,
+   "net": 859.466937649999,
+   "aum": 390384.40077963
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Large & Mid Cap Fund",
+   "schemes": 36,
+   "folios": 14531964,
+   "raised": 7192.31146676,
+   "redeemed": 2921.09348019,
+   "net": 4271.21798657,
+   "aum": 354112.83780242
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Mid Cap Fund",
+   "schemes": 34,
+   "folios": 26768077,
+   "raised": 11630.93353964,
+   "redeemed": 3796.08997599,
+   "net": 7834.84356365,
+   "aum": 514213.11925985
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Small Cap Fund",
+   "schemes": 36,
+   "folios": 30381196,
+   "raised": 13025.12624082,
+   "redeemed": 3986.55658469,
+   "net": 9038.56965613001,
+   "aum": 461751.58653799
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Flexi Cap Fund",
+   "schemes": 47,
+   "folios": 25035055,
+   "raised": 12368.08978543,
+   "redeemed": 5666.28608257,
+   "net": 6701.80370286,
+   "aum": 588389.52161228
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Dividend Yield Fund",
+   "schemes": 12,
+   "folios": 1182650,
+   "raised": 541.72276815,
+   "redeemed": 362.41703302,
+   "net": 179.30573513,
+   "aum": 30635.8439069
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Value Fund",
+   "schemes": 24,
+   "folios": 4970006,
+   "raised": 2353.72942786,
+   "redeemed": 1062.83644338,
+   "net": 1290.89298448,
+   "aum": 137554.50810916
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Contra Fund",
+   "schemes": 5,
+   "folios": 4146438,
+   "raised": 1070.91508745,
+   "redeemed": 1168.79517313,
+   "net": -97.880085679999,
+   "aum": 71625.51042701
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Focused Fund",
+   "schemes": 28,
+   "folios": 5645306,
+   "raised": 3193.62494569,
+   "redeemed": 1802.78675357,
+   "net": 1390.83819212,
+   "aum": 179900.44920556
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Sectoral Fund",
+   "schemes": 60,
+   "folios": 9583586,
+   "raised": 3625.94573791,
+   "redeemed": 1785.93056396,
+   "net": 1840.01517395,
+   "aum": 147304.50233122
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "Thematic Fund",
+   "schemes": 194,
+   "folios": 23604970,
+   "raised": 7398.93885111999,
+   "redeemed": 5598.8726057,
+   "net": 1800.06624541999,
+   "aum": 399551.77653136
+  },
+  {
+   "month": "2026-09",
+   "group": "Equity",
+   "category": "ELSS- Tax Saver Fund",
+   "schemes": 39,
+   "folios": 16106808,
+   "raised": 1087.91700904,
+   "redeemed": 1750.05845172,
+   "net": -662.14144268,
+   "aum": 230662.35828195
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Conservative Hybrid Fund",
+   "schemes": 18,
+   "folios": 583081,
+   "raised": 341.95722447,
+   "redeemed": 546.18698353,
+   "net": -204.22975906,
+   "aum": 29394.37119241
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Balanced Hybrid Fund",
+   "schemes": 5,
+   "folios": 91733,
+   "raised": 390.43586232,
+   "redeemed": 76.72817225,
+   "net": 313.70769007,
+   "aum": 3322.21257304
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Aggressive Hybrid Fund",
+   "schemes": 30,
+   "folios": 6469143,
+   "raised": 4154.30392034,
+   "redeemed": 2290.76037615,
+   "net": 1863.54354419,
+   "aum": 254594.79049813
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Balanced Advantage Fund/ Dynamic Asset Allocation",
+   "schemes": 36,
+   "folios": 5774112,
+   "raised": 3302.93680094,
+   "redeemed": 4215.36920907,
+   "net": -912.43240813,
+   "aum": 315741.41219234
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Multi Asset Allocation Fund",
+   "schemes": 37,
+   "folios": 6160021,
+   "raised": 6262.45080131,
+   "redeemed": 2595.47519756,
+   "net": 3666.97560375,
+   "aum": 202827.58707465
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Arbitrage Fund",
+   "schemes": 40,
+   "folios": 961288,
+   "raised": 23756.55831465,
+   "redeemed": 27712.93972429,
+   "net": -3956.38140964,
+   "aum": 297632.3332093
+  },
+  {
+   "month": "2026-09",
+   "group": "Hybrid",
+   "category": "Equity Savings Fund",
+   "schemes": 24,
+   "folios": 543898,
+   "raised": 953.24023587,
+   "redeemed": 2181.10078015,
+   "net": -1227.86054428,
+   "aum": 48645.00232105
+  },
+  {
+   "month": "2026-09",
+   "group": "Life Cycle Funds",
+   "category": "Life Cycle Fund with Maturity of 5 Years",
+   "schemes": 2,
+   "folios": 7661,
+   "raised": 55.73478163,
+   "redeemed": 0.05093579,
+   "net": 55.68384584,
+   "aum": 54.0639665
+  },
+  {
+   "month": "2026-09",
+   "group": "Life Cycle Funds",
+   "category": "Life Cycle Fund with Maturity of 10 Years",
+   "schemes": 2,
+   "folios": 12355,
+   "raised": 32.84377136,
+   "redeemed": 0.64667969,
+   "net": 32.19709167,
+   "aum": 50.26494482
+  },
+  {
+   "month": "2026-09",
+   "group": "Life Cycle Funds",
+   "category": "Life Cycle Fund with Maturity of 15 Years",
+   "schemes": 2,
+   "folios": 11638,
+   "raised": 58.6071606,
+   "redeemed": 2.73690814,
+   "net": 55.87025246,
+   "aum": 71.78136945
+  },
+  {
+   "month": "2026-09",
+   "group": "Life Cycle Funds",
+   "category": "Life Cycle Fund with Maturity of 20 Years",
+   "schemes": 0,
+   "folios": 0,
+   "raised": 0,
+   "redeemed": 0,
+   "net": 0,
+   "aum": 0
+  },
+  {
+   "month": "2026-09",
+   "group": "Life Cycle Funds",
+   "category": "Life Cycle Fund with Maturity of 25 Years",
+   "schemes": 0,
+   "folios": 0,
+   "raised": 0,
+   "redeemed": 0,
+   "net": 0,
+   "aum": 0
+  },
+  {
+   "month": "2026-09",
+   "group": "Life Cycle Funds",
+   "category": "Life Cycle Fund with Maturity of 30 Years",
+   "schemes": 0,
+   "folios": 0,
+   "raised": 0,
+   "redeemed": 0,
+   "net": 0,
+   "aum": 0
+  },
+  {
+   "month": "2026-09",
+   "group": "Solution Oriented",
+   "category": "Retirement Fund",
+   "schemes": 29,
+   "folios": 3076187,
+   "raised": 235.54230281,
+   "redeemed": 184.41943211,
+   "net": 51.1228706999999,
+   "aum": 31636.67109842
+  },
+  {
+   "month": "2026-09",
+   "group": "Solution Oriented",
+   "category": "Childrens' Fund",
+   "schemes": 12,
+   "folios": 3338550,
+   "raised": 394.65617739,
+   "redeemed": 71.88274293,
+   "net": 322.77343446,
+   "aum": 27685.64286809
+  },
+  {
+   "month": "2026-09",
+   "group": "Index Funds",
+   "category": "Equity Funds",
+   "schemes": 277,
+   "folios": 15735616,
+   "raised": 7334.48768643,
+   "redeemed": 4685.14468205,
+   "net": 2649.34300438,
+   "aum": 239806.84250883
+  },
+  {
+   "month": "2026-09",
+   "group": "Index Funds",
+   "category": "Debt Funds",
+   "schemes": 96,
+   "folios": 193169,
+   "raised": 5643.73821071,
+   "redeemed": 11901.55988493,
+   "net": -6257.82167422,
+   "aum": 80576.73864291
+  },
+  {
+   "month": "2026-09",
+   "group": "Index Funds",
+   "category": "Hybrid Fund",
+   "schemes": 3,
+   "folios": 11382,
+   "raised": 4.6857538,
+   "redeemed": 10.2336401,
+   "net": -5.5478863,
+   "aum": 74.40890572
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "Equity ETF",
+   "schemes": 269,
+   "folios": 19712501,
+   "raised": 12707.47007274,
+   "redeemed": 2747.51210792,
+   "net": 9959.95796482001,
+   "aum": 781161.50910397
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "Debt ETF",
+   "schemes": 38,
+   "folios": 1698995,
+   "raised": 8840.75343527,
+   "redeemed": 9724.69525872,
+   "net": -883.941823449997,
+   "aum": 93798.38249424
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "Hybrid ETF",
+   "schemes": 1,
+   "folios": 768,
+   "raised": 0,
+   "redeemed": 0,
+   "net": 0,
+   "aum": 15.02690606
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "Gold ETF",
+   "schemes": 26,
+   "folios": 12677259,
+   "raised": 5310.64726407,
+   "redeemed": 860.03661031,
+   "net": 4450.61065376,
+   "aum": 186310.43770096
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "Silver ETF",
+   "schemes": 19,
+   "folios": 5310609,
+   "raised": 7308.79351232,
+   "redeemed": 5334.47776161,
+   "net": 1974.31575071,
+   "aum": 81636.34333623
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "Other ETF",
+   "schemes": 2,
+   "folios": 4117,
+   "raised": 0.454432600000001,
+   "redeemed": 0,
+   "net": 0.454432600000001,
+   "aum": 66.58960032
+  },
+  {
+   "month": "2026-09",
+   "group": "Exchange Traded Funds (ETFs)",
+   "category": "ETFs investing overseas",
+   "schemes": 4,
+   "folios": 701817,
+   "raised": 0,
+   "redeemed": 0,
+   "net": 0,
+   "aum": 6996.76633117
+  },
+  {
+   "month": "2026-09",
+   "group": "Overseas Fund of Funds",
+   "category": "Fund of Funds investing overseas",
+   "schemes": 52,
+   "folios": 1981227,
+   "raised": 206.19673398,
+   "redeemed": 365.37488033,
+   "net": -159.17814635,
+   "aum": 48803.28597722
+  },
+  {
+   "month": "2026-09",
+   "group": "Income/Debt Oriented",
+   "category": "Fixed Term Plan",
+   "schemes": 28,
+   "folios": 9443,
+   "raised": 0,
+   "redeemed": 270.1191905,
+   "net": -270.1191905,
+   "aum": 5190.42771542
+  },
+  {
+   "month": "2026-09",
+   "group": "Income/Debt Oriented",
+   "category": "Infrastructure Debt Fund",
+   "schemes": 3,
+   "folios": 19,
+   "raised": 0,
+   "redeemed": 0,
+   "net": 0,
+   "aum": 955.7107633
+  },
+  {
+   "month": "2026-09",
+   "group": "Income/Debt Oriented",
+   "category": "Other Debt Scheme",
+   "schemes": 1,
+   "folios": 170367,
+   "raised": 12.18441345,
+   "redeemed": 42.4018614,
+   "net": -30.21744795,
+   "aum": 4912.930304
+  },
+  {
+   "month": "2026-09",
+   "group": "Growth/Equity Oriented",
+   "category": "ELSS",
+   "schemes": 13,
+   "folios": 243900,
+   "raised": 0,
+   "redeemed": 13.04362397,
+   "net": -13.04362397,
+   "aum": 3813.41433778
+  },
+  {
+   "month": "2026-09",
+   "group": "Growth/Equity Oriented",
+   "category": "Income/Debt Oriented Schemes",
+   "schemes": 2,
+   "folios": 732,
+   "raised": 0.00024927,
+   "redeemed": 2.14303321,
+   "net": -2.14278394,
+   "aum": 22.82114243
+  }
+ ],
+ "deals": [
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ADVANCE",
+   "company": "Advance Agrolife Limited",
+   "client": "GROWVIA TRADE PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 350000,
+   "price": 116.75
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ADVANCE",
+   "company": "Advance Agrolife Limited",
+   "client": "L7 HITECH PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 350000,
+   "price": 116.75
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AGARWALTUF",
+   "company": "Agarwal Tough Glass Ind L",
+   "client": "VAIBHAV RAJENDRA DOSHI",
+   "side": "BUY",
+   "qty": 144000,
+   "price": 167.02
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AGARWALTUF",
+   "company": "Agarwal Tough Glass Ind L",
+   "client": "VAIBHAV RAJENDRA DOSHI",
+   "side": "SELL",
+   "qty": 164400,
+   "price": 167.26
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ALICON",
+   "company": "Alicon Castalloy Limited",
+   "client": "RAJEEV SIKAND",
+   "side": "SELL",
+   "qty": 135546,
+   "price": 863.45
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AMBANIORGO",
+   "company": "AMBANI ORGOCHEM LIMITED",
+   "client": "ECHJAY FORGING INDUSTRIES PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 61000,
+   "price": 115.05
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AMBANIORGO",
+   "company": "AMBANI ORGOCHEM LIMITED",
+   "client": "SIDHACHAKRA ENTERPRISE LLP",
+   "side": "BUY",
+   "qty": 61000,
+   "price": 115.05
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "CITADEL SECURITIES SINGAPORE PTE LIMITED",
+   "side": "SELL",
+   "qty": 655394,
+   "price": 438.13
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "GRT STRATEGIC VENTURES LLP",
+   "side": "BUY",
+   "qty": 514779,
+   "price": 433.8
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "GRT STRATEGIC VENTURES LLP",
+   "side": "SELL",
+   "qty": 514779,
+   "price": 434.04
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "IRAGE BROKING SERVICES LLP",
+   "side": "BUY",
+   "qty": 428310,
+   "price": 428.18
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "IRAGE BROKING SERVICES LLP",
+   "side": "SELL",
+   "qty": 510598,
+   "price": 437.63
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "MARWADI CHANDARANA INTERMEDIARIES BROKERS PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 570096,
+   "price": 425.92
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "MARWADI CHANDARANA INTERMEDIARIES BROKERS PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 573384,
+   "price": 420.18
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "NK SECURITIES RESEARCH PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 433827,
+   "price": 431.84
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "NK SECURITIES RESEARCH PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 433827,
+   "price": 431.54
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "URMILA MAHESHWARI",
+   "side": "BUY",
+   "qty": 470131,
+   "price": 426.73
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "AONESTEELS",
+   "company": "A-One Steels India Ltd",
+   "client": "URMILA MAHESHWARI",
+   "side": "SELL",
+   "qty": 470649,
+   "price": 450.88
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "AFFLUENCE FINCON SERVICE PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 350000,
+   "price": 273.44
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "ALPHAGREP SECURITIES PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 261724,
+   "price": 274.78
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "ALPHAGREP SECURITIES PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 261724,
+   "price": 274.76
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "COMFORT CAPITAL PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 217570,
+   "price": 279.1
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "COMFORT CAPITAL PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 217570,
+   "price": 278.64
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "GRT STRATEGIC VENTURES LLP",
+   "side": "BUY",
+   "qty": 189676,
+   "price": 275.14
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "GRT STRATEGIC VENTURES LLP",
+   "side": "SELL",
+   "qty": 189676,
+   "price": 275.23
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "JUNOMONETA FINSOL PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 214480,
+   "price": 275.46
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "JUNOMONETA FINSOL PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 216770,
+   "price": 275.57
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "MATHISYS QUANTCAP LLP",
+   "side": "SELL",
+   "qty": 324437,
+   "price": 275.61
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "MATHISYS QUANTCAP LLP",
+   "side": "BUY",
+   "qty": 324437,
+   "price": 275.31
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "MICROCURVES TRADING PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 289055,
+   "price": 273.96
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "MICROCURVES TRADING PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 289055,
+   "price": 274.39
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "NK SECURITIES RESEARCH PRIVATE LIMITED",
+   "side": "BUY",
+   "qty": 321474,
+   "price": 274.76
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "NK SECURITIES RESEARCH PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 323019,
+   "price": 274.91
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "PAWAN KUMAR MITTAL",
+   "side": "SELL",
+   "qty": 475923,
+   "price": 279.24
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "ARMEE",
+   "company": "ArMee Infotech Limited",
+   "client": "PAWAN KUMAR MITTAL",
+   "side": "BUY",
+   "qty": 475923,
+   "price": 277.3
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "CKKRETAIL",
+   "company": "C K K Retail Mart Limited",
+   "client": "MANDAKINIBEN PRADYUMANBHAI PATEL",
+   "side": "BUY",
+   "qty": 84800,
+   "price": 169
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "CKKRETAIL",
+   "company": "C K K Retail Mart Limited",
+   "client": "MANDAKINIBEN PRADYUMANBHAI PATEL",
+   "side": "SELL",
+   "qty": 157600,
+   "price": 169.84
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "CKKRETAIL",
+   "company": "C K K Retail Mart Limited",
+   "client": "PRACHI VASANTKUMAR SHAH",
+   "side": "BUY",
+   "qty": 100000,
+   "price": 171
+  },
+  {
+   "date": "2026-10-01",
+   "kind": "BULK",
+   "symbol": "DELTACORP",
+   "company": "Delta Corp Limited",
+   "client": "HRTI PRIVATE LIMITED",
+   "side": "SELL",
+   "qty": 2118372,
+   "price": 77.58
+  }
+ ],
+ "stakes": [
+  {
+   "id": "179945",
+   "date": "2026-10-23",
+   "symbol": "TIKONA",
+   "company": "Tikona Communication Limited",
+   "party": "Gaurav Goyal",
+   "side": "SELL",
+   "shares": 17080288,
+   "changePct": 56.13,
+   "afterPct": 0,
+   "mode": "Others",
+   "promoter": true
+  },
+  {
+   "id": "176698",
+   "date": "2026-10-23",
+   "symbol": "SAMHI",
+   "company": "Samhi Hotels Limited",
+   "party": "Funds under the management of FMR LLC and its direct and indirect subsidiaries and FIL Limited and its direct and indirect subsidiaries",
+   "side": "BUY",
+   "shares": 1175000,
+   "changePct": 0.53,
+   "afterPct": 5.06,
+   "mode": "Open Market",
+   "promoter": false
+  },
+  {
+   "id": "178931",
+   "date": "2026-10-23",
+   "symbol": "GLAND",
+   "company": "Gland Pharma Limited",
+   "party": "Mirae Asset Mutual Fund",
+   "side": "SELL",
+   "shares": 57842,
+   "changePct": 0.04,
+   "afterPct": 2.95,
+   "mode": "Open Market",
+   "promoter": false
+  },
+  {
+   "id": "179336",
+   "date": "2026-10-23",
+   "symbol": "AIROLAM",
+   "company": "Airo Lam limited",
+   "party": "Sureshbhai Hansarajbhai Patel",
+   "side": "BUY",
+   "shares": 3250,
+   "changePct": 0.02,
+   "afterPct": 0.92,
+   "mode": "Open Market",
+   "promoter": true
+  },
+  {
+   "id": "179210",
+   "date": "2026-10-23",
+   "symbol": "AURUM",
+   "company": "Aurum PropTech Limited",
+   "party": "REA India Pte Limited",
+   "side": "BUY",
+   "shares": 19793309,
+   "changePct": 18.94,
+   "afterPct": 24.49,
+   "mode": "Preferential Allotment",
+   "promoter": false
+  },
+  {
+   "id": "179330",
+   "date": "2026-10-23",
+   "symbol": "AAREYDRUGS",
+   "company": "Aarey Drugs & Pharmaceuticals Limited",
+   "party": "Nimit Rajesh Ghatalia",
+   "side": "BUY",
+   "shares": 150000,
+   "changePct": 0.47,
+   "afterPct": 5.18,
+   "mode": "Others",
+   "promoter": false
+  }
+ ]
+}

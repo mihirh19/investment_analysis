@@ -20,7 +20,13 @@ interface ChartResponse {
           }
           timestamp?: number[]
           indicators?: {
-            quote?: { close?: (number | null)[]; high?: (number | null)[] }[]
+            quote?: {
+              open?: (number | null)[]
+              high?: (number | null)[]
+              low?: (number | null)[]
+              close?: (number | null)[]
+              volume?: (number | null)[]
+            }[]
             adjclose?: { adjclose?: (number | null)[] }[]
           }
           events?: { dividends?: Record<string, { amount: number; date: number }> }
@@ -88,6 +94,76 @@ export async function yahooHistory(
     if (typeof c === 'number' && Number.isFinite(c)) prices.push({ date: dateInOffset(t, offset), close: c })
   })
   return { prices, dividends: parseDividends(r.events?.dividends, offset), currency: r.meta.currency?.toUpperCase() }
+}
+
+export type BarInterval = '1m' | '5m' | '15m' | '1h' | '1d'
+
+/** How far back each interval goes on Yahoo (its own limits: 1-minute bars only for the last 30 days). */
+const BAR_SPAN: Record<BarInterval, string> = {
+  '1m': 'range=7d&interval=1m',
+  '5m': 'range=60d&interval=5m',
+  '15m': 'range=60d&interval=15m',
+  '1h': 'range=730d&interval=60m',
+  '1d': 'interval=1d'
+}
+
+export interface OhlcBar {
+  /** "YYYY-MM-DD" for daily bars; seconds since 1970 in exchange time (shifted) for intraday ones. */
+  time: string | number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+}
+
+/**
+ * Candles for a chart: the whole daily history (split-adjusted, as Yahoo gives it), or recent
+ * intraday bars, which Yahoo serves delayed. Intraday times are shifted to exchange time so a chart
+ * library showing UTC prints the market's own clock.
+ */
+export async function yahooBars(symbol: string, interval: BarInterval, f?: FetchFn): Promise<{ bars: OhlcBar[]; currency: string }> {
+  const span = interval === '1d' ? `period1=0&period2=${Math.floor(Date.now() / 1000) + 86400}&interval=1d` : BAR_SPAN[interval]
+  const r = await chart(symbol, span, f)
+  const offset = r.meta.gmtoffset ?? 0
+  const q = r.indicators?.quote?.[0] ?? {}
+  const bars: OhlcBar[] = []
+  ;(r.timestamp ?? []).forEach((t, i) => {
+    const o = q.open?.[i]
+    const h = q.high?.[i]
+    const l = q.low?.[i]
+    const c = q.close?.[i]
+    if (![o, h, l, c].every((v) => typeof v === 'number' && Number.isFinite(v))) return
+    const time = interval === '1d' ? dateInOffset(t, offset) : t + offset
+    // Yahoo can repeat the last day (a live bar and a closed one): keep the later.
+    if (bars.length && bars[bars.length - 1].time === time) bars.pop()
+    bars.push({ time, open: o!, high: h!, low: l!, close: c!, volume: q.volume?.[i] ?? null })
+  })
+  return { bars, currency: r.meta.currency?.toUpperCase() ?? 'INR' }
+}
+
+/** Yahoo's v7 spark for one day: each symbol's latest price, previous close and the day's closes. */
+export function parseYahooQuotes(json: unknown): { symbol: string; price: number; prevClose: number | null; change: number | null; time: string; points: number[] }[] {
+  type Spark = { symbol: string; response?: { meta?: Record<string, unknown>; indicators?: { quote?: { close?: (number | null)[] }[] } }[] }
+  const results = (json as { spark?: { result?: Spark[] } })?.spark?.result ?? []
+  const out = []
+  for (const r of results) {
+    const res = r.response?.[0]
+    const m = res?.meta
+    const price = Number(m?.regularMarketPrice)
+    if (!m || !(price > 0)) continue
+    const prev = Number(m.chartPreviousClose ?? m.previousClose)
+    const time = Number(m.regularMarketTime)
+    out.push({
+      symbol: r.symbol,
+      price,
+      prevClose: prev > 0 ? prev : null,
+      change: prev > 0 ? price / prev - 1 : null,
+      time: new Date((Number.isFinite(time) ? time : Date.now() / 1000) * 1000).toISOString(),
+      points: (res?.indicators?.quote?.[0]?.close ?? []).filter((c): c is number => typeof c === 'number' && Number.isFinite(c))
+    })
+  }
+  return out
 }
 
 /** The day's high on one date (exchange time), or null if the symbol did not trade that day. */

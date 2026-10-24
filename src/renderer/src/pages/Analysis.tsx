@@ -122,7 +122,7 @@ export function Analysis() {
       <ErrorNote error={q.error} />
 
       {/* Headline: the money-weighted return and the few numbers that frame it. */}
-      <section aria-label="Returns" className="grid grid-cols-1 gap-8 lg:grid-cols-[auto_1fr]">
+      <section aria-label="Returns" className="grid grid-cols-1 gap-8 @5xl:grid-cols-[auto_1fr]">
         <div>
           <div className="text-[14px] text-ink-muted">Return per year (XIRR)</div>
           <div className={`wide text-[56px] leading-none font-semibold tracking-tight ${toneClass(a.xirr.overall)}`}>
@@ -133,7 +133,7 @@ export function Analysis() {
             are measured from the earliest trade file or statement you imported; EPF and insurance are left out.
           </div>
         </div>
-        <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 content-end gap-x-10 gap-y-4 @2xl:grid-cols-4">
           {[
             a.owed.totalInr > 0 ? ['Net worth, after loans', money(a.totalInr - a.owed.totalInr)] : ['Net worth', money(a.totalInr)],
             ['Available in days', money(liquidNow)],
@@ -231,7 +231,7 @@ export function Analysis() {
         </table>
       </Section>
 
-      <div className="grid grid-cols-1 gap-12 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-12 @7xl:grid-cols-2">
         <Section id="alloc" title="Where it sits">
           <div className="flex flex-wrap items-center gap-8">
             <Donut parts={donut} centerLabel="Total" format={(v) => compactMoney(v)} label="Allocation by group" />
@@ -328,7 +328,7 @@ export function Analysis() {
         </table>
       </Section>
 
-      <div className="grid grid-cols-1 gap-12 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-12 @7xl:grid-cols-2">
         <Section
           id="upcoming"
           title="Coming in over the next 12 months"

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
 import type { IndexLevel, ScreenRow, WorldSeries } from '@shared/screener'
 import { ErrorNote } from './Shell'
 import { Treemap, Sparkline } from './viz'
 import { useMarketMonitor, useWorldBoard } from '../lib/api'
 import { bigMoney, money, percent, shortDate, toneClass } from '../lib/format'
+import { useOpenSymbol } from '../lib/links'
 
 /** A bordered terminal panel with an amber title line. */
 export function Panel({ title, note, children, className = '' }: { title: string; note?: string; children: ReactNode; className?: string }) {
@@ -30,7 +30,7 @@ export function Monitor() {
       <Panel title="NSE indices" note={d?.date ? `close of ${shortDate(d.date)}` : 'arrive with the first daily file'}>
         {d && d.indices.length > 0 ? <Indices list={d.indices} /> : <Empty>Index levels come with NSE’s end-of-day file, once the download is running.</Empty>}
       </Panel>
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid gap-3 @7xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Panel title="World markets" note="six months, Yahoo Finance">
           <World />
         </Panel>
@@ -53,7 +53,7 @@ export function Monitor() {
           )}
         </Panel>
       </div>
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 @5xl:grid-cols-3">
         <Panel title="Top gainers" note="₹1,000 Cr and up">
           <Movers rows={d?.gainers ?? []} />
         </Panel>
@@ -73,11 +73,11 @@ export function Monitor() {
   )
 }
 
-const Empty = ({ children }: { children: ReactNode }) => <p className="text-[13.5px] text-ink-muted">{children}</p>
+export const Empty = ({ children }: { children: ReactNode }) => <p className="text-[13.5px] text-ink-muted">{children}</p>
 
-function Indices({ list }: { list: IndexLevel[] }) {
+export function Indices({ list }: { list: IndexLevel[] }) {
   return (
-    <ul className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-6 gap-y-2">
       {list.map((i) => {
         const ch = i.prevClose ? i.close / i.prevClose - 1 : null
         return (
@@ -96,12 +96,12 @@ function Indices({ list }: { list: IndexLevel[] }) {
   )
 }
 
-function World() {
+export function World() {
   const w = useWorldBoard()
   if (w.isLoading) return <Empty>Fetching world markets…</Empty>
   if (w.error) return <ErrorNote error={w.error} />
   return (
-    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
       {(w.data ?? []).map((s) => (
         <WorldTile key={s.key} s={s} />
       ))}
@@ -130,7 +130,7 @@ function WorldTile({ s }: { s: WorldSeries }) {
   )
 }
 
-function Breadth({ b }: { b: { up: number; down: number; flat: number; atHigh: number; atLow: number } }) {
+export function Breadth({ b }: { b: { up: number; down: number; flat: number; atHigh: number; atLow: number } }) {
   const total = b.up + b.down + b.flat || 1
   return (
     <div className="mb-3">
@@ -147,8 +147,8 @@ function Breadth({ b }: { b: { up: number; down: number; flat: number; atHigh: n
   )
 }
 
-function Movers({ rows, withPe = false }: { rows: ScreenRow[]; withPe?: boolean }) {
-  const navigate = useNavigate()
+export function Movers({ rows, withPe = false }: { rows: ScreenRow[]; withPe?: boolean }) {
+  const open = useOpenSymbol()
   if (rows.length === 0) return <Empty>Shows once NSE’s daily prices are in.</Empty>
   return (
     <table className="w-full text-[13px]">
@@ -157,8 +157,8 @@ function Movers({ rows, withPe = false }: { rows: ScreenRow[]; withPe?: boolean 
           <tr
             key={r.symbol}
             tabIndex={0}
-            onClick={() => navigate(`/research/${encodeURIComponent(r.symbol)}`)}
-            onKeyDown={(e) => e.key === 'Enter' && navigate(`/research/${encodeURIComponent(r.symbol)}`)}
+            onClick={() => open(r.symbol)}
+            onKeyDown={(e) => e.key === 'Enter' && open(r.symbol)}
             className="cursor-pointer border-b border-rule last:border-0 hover:bg-paper focus:bg-paper focus:outline-none"
           >
             <th scope="row" className="max-w-[150px] py-1 pr-2 text-left font-normal">

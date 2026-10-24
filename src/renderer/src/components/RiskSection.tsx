@@ -139,7 +139,7 @@ function PortfolioRisk({ r }: { r: RiskReport }) {
   return (
     <>
       <Section id="risk" title="Risk, as you hold things today" note={coverageNote(r)}>
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3 xl:grid-cols-6">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-4 @2xl:grid-cols-3 @7xl:grid-cols-6">
           {cards.map(([k, v, sub], i) => (
             <div key={k} className="anim-page border-t border-rule-strong pt-2" style={stagger(i, 50)}>
               <dt className="text-[13px] text-ink-muted">{k}</dt>
@@ -186,7 +186,7 @@ function PortfolioRisk({ r }: { r: RiskReport }) {
         />
       </Section>
 
-      <div className="grid grid-cols-1 gap-x-12 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-12 @7xl:grid-cols-2">
         <Section
           id="risk-sources"
           title="Where the swings come from"
@@ -273,7 +273,7 @@ function Concentration({ r, family }: { r: RiskReport; family: boolean }) {
       title="How concentrated the money is"
       note="By holding, across everything you own. The effective number is how many equal-sized holdings would be just as concentrated (1 ÷ the sum of squared shares)."
     >
-      <div className={`grid grid-cols-1 gap-8 ${r.concentration.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+      <div className={`grid grid-cols-1 gap-8 ${r.concentration.length > 1 ? '@5xl:grid-cols-2' : ''}`}>
         {r.concentration.map((c) => {
           const largest = c.largest?.share ?? 0
           return (

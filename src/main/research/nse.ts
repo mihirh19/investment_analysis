@@ -2,6 +2,7 @@ import { unzipSync, strFromU8 } from 'fflate'
 import { fetchWith, HttpError, type FetchFn } from '../market/http'
 import type { Basis, DayQuote } from '@shared/research'
 import type { IndexLevel } from '@shared/screener'
+import type { Bar } from '@shared/technicals'
 
 // NSE's public results lists and end-of-day files. Requests go one at a time with a pause between
 // them; NSE is asked only what a person browsing its site would see.
@@ -162,6 +163,44 @@ export function parseDayFiles(zip: Uint8Array, date: string, peCsv: string | nul
       const v = num(pe)
       if (q && v !== null && v > 0) q.pe = v
     }
+  }
+  return [...out.values()]
+}
+
+export const deliveryUrl = (date: string) => `${NSE_ARCHIVES}/products/content/sec_bhavdata_full_${DDMMYYYY(date)}.csv`
+
+/**
+ * NSE's daily "full bhavcopy with delivery": every stock's prices, volume and delivery %. Equity
+ * series only; when a stock appears twice, EQ wins.
+ */
+export function parseDeliveryFile(text: string): (Bar & { symbol: string })[] {
+  const [head, ...rows] = csvRows(text)
+  if (!head) return []
+  const col = (h: string) => head.indexOf(h)
+  const c = {
+    symbol: col('SYMBOL'), series: col('SERIES'), date: col('DATE1'), prev: col('PREV_CLOSE'), open: col('OPEN_PRICE'),
+    high: col('HIGH_PRICE'), low: col('LOW_PRICE'), close: col('CLOSE_PRICE'), qty: col('TTL_TRD_QNTY'), deliv: col('DELIV_PER')
+  }
+  if (c.symbol < 0 || c.close < 0 || c.date < 0) throw new Error('NSE’s delivery file has unexpected columns')
+  const series = new Set(['EQ', 'BE', 'BZ', 'SM', 'ST'])
+  const out = new Map<string, Bar & { symbol: string }>()
+  for (const r of rows) {
+    const symbol = r[c.symbol]
+    const close = num(r[c.close])
+    const date = nseDate(r[c.date])
+    if (!symbol || !series.has(r[c.series]) || close === null || close <= 0 || !date) continue
+    if (out.has(symbol) && r[c.series] !== 'EQ') continue
+    out.set(symbol, {
+      symbol,
+      date,
+      open: num(r[c.open]),
+      high: num(r[c.high]),
+      low: num(r[c.low]),
+      close,
+      prevClose: num(r[c.prev]),
+      volume: num(r[c.qty]),
+      delivPct: num(r[c.deliv])
+    })
   }
   return [...out.values()]
 }

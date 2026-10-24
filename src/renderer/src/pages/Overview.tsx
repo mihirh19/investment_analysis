@@ -121,7 +121,7 @@ export function Overview() {
       </PageHeader>
       <ErrorNote error={holdings.error} />
 
-      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,620px)_1fr]">
+      <div className="grid grid-cols-1 gap-10 @7xl:grid-cols-[minmax(0,620px)_1fr]">
         {/* The balance, written up like the closing lines of a passbook page. */}
         <section aria-label="Balance">
           <dl className="text-[16px]">
@@ -240,7 +240,7 @@ export function Overview() {
         <h2 id="alloc" className="wide mb-4 text-[19px] font-semibold">
           What it&rsquo;s in
         </h2>
-        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[auto_1fr]">
+        <div className="grid grid-cols-1 items-center gap-10 @5xl:grid-cols-[auto_1fr]">
           <Donut
             parts={donut}
             centerLabel={`${rows.length} holdings`}
@@ -321,7 +321,7 @@ export function Overview() {
         </section>
       )}
 
-      <div className="mt-12 grid grid-cols-1 gap-12 xl:grid-cols-3">
+      <div className="mt-12 grid grid-cols-1 gap-12 @7xl:grid-cols-3">
         <section aria-labelledby="where">
           <h2 id="where" className="wide mb-3 text-[19px] font-semibold">
             Where it&rsquo;s held
@@ -405,7 +405,7 @@ function Checklist({ report }: { report: HealthReport }) {
           {report.issues ? `${report.issues} to fix` : 'Nothing to fix'} · {passed.length} of {report.checks.length} fine
         </span>
       </div>
-      <ul className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-10 @5xl:grid-cols-2">
         {open.map((c, i) => (
           <li key={c.key} className="anim-page flex gap-3 border-b border-rule py-2.5" style={stagger(i, 40)}>
             <span

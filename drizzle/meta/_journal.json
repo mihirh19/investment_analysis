@@ -127,6 +127,20 @@
       "when": 1792833192242,
       "tag": "0017_world",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1792839557470,
+      "tag": "0018_prices",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1792844760118,
+      "tag": "0019_flows",
+      "breakpoints": true
     }
   ]
 }

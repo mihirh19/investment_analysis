@@ -96,7 +96,7 @@ export function ClaudeSettings() {
         </div>
       )}
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="mt-3 grid gap-3 @3xl:grid-cols-2">
         <Toggle
           on={s.statements}
           disabled={!s.hasKey}

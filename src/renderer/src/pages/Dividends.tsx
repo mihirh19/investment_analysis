@@ -55,7 +55,7 @@ export function Dividends() {
 
       {(payments.length > 0 || outlook.length > 0) && (
         <>
-          <dl className="grid max-w-[880px] grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+          <dl className="grid max-w-[880px] grid-cols-2 gap-x-10 gap-y-4 @2xl:grid-cols-4">
             {[
               [`This year (${thisFy})`, money(sumFy(thisFy))],
               [`Last year (${prevFy})`, money(sumFy(prevFy))],
@@ -76,7 +76,7 @@ export function Dividends() {
               ` ${money(withheld, 'USD')} was withheld in the US; it can be claimed as a foreign tax credit (Form 67).`}
           </p>
 
-          <div className="mt-10 grid grid-cols-1 gap-12 xl:grid-cols-2">
+          <div className="mt-10 grid grid-cols-1 gap-12 @7xl:grid-cols-2">
             <section aria-labelledby="fy">
               <h2 id="fy" className="wide mb-3 text-[19px] font-semibold">
                 By financial year

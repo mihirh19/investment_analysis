@@ -133,7 +133,7 @@ export function Farm() {
 function Summary({ r }: { r: NonNullable<ReturnType<typeof useFarm>['data']> }) {
   const growing = r.growing.reduce((s, g) => s + (g.expectedValue ?? 0), 0)
   return (
-    <div className="mb-8 grid gap-6 sm:grid-cols-3">
+    <div className="mb-8 grid gap-6 @2xl:grid-cols-3">
       <div>
         <div className="text-[13px] text-ink-muted">In the godown, at today&rsquo;s price</div>
         <div className="wide num text-[28px] font-semibold">{inr(r.stockValue)}</div>
@@ -240,7 +240,7 @@ function Prices({ prices, defaultMarket }: { prices: CropPrice[]; defaultMarket:
         </form>
       </div>
       <ErrorNote error={setMarket.error} />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 @5xl:grid-cols-2">
         {prices.map((p) => (
           <PriceCard key={p.crop} p={p} />
         ))}
@@ -416,7 +416,7 @@ function Season({ s, showPerson }: { s: FarmSeasonView; showPerson: boolean }) {
         </h3>
         <span className="rounded-full bg-stamp-wash px-2.5 py-0.5 text-[13px] text-stamp">{STATUS_LABELS[s.status]}</span>
       </div>
-      <dl className="mt-2 grid gap-x-6 gap-y-1 text-[14px] sm:grid-cols-2">
+      <dl className="mt-2 grid gap-x-6 gap-y-1 text-[14px] @2xl:grid-cols-2">
         {facts.map(([k, v]) => (
           <div key={k} className="flex gap-2">
             <dt className="w-28 shrink-0 text-ink-muted">{k}</dt>

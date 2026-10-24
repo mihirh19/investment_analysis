@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import {
   arrange,
@@ -20,6 +21,7 @@ import {
   type ScreenData,
   type ScreenRow
 } from '@shared/screener'
+import { adjustBars, rankStrength, technicalsOf, type Bar, type Technicals } from '@shared/technicals'
 import { schema, type Db } from '../db'
 import { listHoldings } from '../portfolio/holdings'
 import type { FilingRef } from './nse'
@@ -347,15 +349,27 @@ export function screenData(db: Db, held = heldStocks(db)): ScreenData {
       .map((r) => [r.symbol, JSON.parse(r.dataJson) as Fundamentals])
   )
   const quotes = new Map(db.select().from(schema.researchQuotes).all().map((q) => [q.symbol, q as DayQuote]))
+  const techs = new Map(
+    db
+      .select()
+      .from(schema.researchTechnicals)
+      .all()
+      .map((t) => [t.symbol, JSON.parse(t.dataJson) as Technicals])
+  )
   const industries = new Map(db.select({ s: schema.sectorMap.symbol, i: schema.sectorMap.industry }).from(schema.sectorMap).all().map((r) => [r.s, r.i]))
   const companies = listedCompanies(db)
   const rows: ScreenRow[] = []
   for (const c of companies) {
     const f = funds.get(c.symbol)
     const q = quotes.get(c.symbol) ?? null
-    if (!f && !q) continue
+    if (!f && !q && !techs.has(c.symbol)) continue
     rows.push(
-      screenRow({ symbol: c.symbol, name: c.name ?? c.symbol, industry: industries.get(c.symbol) ?? null, held: held.has(c.symbol) }, f ?? NO_FUNDAMENTALS, q)
+      screenRow(
+        { symbol: c.symbol, name: c.name ?? c.symbol, industry: industries.get(c.symbol) ?? null, held: held.has(c.symbol) },
+        f ?? NO_FUNDAMENTALS,
+        q,
+        techs.get(c.symbol) ?? null
+      )
     )
   }
   return { rows, companies: companies.length, withResults: funds.size, pricesDate: latestQuoteDate(db) }
@@ -410,4 +424,89 @@ export function marketMonitor(db: Db): MarketMonitor {
       .sort((a, b) => b.mcap - a.mcap),
     yours: rows.filter((r) => r.held).sort((a, b) => (held.get(b.symbol)?.valueInr ?? 0) - (held.get(a.symbol)?.valueInr ?? 0))
   }
+}
+
+// ---------------- daily prices and technicals ----------------
+
+/** How many years of daily prices are kept (enough for 52-week figures and 200-day averages). */
+export const BAR_YEARS = 2
+
+export function saveBars(db: Db, date: string, bars: (Bar & { symbol: string })[]): void {
+  db.transaction((tx) => {
+    for (const b of bars) {
+      tx.insert(schema.researchBars).values(b).onConflictDoNothing().run()
+    }
+    tx.insert(schema.researchBarDays)
+      .values({ date, status: bars.length ? 'DONE' : 'NONE', rows: bars.length })
+      .onConflictDoUpdate({ target: schema.researchBarDays.date, set: { status: bars.length ? 'DONE' : 'NONE', rows: bars.length } })
+      .run()
+  })
+}
+
+/** A day with no file (a holiday, or not published): remembered so it isn't asked for again. */
+export function markNoBars(db: Db, date: string): void {
+  db.insert(schema.researchBarDays).values({ date, status: 'NONE', rows: 0 }).onConflictDoNothing().run()
+}
+
+export function barDaysSeen(db: Db): Set<string> {
+  return new Set(db.select({ d: schema.researchBarDays.date }).from(schema.researchBarDays).all().map((r) => r.d))
+}
+
+export function barProgress(db: Db) {
+  const r = db
+    .select({ days: sql<number>`count(*)`, first: sql<string | null>`min(${schema.researchBarDays.date})`, last: sql<string | null>`max(${schema.researchBarDays.date})` })
+    .from(schema.researchBarDays)
+    .where(eq(schema.researchBarDays.status, 'DONE'))
+    .get()
+  return { days: r?.days ?? 0, first: r?.first ?? null, last: r?.last ?? null }
+}
+
+/** Drops prices older than the years kept. */
+export function pruneBars(db: Db, before: string): void {
+  db.delete(schema.researchBars).where(sql`${schema.researchBars.date} < ${before}`).run()
+  db.delete(schema.researchBarDays).where(sql`${schema.researchBarDays.date} < ${before}`).run()
+}
+
+/** One stock's stored bars, oldest first, adjusted for splits and bonuses. */
+export function barsOf(db: Db, symbol: string): Bar[] {
+  const rows = db
+    .select()
+    .from(schema.researchBars)
+    .where(eq(schema.researchBars.symbol, symbol))
+    .orderBy(schema.researchBars.date)
+    .all()
+  return adjustBars(rows)
+}
+
+/** Works out every stock's technicals from the stored bars (a few seconds for the whole market). */
+export function refreshTechnicals(db: Db): number {
+  // Straight from SQLite as arrays: a million rows as objects would be slow.
+  const sqlite = (db as unknown as { $client: Database.Database }).$client
+  const stmt = sqlite
+    .prepare('SELECT symbol, date, open, high, low, close, prev_close, volume, deliv_pct FROM research_bars ORDER BY symbol, date')
+    .raw()
+  const all = new Map<string, Technicals>()
+  let symbol: string | null = null
+  let bars: Bar[] = []
+  const flush = () => {
+    if (symbol && bars.length) {
+      const t = technicalsOf(adjustBars(bars))
+      if (t) all.set(symbol, t)
+    }
+  }
+  for (const r of stmt.iterate() as Iterable<[string, string, number | null, number | null, number | null, number, number | null, number | null, number | null]>) {
+    if (r[0] !== symbol) {
+      flush()
+      symbol = r[0]
+      bars = []
+    }
+    bars.push({ date: r[1], open: r[2], high: r[3], low: r[4], close: r[5], prevClose: r[6], volume: r[7], delivPct: r[8] })
+  }
+  flush()
+  rankStrength(all)
+  db.transaction((tx) => {
+    tx.delete(schema.researchTechnicals).run()
+    for (const [s, t] of all) tx.insert(schema.researchTechnicals).values({ symbol: s, date: t.date, dataJson: JSON.stringify(t) }).run()
+  })
+  return all.size
 }

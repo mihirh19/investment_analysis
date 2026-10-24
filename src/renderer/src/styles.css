@@ -172,6 +172,52 @@ html.terminal {
   }
 }
 
+/* The research workspace (dockview), in the app's colours. */
+.fp-dock .dockview-theme-dark {
+  --dv-group-view-background-color: var(--paper);
+  --dv-tabs-and-actions-container-background-color: var(--sheet);
+  --dv-tabs-and-actions-container-height: 28px;
+  --dv-tabs-and-actions-container-font-size: 12.5px;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--paper);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--sheet);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--paper);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--sheet);
+  --dv-activegroup-visiblepanel-tab-color: var(--stamp);
+  --dv-activegroup-hiddenpanel-tab-color: var(--ink-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--ink);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--ink-muted);
+  --dv-separator-border: var(--rule-strong);
+  --dv-paneview-header-border-color: var(--rule);
+  --dv-tab-divider-color: var(--rule);
+  --dv-sash-color: var(--rule);
+  --dv-active-sash-color: var(--stamp);
+  --dv-drag-over-background-color: color-mix(in srgb, var(--stamp) 22%, transparent);
+  --dv-edge-dock-indicator-color: var(--stamp);
+  --dv-floating-border: 1px solid var(--rule-strong);
+  --dv-context-menu-background-color: var(--sheet);
+  --dv-context-menu-color: var(--ink);
+  --dv-icon-hover-background-color: var(--stamp-wash);
+  --dv-tabs-container-scrollbar-color: var(--rule-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* The status bar's ticker: two copies of the tape slide left; hovering stops it. */
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-track {
+  animation: ticker 60s linear infinite;
+}
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;
