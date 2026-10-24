@@ -34,17 +34,17 @@ export function Screener() {
 
   const d = data.data
   return (
-    <div className="grid gap-6 @5xl:grid-cols-[230px_minmax(0,1fr)]">
-      <nav aria-label="Screens" className="flex flex-col gap-px text-[14px]">
-        <div className="mb-1 text-[12.5px] text-ink-muted">Ready-made</div>
+    <div className="grid gap-4 @3xl:grid-cols-[200px_minmax(0,1fr)] @5xl:grid-cols-[220px_minmax(0,1fr)] @3xl:gap-6">
+      <nav aria-label="Screens" className="flex flex-wrap items-center gap-1 text-[13px] @3xl:flex-col @3xl:flex-nowrap @3xl:items-stretch @3xl:gap-px @3xl:text-[14px]">
+        <div className="mr-1 text-[12px] text-ink-muted @3xl:mr-0 @3xl:mb-1 @3xl:text-[12.5px]">Ready-made</div>
         {PRESET_SCREENS.map((s) => (
           <ScreenLink key={s.name} s={s} on={screen.name === s.name && !isMine} pick={() => setScreen(s)} />
         ))}
-        <div className="mt-4 mb-1 text-[12.5px] text-ink-muted">Yours</div>
+        <div className="mr-1 ml-2 text-[12px] text-ink-muted @3xl:mx-0 @3xl:mt-4 @3xl:mb-1 @3xl:text-[12.5px]">Yours</div>
         {mine.map((s) => (
           <ScreenLink key={s.name} s={s} on={screen.name === s.name} pick={() => setScreen(s)} />
         ))}
-        <button type="button" onClick={() => setScreen({ ...BLANK })} className="mt-1 rounded px-2 py-1 text-left text-stamp hover:bg-sheet">
+        <button type="button" onClick={() => setScreen({ ...BLANK })} className="rounded px-2 py-0.5 text-left text-stamp hover:bg-sheet @3xl:mt-1 @3xl:py-1">
           + New screen
         </button>
       </nav>
@@ -165,7 +165,7 @@ function ScreenLink({ s, on, pick }: { s: Screen; on: boolean; pick: () => void 
       aria-pressed={on}
       title={s.about}
       onClick={pick}
-      className={'rounded px-2 py-1 text-left ' + (on ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-sheet hover:text-ink')}
+      className={'rounded border px-2 py-0.5 text-left transition-colors @3xl:border-transparent @3xl:py-1 ' + (on ? 'border-stamp/50 bg-stamp-wash font-medium text-stamp' : 'border-rule text-ink-muted hover:bg-sheet hover:text-ink')}
     >
       {s.name}
     </button>

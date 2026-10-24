@@ -77,7 +77,7 @@ export const Empty = ({ children }: { children: ReactNode }) => <p className="te
 
 export function Indices({ list }: { list: IndexLevel[] }) {
   return (
-    <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-6 gap-y-2">
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-x-4 gap-y-2">
       {list.map((i) => {
         const ch = i.prevClose ? i.close / i.prevClose - 1 : null
         return (
@@ -101,7 +101,7 @@ export function World() {
   if (w.isLoading) return <Empty>Fetching world markets…</Empty>
   if (w.error) return <ErrorNote error={w.error} />
   return (
-    <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-3">
       {(w.data ?? []).map((s) => (
         <WorldTile key={s.key} s={s} />
       ))}
@@ -122,7 +122,7 @@ function WorldTile({ s }: { s: WorldSeries }) {
         <span className="num text-[15px] text-ink">{level(last)}</span>
         <span className={`num text-[12px] ${toneClass(day)}`}>{percent(day)}</span>
       </div>
-      <Sparkline values={pts.map((p) => p.close)} width={150} height={38} />
+      <Sparkline values={pts.map((p) => p.close)} width={124} height={36} />
       <div className="text-[11.5px] text-ink-muted">
         <span className={toneClass(half)}>{percent(half)}</span> in 6 months
       </div>

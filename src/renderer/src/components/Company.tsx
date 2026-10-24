@@ -244,11 +244,11 @@ function Ratios({ m, bank }: { m: Metrics; bank: boolean }) {
         ] as [string, string, string][]))
   ]
   return (
-    <dl className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-8 gap-y-3">
+    <dl className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-x-6">
       {items.map(([label, value, hint]) => (
-        <div key={label} title={hint}>
-          <dt className="text-[13px] text-ink-muted">{label}</dt>
-          <dd className="wide num text-left text-[19px] font-semibold">{value}</dd>
+        <div key={label} title={hint} className="flex items-baseline justify-between gap-3 border-b border-rule py-1.5">
+          <dt className="truncate text-[13px] text-ink-muted">{label}</dt>
+          <dd className={'num shrink-0 text-right text-[15px] font-semibold ' + (value === '—' ? 'text-ink-muted' : 'text-ink')}>{value}</dd>
         </div>
       ))}
     </dl>

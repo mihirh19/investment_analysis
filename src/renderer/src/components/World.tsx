@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Topology } from 'topojson-specification'
 import { geoContains } from 'd3-geo'
 import { countryName } from '@shared/countries'
@@ -81,6 +81,32 @@ function loadPrefs(): Prefs {
 
 type Lane = { kind: string; path: [number, number][] }
 
+/**
+ * The map takes the rest of its tab's visible height, so it fits whatever size the tab is; the tables
+ * below it are a scroll away.
+ */
+function useFillHeight(min = 380) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let scroller: HTMLElement | null = el.parentElement
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+    const box = scroller ?? document.documentElement
+    const measure = () => {
+      const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+      setHeight(Math.max(min, Math.round(box.clientHeight - top - 12)))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(box)
+    if (el.parentElement) ro.observe(el.parentElement)
+    return () => ro.disconnect()
+  }, [min])
+  return { ref, height }
+}
+
 /** The research desk's World tab: a black map of the world economy, trade, shipping and disasters. */
 export default function World() {
   useWorldSubscription()
@@ -98,6 +124,7 @@ export default function World() {
   const [playing, setPlaying] = useState(false)
   const [closeUp, setCloseUp] = useState(false)
   const ships = useWorldShips(layers.ships)
+  const fill = useFillHeight()
 
   // Country shapes: the coarse set at once, the finer one when zoomed in.
   const [coarse, setCoarse] = useState<CountryShape[] | null>(null)
@@ -245,29 +272,9 @@ export default function World() {
     <div className="flex flex-col gap-3">
       <ErrorNote error={m.error} />
       {/* Layer switches and what the map shows. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
-        <div role="group" aria-label="Map layers" className="flex flex-wrap gap-1">
-          {LAYERS.map((l) => (
-            <button
-              key={l.key}
-              type="button"
-              aria-pressed={layers[l.key]}
-              onClick={() => set({ layers: { ...layers, [l.key]: !layers[l.key] } })}
-              className={
-                'rounded-sm border px-2 py-0.5 ' +
-                (layers[l.key]
-                  ? 'border-stamp bg-stamp-wash text-stamp'
-                  : 'border-rule text-ink-muted hover:border-rule-strong hover:text-ink')
-              }
-              title={`${l.label} (${l.fkey})`}
-            >
-              <span className="mr-1 text-[11px] opacity-70">{l.fkey}</span>
-              {l.label}
-            </button>
-          ))}
-        </div>
-        <label className="flex items-center gap-1.5 text-ink-muted">
-          Colour by
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm border border-rule bg-sheet px-2 py-1.5 text-[12px]">
+        <label className="flex items-center gap-1 text-ink-muted">
+          Colour
           <select
             aria-label="Colour countries by"
             value={metric}
@@ -275,7 +282,7 @@ export default function World() {
               set({ metric: e.target.value as WorldMetricKey })
               setPlaying(false)
             }}
-            className="rounded-sm border border-rule-strong bg-sheet px-1.5 py-0.5 text-ink"
+            className="h-6 rounded-sm border border-rule-strong bg-paper px-1 text-[12px] text-ink w-[138px]"
           >
             {WORLD_METRICS.filter((x) => !x.panelOnly).map((x) => (
               <option key={x.key} value={x.key}>
@@ -284,13 +291,13 @@ export default function World() {
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-1.5 text-ink-muted">
+        <label className="flex items-center gap-1 border-l border-rule pl-3 text-ink-muted">
           Trade
           <select
             aria-label="Trade direction"
             value={flow}
             onChange={(e) => set({ flow: e.target.value === 'X' ? 'X' : 'M' })}
-            className="rounded-sm border border-rule-strong bg-sheet px-1.5 py-0.5 text-ink"
+            className="h-6 rounded-sm border border-rule-strong bg-paper px-1 text-[12px] text-ink w-[108px]"
           >
             <option value="M">India’s imports</option>
             <option value="X">India’s exports</option>
@@ -299,7 +306,7 @@ export default function World() {
             aria-label="Goods"
             value={product}
             onChange={(e) => set({ product: e.target.value })}
-            className="rounded-sm border border-rule-strong bg-sheet px-1.5 py-0.5 text-ink"
+            className="h-6 rounded-sm border border-rule-strong bg-paper px-1 text-[12px] text-ink w-[132px]"
           >
             {TRADE_PRODUCTS.map((x) => (
               <option key={x.cmd} value={x.cmd}>
@@ -308,15 +315,15 @@ export default function World() {
             ))}
           </select>
         </label>
-        <label className="ml-auto flex items-center gap-1.5 text-ink-muted">
-          Country
+        <label className="ml-auto flex items-center gap-1 text-ink-muted">
+          <span className="sr-only">Country</span>
           <select
             aria-label="Find a country"
             value={selected?.kind === 'country' ? selected.iso3 : ''}
             onChange={(e) => setSelected(e.target.value ? { kind: 'country', iso3: e.target.value } : null)}
-            className="max-w-[180px] rounded-sm border border-rule-strong bg-sheet px-1.5 py-0.5 text-ink"
+            className="h-6 rounded-sm border border-rule-strong bg-paper px-1 text-[12px] text-ink w-[150px]"
           >
-            <option value="">Choose…</option>
+            <option value="">Country…</option>
             {countriesWithData.map((s) => (
               <option key={s.iso3} value={s.iso3}>
                 {s.name}
@@ -327,10 +334,36 @@ export default function World() {
       </div>
 
       <div
-        className="relative h-[calc(100vh-300px)] min-h-[460px] overflow-hidden rounded-sm border border-rule bg-black"
+        ref={fill.ref}
+        style={{ height: fill.height ?? 520 }}
+        className="relative overflow-hidden rounded-sm border border-rule bg-black"
         role="region"
         aria-label="World map"
       >
+        <div
+          role="group"
+          aria-label="Map layers"
+          className="absolute top-2 left-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap gap-0.5 rounded-sm border border-rule bg-black/80 p-1 text-[12px]"
+        >
+          {LAYERS.map((l) => (
+            <button
+              key={l.key}
+              type="button"
+              aria-pressed={layers[l.key]}
+              onClick={() => set({ layers: { ...layers, [l.key]: !layers[l.key] } })}
+              className={
+                'rounded-sm border px-1.5 py-px transition-colors ' +
+                (layers[l.key]
+                  ? 'border-stamp bg-stamp-wash text-stamp'
+                  : 'border-rule text-ink-muted hover:border-rule-strong hover:text-ink')
+              }
+              title={`${l.label} (${l.fkey})`}
+            >
+              <span className="mr-1 font-mono text-[10px] opacity-60">{l.fkey}</span>
+              {l.label}
+            </button>
+          ))}
+        </div>
         {coarse ? (
           <WorldMap
             shapes={shapes}
@@ -389,7 +422,7 @@ export default function World() {
           </div>
         )}
 
-        <p className="pointer-events-none absolute top-1.5 right-2 max-w-[60%] text-right text-[10.5px] leading-tight text-ink-muted/80">
+        <p className="pointer-events-none absolute right-2 bottom-1 max-w-[38%] text-right text-[10.5px] leading-tight text-ink-muted/80">
           {credits.join(' · ')}
         </p>
 
@@ -476,7 +509,7 @@ function Legend({
   const m = metricOf(metric)
   return (
     <div
-      className="absolute bottom-3 left-3 w-[230px] rounded-sm border border-rule bg-black/85 p-2 text-[11.5px] text-ink-muted"
+      className="absolute bottom-2 left-2 w-[210px] rounded-sm border border-rule bg-black/85 p-2 text-[11px] text-ink-muted"
       aria-label="Legend"
     >
       {layers.countries && (
@@ -718,7 +751,7 @@ function SidePanel({
       tabIndex={-1}
       role="dialog"
       aria-label={title}
-      className="anim-page absolute top-0 right-0 bottom-0 z-20 w-[340px] overflow-y-auto border-l border-rule bg-[#0a0a0a] p-3 focus:outline-none"
+      className="anim-slide-in absolute top-0 right-0 bottom-0 z-20 w-[min(340px,88%)] overflow-y-auto border-l border-rule-strong bg-[#0a0a0a] p-3 shadow-[-12px_0_24px_-12px_rgba(0,0,0,0.8)] focus:outline-none"
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <h2 className="text-[15px] font-semibold text-stamp">{title}</h2>

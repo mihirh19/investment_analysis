@@ -213,14 +213,14 @@ export function Holdings() {
       )}
 
       {groups.length > 0 && (
-        <table className="w-full text-[15px] [&_.num]:pl-4 [&_.num]:whitespace-nowrap">
+        <table className="w-full text-[14px] [&_.num]:pl-2.5 [&_.num]:whitespace-nowrap">
           <thead className="sticky top-0 z-10 bg-paper">
             <tr className="border-b border-rule-strong text-left text-[13px] text-ink-muted">
               <SortHeader k="name">Holding</SortHeader>
               <th className="num py-1.5 font-medium">Units</th>
-              <th className="num py-1.5 font-medium">Avg cost</th>
+              <th className="num hidden @5xl:table-cell py-1.5 font-medium">Avg cost</th>
               <th className="num py-1.5 font-medium">Price</th>
-              <th className="py-1.5 pl-3 font-medium">3 months</th>
+              <th className="hidden @5xl:table-cell py-1.5 pl-3 font-medium whitespace-nowrap">3 months</th>
               <SortHeader k="day">Day</SortHeader>
               <SortHeader k="value">Value (₹)</SortHeader>
               <SortHeader k="gain">Gain (₹)</SortHeader>
@@ -232,22 +232,32 @@ export function Holdings() {
             return (
               <tbody key={key}>
                 <tr className="border-b border-rule-strong">
-                  <th colSpan={5} className="pt-6 pb-1.5 text-left">
+                  <th colSpan={5} className="hidden pt-4 pb-1 text-left @5xl:table-cell">
                     {color && (
                       <span
                         className="mr-2 inline-block size-2.5 rounded-[2px] align-middle"
                         style={{ background: color }}
                       />
                     )}
-                    <span className="wide text-[16px] font-semibold">{label}</span>
+                    <span className="wide text-[14.5px] font-semibold">{label}</span>
                     <span className="ml-2 text-[13px] font-normal text-ink-muted">{rows.length}</span>
                   </th>
-                  <td className={`num pt-6 pb-1.5 ${toneClass(t.dayChange)}`}>
+                  <th colSpan={3} className="pt-4 pb-1 text-left @5xl:hidden">
+                    {color && (
+                      <span
+                        className="mr-2 inline-block size-2.5 rounded-[2px] align-middle"
+                        style={{ background: color }}
+                      />
+                    )}
+                    <span className="wide text-[14.5px] font-semibold">{label}</span>
+                    <span className="ml-2 text-[13px] font-normal text-ink-muted">{rows.length}</span>
+                  </th>
+                  <td className={`num pt-4 pb-1 ${toneClass(t.dayChange)}`}>
                     {t.dayBase > 0 ? signedMoney(t.dayChange) : ''}
                   </td>
-                  <td className="num pt-6 pb-1.5 font-semibold">{money(t.value)}</td>
-                  <td className={`num pt-6 pb-1.5 ${toneClass(t.gain)}`}>{signedMoney(t.gain)}</td>
-                  <td className={`num pt-6 pb-1.5 ${toneClass(t.gain)}`}>{percent(t.gainPct)}</td>
+                  <td className="num pt-4 pb-1 font-semibold">{money(t.value)}</td>
+                  <td className={`num pt-4 pb-1 ${toneClass(t.gain)}`}>{signedMoney(t.gain)}</td>
+                  <td className={`num pt-4 pb-1 ${toneClass(t.gain)}`}>{percent(t.gainPct)}</td>
                 </tr>
                 {rows.map((r) => (
                   <tr
@@ -255,11 +265,11 @@ export function Holdings() {
                     tabIndex={0}
                     onClick={() => setOpen(r)}
                     onKeyDown={(e) => e.key === 'Enter' && setOpen(r)}
-                    className="cursor-pointer border-b border-rule align-top hover:bg-sheet/70 focus-visible:bg-sheet"
+                    className="cursor-pointer border-b border-rule align-top transition-colors hover:bg-sheet/70 focus-visible:bg-sheet"
                   >
-                    <td className="py-2 pr-4">
-                      <div className="leading-snug">{r.instrumentName}</div>
-                      <div className="condensed text-[13px] text-ink-muted">
+                    <td className="min-w-0 py-1.5 pr-3" title={r.instrumentName}>
+                      <div className="max-w-[300px] truncate leading-snug">{r.instrumentName}</div>
+                      <div className="condensed max-w-[300px] truncate text-[12px] text-ink-muted">
                         {[r.symbol, r.accountName, showPerson ? r.personName : null, r.sector]
                           .filter(Boolean)
                           .map((s) => (
@@ -269,7 +279,7 @@ export function Holdings() {
                           ))}
                       </div>
                     </td>
-                    <td className="num py-2">
+                    <td className="num py-1.5">
                       {isBalance(r) ? '' : units(r.quantity)}
                       {r.tradesQuantity !== null && (
                         <div className="text-[12px] text-warn" title="Units shown are from the statement">
@@ -277,21 +287,23 @@ export function Holdings() {
                         </div>
                       )}
                     </td>
-                    <td className="num py-2">{isBalance(r) ? '' : money(r.avgCost, r.currency, 2)}</td>
-                    <td className="num py-2">
+                    <td className="num hidden @5xl:table-cell py-1.5">
+                      {isBalance(r) ? '' : money(r.avgCost, r.currency, 2)}
+                    </td>
+                    <td className="num py-1.5">
                       {isBalance(r) ? '' : <LivePrice value={r.lastPrice} currency={r.currency} />}
                       <div
-                        className={'text-[12px] ' + (r.priceSource === 'STATEMENT' ? 'text-warn' : 'text-ink-muted')}
+                        className={'text-[11px] ' + (r.priceSource === 'STATEMENT' ? 'text-warn' : 'text-ink-muted')}
                       >
                         {PRICE_SOURCE_LABELS[r.priceSource]}
                         {r.priceSource !== 'LIVE' && r.priceDate ? `, ${shortDate(r.priceDate)}` : ''}
                       </div>
                     </td>
-                    <td className="py-2 pl-3">
+                    <td className="hidden @5xl:table-cell py-1.5 pl-3">
                       {sparks[r.instrumentId] && <Sparkline values={sparks[r.instrumentId]} />}
                     </td>
                     <td className={`num py-2 ${toneClass(r.dayChange)}`}>{percent(dayPct(r))}</td>
-                    <td className="num py-2 font-medium">
+                    <td className="num py-1.5 font-medium">
                       {money(r.marketValueInr)}
                       {r.currency !== 'INR' && (
                         <div className="text-[12px] font-normal text-ink-muted">{money(r.marketValue, r.currency)}</div>

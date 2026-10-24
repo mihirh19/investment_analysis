@@ -13,14 +13,14 @@ export function SectionTabs({ pathname }: { pathname: string }) {
   if (!s || s.pages.length < 2) return null
   const extra = s.pages.some((p) => pageActive(p, pathname)) ? [] : [{ to: pathname, label: decodeURIComponent(pathname.split('/').pop() ?? '').toUpperCase(), end: false }]
   return (
-    <nav aria-label={`${s.label} screens`} className="mb-4 flex flex-wrap gap-x-0.5 border-b border-rule">
+    <nav aria-label={`${s.label} screens`} className="mb-3 flex flex-wrap gap-x-0.5 border-b border-rule">
       {[...s.pages, ...extra].map((p) => (
         <NavLink
           key={p.to}
           to={p.to}
           end={p.end}
           className={({ isActive }) =>
-            '-mb-px border-b-2 px-2.5 pt-0.5 pb-1.5 text-[13.5px] ' +
+            '-mb-px border-b-2 px-2.5 pt-0.5 pb-1 text-[13px] transition-colors ' +
             (isActive || pageActive(p, pathname)
               ? 'border-stamp font-medium text-ink'
               : 'border-transparent text-ink-muted hover:border-rule-strong hover:text-ink')
@@ -74,8 +74,8 @@ export function LiveStatus() {
 
 export function PageHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <header className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-rule-strong pb-2.5">
-      <h1 className="wide text-[22px] leading-tight font-semibold tracking-tight">{title}</h1>
+    <header className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 border-b border-rule pb-2">
+      <h1 className="wide text-[18px] leading-tight font-semibold tracking-tight text-ink">{title}</h1>
       {children && <div className="flex flex-wrap items-center gap-3">{children}</div>}
     </header>
   )

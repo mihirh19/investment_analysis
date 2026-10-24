@@ -158,16 +158,16 @@ export function Overview() {
                   <dd className="num text-loss">−{money(owedNow)}</dd>
                 </div>
                 <div className="flex items-baseline justify-between pt-3">
-                  <dt className="text-[16px] font-medium">Net worth, {whose}</dt>
-                  <dd className="wide border-b-[3px] border-double border-ink pb-0.5 text-[44px] leading-none font-semibold tracking-tight">
+                  <dt className="text-[14.5px] font-medium">Net worth, {whose}</dt>
+                  <dd className="num border-b-2 border-double border-stamp/60 pb-0.5 text-[26px] leading-none font-semibold tracking-tight text-stamp @5xl:text-[32px]">
                     {money(shownValue - owedNow)}
                   </dd>
                 </div>
               </>
             ) : (
               <div className="flex items-baseline justify-between pt-3">
-                <dt className="text-[16px] font-medium">Current value, {whose}</dt>
-                <dd className="wide border-b-[3px] border-double border-ink pb-0.5 text-[44px] leading-none font-semibold tracking-tight">
+                <dt className="text-[14.5px] font-medium">Current value, {whose}</dt>
+                <dd className="num border-b-2 border-double border-stamp/60 pb-0.5 text-[26px] leading-none font-semibold tracking-tight text-stamp @5xl:text-[32px]">
                   {money(shownValue)}
                 </dd>
               </div>
@@ -402,7 +402,8 @@ function Checklist({ report }: { report: HealthReport }) {
           Check-up
         </h2>
         <span className="text-[14px] text-ink-muted">
-          {report.issues ? `${report.issues} to fix` : 'Nothing to fix'} · {passed.length} of {report.checks.length} fine
+          {report.issues ? `${report.issues} to fix` : 'Nothing to fix'} · {passed.length} of {report.checks.length}{' '}
+          fine
         </span>
       </div>
       <ul className="grid grid-cols-1 gap-x-10 @5xl:grid-cols-2">
@@ -419,7 +420,10 @@ function Checklist({ report }: { report: HealthReport }) {
               {c.detail && <div className="text-[13px] text-ink-muted">{c.detail}</div>}
             </div>
             {c.link && (
-              <Link to={c.link} className="shrink-0 self-center text-[14px] whitespace-nowrap text-stamp hover:underline">
+              <Link
+                to={c.link}
+                className="shrink-0 self-center text-[14px] whitespace-nowrap text-stamp hover:underline"
+              >
                 {c.linkLabel}
               </Link>
             )}

@@ -239,7 +239,7 @@ export function StockChart({
 
   return (
     <div className={compact ? 'flex h-full min-h-0 flex-col' : 'flex flex-col'}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-2 text-[12.5px]">
+      <div className={(compact ? 'no-scrollbar flex-nowrap overflow-x-auto' : 'flex-wrap') + ' flex shrink-0 items-center gap-x-2 gap-y-1.5 pb-1.5 text-[12px] whitespace-nowrap'}>
         <div role="radiogroup" aria-label="Interval" className="flex gap-0.5">
           {VIEWS.map((v) => (
             <button

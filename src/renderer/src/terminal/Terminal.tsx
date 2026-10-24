@@ -100,7 +100,7 @@ function build(api: DockviewApi, id: string) {
     addTool(api, 'sectors', {}, { referencePanel: movers.id, direction: 'within' })
     const watch = addTool(api, 'watchlist', { group: 'A', list: 'family' }, { referencePanel: chart.id, direction: 'left' }, { w: 280 })
     movers.api.setActive()
-    idx.api.group.api.setSize({ height: 170 })
+    idx.api.group.api.setSize({ height: 112 })
     width(watch, 260)
     width(world, W * 0.33)
   } else if (id === 'company') {
