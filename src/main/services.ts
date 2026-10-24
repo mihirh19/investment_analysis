@@ -58,6 +58,8 @@ import { readVehicleDocument } from './importers/vehicleDocs'
 import type { VehicleInput } from '@shared/vehicles'
 import { refreshResidex, residexCities, storedResidexCities } from './market/residex'
 import { schema, type Db } from './db'
+import * as research from './research/store'
+import type { Basis, ResearchHome, ResearchStatus } from '@shared/research'
 import { importAmcPortfolio } from './importers/amcPortfolio'
 import { importBrokerHoldings, saveIndmoneyDates, setManualCost } from './importers/brokerHoldings'
 import { reclassifyDemat, tidyListedNames } from './importers/isin'
@@ -104,6 +106,12 @@ export interface ServiceDeps {
   openUrl?(url: string): void | Promise<void>
   /** Sends "Ask your money" progress to the window. */
   emitChat?(e: ChatEvent): void
+  /** The research desk's background download; absent in tests. */
+  research?: {
+    status(): ResearchStatus
+    setEnabled(on: boolean): void
+    open(symbol: string): Promise<void>
+  }
 }
 
 const RANGE_DAYS = { '1mo': 31, '6mo': 183, '1y': 366, '5y': 1827 } as const
@@ -119,6 +127,22 @@ export function createServices(deps: ServiceDeps) {
 
   function getSetting(key: string): string | null {
     return db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value ?? null
+  }
+  /** Without the background download (tests), the stored figures still report their progress. */
+  function researchStatus(): ResearchStatus {
+    if (deps.research) return deps.research.status()
+    const p = research.progress(db)
+    return {
+      enabled: false,
+      state: 'PAUSED',
+      companies: p.companies,
+      companiesDone: p.companiesDone,
+      filings: p.filings,
+      etaMinutes: null,
+      pricesDate: research.latestQuoteDate(db),
+      lastError: null,
+      current: null
+    }
   }
   function setSetting(key: string, value: string): void {
     db.insert(schema.settings)
@@ -850,6 +874,31 @@ export function createServices(deps: ServiceDeps) {
     async refreshFarmPrices() {
       await refreshMandi(true)
       return farm.farmReport(db)
+    },
+
+    // ---------------- research desk ----------------
+
+    getResearchHome(): ResearchHome {
+      const held = research.heldStocks(db)
+      const yours = research
+        .researchRows(db, [...held.keys()], held)
+        .sort((a, b) => (b.held?.valueInr ?? 0) - (a.held?.valueInr ?? 0))
+      return { status: researchStatus(), yours }
+    },
+    getCompany(symbol: string, basis?: Basis | null) {
+      const s = symbol.trim().toUpperCase()
+      const view = research.companyView(db, s, basis ?? null)
+      // Not downloaded yet: fetch this one now; the page refreshes when it is in.
+      if (view && (view.results.state === 'WAITING' || view.results.error)) void deps.research?.open(s).catch(() => {})
+      return view
+    },
+    searchCompanies: (query: string) => research.searchCompanies(db, query),
+    async getCompanyChart(symbol: string, range: '1mo' | '6mo' | '1y' | '5y' | 'max'): Promise<PricePoint[]> {
+      return (await yahooHistory(`${symbol.trim().toUpperCase()}.NS`, range, deps.fetch)).prices
+    },
+    setResearchSync(on: boolean): ResearchStatus {
+      deps.research?.setEnabled(on)
+      return researchStatus()
     },
     getPerformance: (personId?: number) => computePerformance(db, personId),
     getTax: (personId?: number) => computeTax(db, personId),

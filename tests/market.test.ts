@@ -60,7 +60,7 @@ function fakeFetch(calls: string[] = []): typeof fetch {
           events: {
             dividends: {
               a: { amount: 20, date: Date.parse('2026-05-30T04:00:00Z') / 1000 },
-              b: { amount: 22, date: Date.parse('2025-10-24T04:00:00Z') / 1000 }
+              b: { amount: 22, date: Date.parse('2026-01-24T04:00:00Z') / 1000 }
             }
           }
         })
@@ -131,7 +131,7 @@ describe('market data parsers', () => {
   it('reads dividend events in exchange-local dates', async () => {
     const h = await yahooHistory('INFY.NS', '1y', fakeFetch())
     expect(h.dividends).toEqual([
-      { exDate: '2025-10-24', amount: 22 },
+      { exDate: '2026-01-24', amount: 22 },
       { exDate: '2026-05-30', amount: 20 }
     ])
   })

@@ -90,7 +90,22 @@ const clickText = (sel, text) =>
   ev(
     `(() => { const el = [...document.querySelectorAll(${JSON.stringify(sel)})].find(e => e.textContent.trim().startsWith(${JSON.stringify(text)})); if (!el) return 'NOT FOUND'; el.click(); return 'ok' })()`
   )
-const nav = (label) => clickText('nav a', label)
+// Pages live in sidebar sections; a section's other pages are tabs above the page.
+const SECTION_OF = {
+  Holdings: 'Investments', Performance: 'Investments', Analysis: 'Investments', 'Sectors & exposure': 'Investments', Funds: 'Investments', Dividends: 'Investments',
+  'Property & rent': 'Assets', Farm: 'Assets', Vehicles: 'Assets', 'EPF & NPS': 'Assets', Insurance: 'Assets', 'Other assets': 'Assets',
+  Spending: 'Spending & tax', Tax: 'Spending & tax', 'Forecast & inflation': 'Planning', Rebalance: 'Planning',
+  Activity: 'Records', 'Import statements': 'Records', 'People & accounts': 'Records', 'Settings & backup': 'Records'
+}
+const nav = async (label) => {
+  if ((await clickText('main nav a', label)) === 'ok') return 'ok'
+  if (SECTION_OF[label]) {
+    await clickText('nav[aria-label=Sections] a', SECTION_OF[label])
+    await sleep(300)
+    return clickText('main nav a', label)
+  }
+  return clickText('nav[aria-label=Sections] a', label)
+}
 const ok = async (step) => {
   await sleep(1200)
   const len = await ev(`document.getElementById('root').innerHTML.length`)
@@ -130,7 +145,8 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Activity',
     'Import statements',
     'People & accounts',
-    'Settings & backup'
+    'Settings & backup',
+    'Research'
   ]) {
     await nav(n)
     await ok(`${tab} / ${n}`)
@@ -312,6 +328,32 @@ await clickText('button', 'Cancel')
 await clickText('button', 'Record a sale')
 await ok('farm: open the sale form')
 await clickText('button', 'Cancel')
+// Research: the family's stocks, then one company's overview, financials and chart.
+await nav('Research')
+await sleep(1500)
+const researchHome = await ev(`document.body.innerText.includes('Your stocks') && document.body.innerText.includes('Tata Consultancy')`)
+if (!researchHome) failures++
+console.log((researchHome ? 'ok   ' : 'FAIL ') + 'research: your stocks listed')
+await clickText('tbody tr', 'Tata Consultancy')
+await sleep(1500)
+const companyShown = await ev(`document.body.innerText.includes('52-week range') && document.body.innerText.includes('Market cap')`)
+if (!companyShown) failures++
+console.log((companyShown ? 'ok   ' : 'FAIL ') + 'research: company overview with ratios')
+await clickText('[role=tab]', 'Financials')
+await ok('research: quarterly results')
+const finShown = await ev(`document.body.innerText.includes('Operating profit') && document.body.innerText.includes('Sep 26')`)
+if (!finShown) failures++
+console.log((finShown ? 'ok   ' : 'FAIL ') + 'research: results table')
+for (const st of ['Yearly results', 'Balance sheet', 'Cash flow']) {
+  await clickText('[role=radio]', st)
+  await ok(`research: ${st.toLowerCase()}`)
+}
+await clickText('[role=tab]', 'Price chart')
+await sleep(2500)
+await ok('research: price chart')
+await clickText('aside > button', 'Go to')
+await ok('go to: open the box')
+await ev(`document.querySelector('[role=dialog] input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
 await clickText('aside > button', 'Ask your money')
 await ok('open the chat from the sidebar')
 const typeInto = (sel, value) =>

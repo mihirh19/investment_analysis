@@ -458,3 +458,45 @@ export const loans = sqliteTable('loans', {
   paymentsJson: text('payments_json').notNull().default('[]'),
   createdAt: createdAt()
 })
+
+// ---------------- research desk: listed companies ----------------
+
+/** NSE's end-of-day figures for every listed stock: the latest day only. */
+export const researchQuotes = sqliteTable('research_quotes', {
+  symbol: text('symbol').primaryKey(),
+  date: text('date').notNull(),
+  open: real('open'),
+  high: real('high'),
+  low: real('low'),
+  close: real('close').notNull(),
+  prevClose: real('prev_close'),
+  high52: real('high_52'),
+  low52: real('low_52'),
+  volume: real('volume'),
+  mcap: real('mcap'),
+  pe: real('pe')
+})
+
+/** Each company's results filings: listed first (PENDING), then read from NSE's XBRL file (DONE). */
+export const researchFilings = sqliteTable(
+  'research_filings',
+  {
+    symbol: text('symbol').notNull(),
+    periodEnd: text('period_end').notNull(),
+    basis: text('basis').$type<'C' | 'S'>().notNull(),
+    url: text('url').notNull(),
+    filedAt: text('filed_at'),
+    status: text('status').$type<'PENDING' | 'DONE' | 'FAILED'>().notNull().default('PENDING'),
+    attempts: integer('attempts').notNull().default(0),
+    /** Filing (from @shared/research) as JSON, once read. */
+    dataJson: text('data_json')
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.periodEnd, t.basis] }), index('research_filings_status').on(t.status)]
+)
+
+/** When each company's list of filings was last fetched from NSE. */
+export const researchCompanies = sqliteTable('research_companies', {
+  symbol: text('symbol').primaryKey(),
+  checkedAt: text('checked_at'),
+  error: text('error')
+})

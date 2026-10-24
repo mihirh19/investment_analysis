@@ -16,6 +16,7 @@ import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
 import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput, HoldingCosts, MarketNote } from './farm'
 import type { LoanInput, LoanPayment, LoansReport } from './loans'
+import type { Basis, CompanyHit, CompanyView, ResearchHome, ResearchStatus } from './research'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
 export type Relation = 'SELF' | 'PARENT' | 'SPOUSE' | 'CHILD' | 'OTHER'
@@ -912,6 +913,16 @@ export interface RequestApi {
   /** Fetches today's mandi prices for the farm's crops now (it also happens by itself each day). */
   refreshFarmPrices(): Promise<ApiResult<FarmReport>>
 
+  /** The research desk's start page: the family's stocks and how far the results download has got. */
+  getResearchHome(): Promise<ApiResult<ResearchHome>>
+  /** One company: price, ratios and results; opening it fetches its results if they aren't in yet. */
+  getCompany(symbol: string, basis?: Basis | null): Promise<ApiResult<CompanyView | null>>
+  searchCompanies(query: string): Promise<ApiResult<CompanyHit[]>>
+  /** Daily (or weekly, for long ranges) closes from Yahoo Finance. */
+  getCompanyChart(symbol: string, range: '1mo' | '6mo' | '1y' | '5y' | 'max'): Promise<ApiResult<PricePoint[]>>
+  /** Turns the background download of NSE's results and prices on or off. */
+  setResearchSync(on: boolean): Promise<ApiResult<ResearchStatus>>
+
   /** Google accounts connected to fetch statements from Gmail (read-only). */
   getGoogleSetup(): Promise<ApiResult<GoogleSetup>>
   /** The person's own OAuth client from Google Cloud (Desktop app type). */
@@ -1000,4 +1011,6 @@ export interface RequestApi {
 export interface Api extends RequestApi {
   onMarketUpdate(listener: () => void): () => void
   onChatEvent(listener: (e: ChatEvent) => void): () => void
+  /** The research download stored more companies or prices. */
+  onResearchUpdate(listener: () => void): () => void
 }

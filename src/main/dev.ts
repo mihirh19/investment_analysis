@@ -13,11 +13,15 @@ import { saveLoan } from './loans'
 import type { LoanInput } from '@shared/loans'
 import { loadPlan, savePlan } from './portfolio/forecast'
 import type { VehicleMeta } from '@shared/vehicles'
+import type { DayQuote, Filing } from '@shared/research'
+import { schema } from './db'
+import { markChecked, saveQuotes } from './research/store'
+import { SYNC_KEY } from './research/sync'
 
 /**
  * Development-only helpers, never active in the packaged app:
  *   FP_USER_DATA=<dir>        keep data in a throwaway folder instead of the real profile
- *   FP_SEED_DIR=<dir>         import demo files named "<person>-*.cas.json" / "-zerodha-*.csv" / "-indmoney-*.csv" / "-*.assets.json" / "-*.vehicles.json" / "*.plan.json"
+ *   FP_SEED_DIR=<dir>         import demo files named "<person>-*.cas.json" / "-zerodha-*.csv" / "-indmoney-*.csv" / "-*.assets.json" / "-*.vehicles.json" / "*.plan.json" / "*.research.json"
  *   FP_SCREENSHOT_DIR=<dir>   capture each page to PNG, then quit (FP_ROUTES, FP_SCOPES pick which)
  *   FP_THEME=light|dark      force the colour scheme
  *   FP_SHOT_DELAY=<ms>       wait before the first screenshot (lets live prices load)
@@ -53,6 +57,8 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
       for (const meta of JSON.parse(readFileSync(path, 'utf8')) as VehicleMeta[]) saveVehicle(db, { personId, meta })
     } else if (file.endsWith('.loans.json')) {
       for (const l of JSON.parse(readFileSync(path, 'utf8')) as Omit<LoanInput, 'personId'>[]) saveLoan(db, { ...l, personId })
+    } else if (file.endsWith('.research.json')) {
+      seedResearch(db, JSON.parse(readFileSync(path, 'utf8')))
     } else if (file.endsWith('.farm.json')) {
       seedFarm(db, personId, JSON.parse(readFileSync(path, 'utf8')) as FarmSeed)
     } else if (file.endsWith('.assets.json')) {
@@ -93,4 +99,23 @@ export function captureScreens(win: BrowserWindow): void {
     }
     app.quit()
   })
+}
+
+/** Stored results and prices for a few companies; the background download stays off on demo data. */
+function seedResearch(
+  db: Db,
+  seed: { listings: { isin: string; symbol: string; name: string }[]; quotes: DayQuote[]; filings: Filing[] }
+): void {
+  const at = new Date().toISOString()
+  for (const l of seed.listings)
+    db.insert(schema.nseListings).values({ ...l, kind: 'EQ', updatedAt: at }).onConflictDoNothing().run()
+  saveQuotes(db, seed.quotes)
+  for (const f of seed.filings) {
+    db.insert(schema.researchFilings)
+      .values({ symbol: f.symbol, periodEnd: f.periodEnd, basis: f.basis, url: 'demo', status: 'DONE', dataJson: JSON.stringify(f) })
+      .onConflictDoNothing()
+      .run()
+    markChecked(db, f.symbol, null)
+  }
+  db.insert(schema.settings).values({ key: SYNC_KEY, value: 'off' }).onConflictDoNothing().run()
 }

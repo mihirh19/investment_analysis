@@ -1,107 +1,90 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useMarketStatus, useMarketSubscription, usePersons, useRefreshMarket } from '../lib/api'
+import { useMarketStatus, useMarketSubscription, usePersons, useRefreshMarket, useResearchSubscription } from '../lib/api'
+import { pageActive, sectionOf, SECTIONS } from '../lib/nav'
+import { GoTo, openGoTo } from './GoTo'
 import { AskPanel, openAsk } from './AskPanel'
 import { ErrorBoundary } from './ErrorBoundary'
 import { timeAgo } from '../lib/format'
 import { useScope, type Scope } from '../lib/scope'
 
-// Grouped by what the reader is doing: what they own, how it is doing, and keeping the records.
-const NAV: { title: string; items: { to: string; label: string; end?: boolean }[] }[] = [
-  {
-    title: 'What you own',
-    items: [
-      { to: '/', label: 'Overview', end: true },
-      { to: '/holdings', label: 'Holdings' },
-      { to: '/other-assets', label: 'Other assets' },
-      { to: '/property', label: 'Property & rent' },
-      { to: '/vehicles', label: 'Vehicles' },
-      { to: '/farm', label: 'Farm' },
-      { to: '/loans', label: 'Loans & EMIs' },
-      { to: '/retirement', label: 'EPF & NPS' },
-      { to: '/insurance', label: 'Insurance' },
-      { to: '/dividends', label: 'Dividends' }
-    ]
-  },
-  {
-    title: 'How it is doing',
-    items: [
-      { to: '/analysis', label: 'Analysis' },
-      { to: '/performance', label: 'Performance' },
-      { to: '/exposure', label: 'Sectors & exposure' },
-      { to: '/funds', label: 'Funds' },
-      { to: '/tax', label: 'Tax' },
-      { to: '/rebalance', label: 'Rebalance' },
-      { to: '/spending', label: 'Spending' },
-      { to: '/forecast', label: 'Forecast & inflation' }
-    ]
-  },
-  {
-    title: 'Records',
-    items: [
-      { to: '/activity', label: 'Activity' },
-      { to: '/import', label: 'Import statements' },
-      { to: '/people', label: 'People & accounts' },
-      { to: '/settings', label: 'Settings & backup' }
-    ]
-  }
-]
+const LAST_KEY = 'nav:last'
 
-const COLLAPSED_KEY = 'nav:collapsed'
+/** Where each section was last left, so its sidebar link returns to the same page. */
+function lastPages(): Record<string, string> {
+  try {
+    return JSON.parse(sessionStorage.getItem(LAST_KEY) ?? '{}') as Record<string, string>
+  } catch {
+    return {}
+  }
+}
 
 function SideNav({ pathname }: { pathname: string }) {
-  const [collapsed, setCollapsed] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[]
-    } catch {
-      return []
-    }
-  })
-  const toggle = (title: string) =>
-    setCollapsed((c) => {
-      const next = c.includes(title) ? c.filter((x) => x !== title) : [...c, title]
-      localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next))
+  const here = sectionOf(pathname)
+  const [last, setLast] = useState(lastPages)
+  useEffect(() => {
+    if (!here || here.pages.length < 2) return
+    setLast((l) => {
+      if (l[here.label] === pathname) return l
+      const next = { ...l, [here.label]: pathname }
+      try {
+        sessionStorage.setItem(LAST_KEY, JSON.stringify(next))
+      } catch {
+        // Not kept; the section opens on its first page instead.
+      }
       return next
     })
-  const isActive = (to: string, end?: boolean) => (end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`))
+  }, [here, pathname])
   return (
-    <nav aria-label="Sections" className="mt-3 flex min-h-0 flex-col overflow-y-auto border-t border-rule px-3 pb-2">
-      {NAV.map((g) => {
-        // The group holding the open page always stays open.
-        const open = !collapsed.includes(g.title) || g.items.some((n) => isActive(n.to, n.end))
-        const id = `nav-${g.title.replace(/\W+/g, '-').toLowerCase()}`
+    <nav aria-label="Sections" className="mt-3 flex min-h-0 flex-col gap-px overflow-y-auto border-t border-rule px-3 pt-2.5 pb-2">
+      {SECTIONS.map((s) => {
+        const active = s === here
+        const to = (s.pages.length > 1 && last[s.label]) || s.pages[0].to
         return (
-          <div key={g.title} className="pt-2.5">
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-controls={id}
-              onClick={() => toggle(g.title)}
-              className="flex w-full items-center justify-between rounded px-3 py-0.5 text-[11px] font-semibold tracking-wider text-ink-muted uppercase hover:text-ink"
-            >
-              {g.title}
-              <span aria-hidden className={'transition-transform ' + (open ? 'rotate-90' : '')}>
-                ›
+          <NavLink
+            key={s.label}
+            to={to}
+            end={s.pages[0].end}
+            aria-current={active ? 'page' : undefined}
+            className={
+              'flex items-center justify-between rounded-md px-3 py-[5px] text-[15px] ' +
+              (active ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-paper hover:text-ink')
+            }
+          >
+            {s.label}
+            {s.pages.length > 1 && (
+              <span className={'text-[12px] tabular-nums ' + (active ? 'text-stamp/70' : 'text-ink-muted/70')}>
+                {s.pages.length}
               </span>
-            </button>
-            <div id={id} hidden={!open} className="mt-0.5 flex flex-col">
-              {g.items.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  end={n.end}
-                  className={({ isActive: a }) =>
-                    'rounded-md px-3 py-[3px] text-[14.5px] ' +
-                    (a ? 'bg-stamp-wash font-medium text-stamp' : 'text-ink-muted hover:bg-paper hover:text-ink')
-                  }
-                >
-                  {n.label}
-                </NavLink>
-              ))}
-            </div>
-          </div>
+            )}
+          </NavLink>
         )
       })}
+    </nav>
+  )
+}
+
+/** A section's pages as tabs above the page, when it has more than one. */
+function SectionTabs({ pathname }: { pathname: string }) {
+  const s = sectionOf(pathname)
+  if (!s || s.pages.length < 2) return null
+  return (
+    <nav aria-label={`${s.label} pages`} className="-mt-3 mb-5 flex flex-wrap gap-x-1 border-b border-rule">
+      {s.pages.map((p) => (
+        <NavLink
+          key={p.to}
+          to={p.to}
+          end={p.end}
+          className={({ isActive }) =>
+            '-mb-px border-b-2 px-3 pt-1 pb-2 text-[14.5px] ' +
+            (isActive || pageActive(p, pathname)
+              ? 'border-stamp font-medium text-ink'
+              : 'border-transparent text-ink-muted hover:border-rule-strong hover:text-ink')
+          }
+        >
+          {p.label}
+        </NavLink>
+      ))}
     </nav>
   )
 }
@@ -150,6 +133,7 @@ function LiveStatus() {
 
 export function Shell() {
   useMarketSubscription()
+  useResearchSubscription()
   const { pathname } = useLocation()
   const mainRef = useRef<HTMLElement>(null)
   // Block body on purpose: Chromium's scrollTo returns a Promise, which React would treat as a cleanup.
@@ -218,6 +202,14 @@ export function Shell() {
         >
           Ask your money
         </button>
+        <button
+          type="button"
+          onClick={openGoTo}
+          className="mx-3 mt-2 flex items-center justify-between rounded-md border border-rule px-3 py-1.5 text-left text-[14px] text-ink-muted hover:border-rule-strong hover:text-ink"
+        >
+          Go to…
+          <kbd className="font-sans text-[12px] text-ink-muted">Ctrl K</kbd>
+        </button>
 
         <SideNav pathname={pathname} />
         <LiveStatus />
@@ -225,6 +217,7 @@ export function Shell() {
 
       <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1180px] px-10 pt-8 pb-16">
+          <SectionTabs pathname={pathname} />
           <ErrorBoundary resetKey={pathname}>
             {/* Keyed by route so each page plays its entrance once. */}
             <div key={pathname} className="anim-page">
@@ -236,6 +229,7 @@ export function Shell() {
       <ErrorBoundary resetKey={pathname}>
         <AskPanel />
       </ErrorBoundary>
+      <GoTo />
     </div>
   )
 }

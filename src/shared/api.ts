@@ -69,6 +69,11 @@ export const API_METHODS = [
   'setFarmTransport',
   'getMarketNote',
   'refreshFarmPrices',
+  'getResearchHome',
+  'getCompany',
+  'searchCompanies',
+  'getCompanyChart',
+  'setResearchSync',
   'getGoogleSetup',
   'saveGoogleClient',
   'connectGoogleAccount',
@@ -120,3 +125,4 @@ export const _allMethodsListed: Missing extends never ? true : Missing = true
 /** Main → renderer push channel, sent after each market data refresh. */
 export const MARKET_UPDATED = 'market:updated'
 export const CHAT_EVENT = 'chat:event'
+export const RESEARCH_UPDATED = 'research:updated'

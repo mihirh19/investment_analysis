@@ -5,7 +5,8 @@ import type { Plan } from '@shared/plan'
 import type { CropKey, FarmEntryInput, FarmSeasonInput, HoldingCosts } from '@shared/farm'
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { Basis } from '@shared/research'
 import type {
   ApiResult,
   EpfInput,
@@ -332,3 +333,53 @@ export const useDeleteStatement = () => useWrite((id: number) => api().deleteSta
 export const pickStatement = () => unwrap(api().pickFile('STATEMENT'))
 export const askMoney = (id: string, history: ChatTurn[]) => unwrap(api().askMoney(id, history))
 export const onChatEvent = (fn: (e: ChatEvent) => void) => api().onChatEvent(fn)
+
+// ---------------- research desk ----------------
+
+export const useResearchHome = () =>
+  useQuery({
+    queryKey: ['research', 'home'],
+    queryFn: () => unwrap(api().getResearchHome()),
+    // While the download runs, the progress line keeps moving.
+    refetchInterval: (q) => (q.state.data?.status.state === 'RUNNING' ? 10_000 : false)
+  })
+
+export const useCompany = (symbol: string | undefined, basis: Basis | null) =>
+  useQuery({
+    queryKey: ['research', 'company', symbol, basis],
+    queryFn: () => unwrap(api().getCompany(symbol!, basis)),
+    enabled: !!symbol,
+    // A company whose results are being fetched right now: look again shortly.
+    refetchInterval: (q) => (q.state.data?.results.state === 'WAITING' ? 4000 : false)
+  })
+
+export const useCompanySearch = (query: string) =>
+  useQuery({
+    queryKey: ['research', 'search', query.trim().toUpperCase()],
+    queryFn: () => unwrap(api().searchCompanies(query)),
+    enabled: query.trim().length > 0,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData
+  })
+
+export const useCompanyChart = (symbol: string, range: '1mo' | '6mo' | '1y' | '5y' | 'max') =>
+  useQuery({
+    // "history" keys are left alone by the price refresh.
+    queryKey: ['history', 'company', symbol, range],
+    queryFn: () => unwrap(api().getCompanyChart(symbol, range)),
+    staleTime: 30 * 60_000
+  })
+
+export function useSetResearchSync() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (on: boolean) => unwrap(api().setResearchSync(on)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['research'] })
+  })
+}
+
+/** The research download pushes its own, more frequent, updates: only research queries refetch. */
+export function useResearchSubscription() {
+  const qc = useQueryClient()
+  useEffect(() => api().onResearchUpdate(() => void qc.invalidateQueries({ queryKey: ['research'] })), [qc])
+}

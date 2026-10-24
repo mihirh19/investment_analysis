@@ -95,3 +95,24 @@ export function toneClass(v: number | null | undefined): string {
   if (!v) return 'text-ink-muted'
   return v > 0 ? 'text-gain' : 'text-loss'
 }
+
+/** Company-sized amounts: ₹46,824 Cr, or ₹10.68 lakh Cr from a lakh crore up. */
+export function bigMoney(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—'
+  const sign = v < 0 ? '−' : ''
+  const a = Math.abs(v)
+  if (a >= 1e12) return `${sign}₹${(a / 1e12).toFixed(2)} lakh Cr`
+  if (a >= 1e9) return `${sign}₹${Math.round(a / 1e7).toLocaleString('en-IN')} Cr`
+  return lakhCrore(v)
+}
+
+/** Chart axis for company figures: ₹80k Cr, ₹1.2L Cr, ₹950 Cr. */
+export function axisCrore(v: number): string {
+  const sign = v < 0 ? '−' : ''
+  const cr = Math.abs(v) / 1e7
+  const trim = (n: number) => String(Number(n.toFixed(n >= 100 ? 0 : 1)))
+  if (cr >= 1e5) return `${sign}₹${trim(cr / 1e5)}L Cr`
+  if (cr >= 1e3) return `${sign}₹${trim(cr / 1e3)}k Cr`
+  if (cr >= 1) return `${sign}₹${trim(cr)} Cr`
+  return compactMoney(v)
+}

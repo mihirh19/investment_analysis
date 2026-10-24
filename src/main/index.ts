@@ -3,12 +3,13 @@ import { join } from 'node:path'
 import { app, BrowserWindow, dialog, nativeTheme, Notification, shell } from 'electron'
 import { CROPS } from '@shared/farm'
 import { newlyReachedTargets } from './farm'
-import { CHAT_EVENT, MARKET_UPDATED } from '@shared/api'
+import { CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED } from '@shared/api'
 import { openDatabase } from './db'
 import { applyDevPaths, captureScreens, seedDemo } from './dev'
 import { registerIpc } from './ipc'
 import { decryptSecret, encryptSecret, loadOrCreateDbKey, writeDbKey } from './keystore'
 import { MarketData } from './market/refresh'
+import { ResearchSync } from './research/sync'
 import { renderLinks } from './market/render'
 import { createServices, type Services } from './services'
 
@@ -67,6 +68,7 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(async () => {
     let market: MarketData
+    let researchSync: ResearchSync
     let services: Services
     try {
       const userData = app.getPath('userData')
@@ -105,6 +107,14 @@ if (!app.requestSingleInstanceLock()) {
         fetch,
         { renderLinks }
       )
+      // Company results and NSE's daily files; told to the window at most every few seconds.
+      let pending: NodeJS.Timeout | null = null
+      researchSync = new ResearchSync(db, () => {
+        pending ??= setTimeout(() => {
+          pending = null
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
+        }, 3000)
+      })
       services = createServices({
         db,
         casparserExe: app.isPackaged
@@ -113,12 +123,14 @@ if (!app.requestSingleInstanceLock()) {
         encrypt: encryptSecret,
         decrypt: decryptSecret,
         market,
+        research: researchSync,
         dbKey: key,
         applyTheme: (t) => (nativeTheme.themeSource = t),
         openUrl: (url) => shell.openExternal(url),
         emitChat: (e) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send(CHAT_EVENT, e)),
         replaceDatabase(filePath, newKey) {
           market.stop()
+          researchSync.stop()
           sqlite.close()
           for (const ext of ['', '-wal', '-shm']) rmSync(dbFile + ext, { force: true })
           copyFileSync(filePath, dbFile)
@@ -138,6 +150,8 @@ if (!app.requestSingleInstanceLock()) {
     }
     createWindow()
     market.start()
+    // After the first price refresh has had the network to itself.
+    setTimeout(() => researchSync.start(), 45_000)
     // Connected Gmail accounts are checked for new statements a minute after start, then every 12 hours.
     const checkMail = () => {
       if (services.mailDue())

@@ -28,6 +28,7 @@ import { Farm } from './pages/Farm'
 import { Loans } from './pages/Loans'
 import { Forecast } from './pages/Forecast'
 import { Spending } from './pages/Spending'
+import { Research } from './pages/Research'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } } })
 
@@ -61,6 +62,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="loans" element={<Loans />} />
               <Route path="forecast" element={<Forecast />} />
               <Route path="spending" element={<Spending />} />
+              <Route path="research" element={<Research />} />
+              <Route path="research/:symbol" element={<Research />} />
             </Route>
           </Routes>
         </HashRouter>
