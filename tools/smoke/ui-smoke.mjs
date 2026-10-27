@@ -143,6 +143,8 @@ for (const tab of ['Me', 'Dad', 'Family']) {
     'Sectors & exposure',
     'Funds',
     'Dividends',
+    'X-ray',
+    'Calendar',
     'EPF & NPS',
     'Insurance',
     'Activity',
@@ -377,6 +379,10 @@ for (const st of ['Yearly results', 'Balance sheet', 'Cash flow']) {
 await clickText('[role=tab]', 'Price chart')
 await sleep(2500)
 await ok('research: price chart')
+await clickText('[role=tab]', 'Valuation')
+await ok('research: valuation tab')
+await clickText('[role=tab]', 'Ownership')
+await ok('research: ownership tab')
 await clickText('[role=tab]', 'Peers')
 await sleep(1000)
 await ok('research: peers')
@@ -422,6 +428,22 @@ const typeInto = (sel, value) =>
   ev(
     `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return 'NOT FOUND'; Object.getOwnPropertyDescriptor(el.__proto__, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return 'ok' })()`
   )
+await nav('X-ray')
+await sleep(1500)
+await check('x-ray: concentration or empty note', `document.body.innerText.includes('Behaves like') || document.body.innerText.includes('No Indian equity')`)
+await nav('Calendar')
+await clickText('[aria-label="Which companies"] button', 'All companies')
+await ok('calendar: all companies')
+await nav('Sectors')
+await ok('research: sectors')
+await nav('Announcements')
+await ok('research: announcements')
+await nav('Alerts')
+await ok('alerts: screen')
+await nav('Commodities')
+await ok('research: commodities')
+await nav('What if')
+await ok('planning: what if')
 // Money flows: FII/DII, F&O positions, FPI, mutual funds and big deals, on the demo copy.
 await nav('Money flows')
 await check('flows: FII and DII shown', `document.body.innerText.includes('FII net, 23 Oct 2026') && document.body.innerText.includes('DII net')`)
@@ -430,6 +452,8 @@ for (const v of ['F&O positions', 'Foreign investors by month', 'Mutual funds', 
   await ok(`flows: ${v}`)
 }
 await check('flows: deals and 5% stakes listed', `document.body.innerText.includes('SAMHI') && document.body.innerText.includes('5% stakes crossed')`)
+await clickText('[aria-label="Flows view"] button', 'Ownership changes')
+await ok('flows: ownership changes')
 // The terminal itself: function keys open screens in tabs, a new tab, tool panels, workspaces.
 const tabs = () => ev(`[...document.querySelectorAll('.dv-tab')].map((t) => t.textContent.trim()).join('|')`)
 await key('F2')

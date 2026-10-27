@@ -4,7 +4,8 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { ApiResult, ImportKind, RequestApi } from '@shared/types'
 import type { Services } from './services'
 
-const FILE_FILTERS: Record<ImportKind | 'BACKUP' | 'DOCUMENT' | 'STATEMENT', Electron.FileFilter[]> = {
+const FILE_FILTERS: Record<ImportKind | 'BACKUP' | 'DOCUMENT' | 'STATEMENT' | 'PHOTO', Electron.FileFilter[]> = {
+  PHOTO: [{ name: 'Photo', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
   STATEMENT: [{ name: 'Statement (PDF)', extensions: ['pdf'] }],
   DOCUMENT: [{ name: 'PDF or photo', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'] }],
   CAS_PDF: [{ name: 'CAS statement (PDF)', extensions: ['pdf'] }],
@@ -113,7 +114,46 @@ export function registerIpc(services: Services): void {
     getScreenData: () => services.getScreenData(),
     getMarketMonitor: () => services.getMarketMonitor(),
     getWorldBoard: () => services.getWorldBoard(),
+    getCommodities: () => services.getCommodities(),
+    getScenarioHoldings: (personId) => services.getScenarioHoldings(personId),
+    saveMonthlyReport: async (personId) => {
+      const month = new Date().toISOString().slice(0, 7)
+      const res = await dialog.showSaveDialog(focused(), {
+        title: 'Save the monthly report',
+        defaultPath: join(app.getPath('documents'), `family-report-${month}.pdf`),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
+      })
+      if (res.canceled || !res.filePath) return null
+      // A hidden window that loads only this page, with no access to the app or the network.
+      const win = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true } })
+      try {
+        await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(services.monthlyReportHtml(personId))}`)
+        writeFileSync(res.filePath, await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true }))
+      } finally {
+        win.destroy()
+      }
+      return res.filePath
+    },
     getSavedScreens: () => services.getSavedScreens(),
+    getXray: (personId) => services.getXray(personId),
+    getCalendar: () => services.getCalendar(),
+    getOwnership: (symbol) => services.getOwnership(symbol),
+    getOwnershipReport: () => services.getOwnershipReport(),
+    getIndustries: () => services.getIndustries(),
+    getAnnouncements: () => services.getAnnouncements(),
+    getAlerts: () => services.getAlerts(),
+    saveFarmSupport: (input) => services.saveFarmSupport(input),
+    getCropExports: (crop) => services.getCropExports(crop),
+    readMandiBill: (filePath) => services.readMandiBill(filePath),
+    deleteFarmSupport: (id) => services.deleteFarmSupport(id),
+    getFarmWeather: (force) => services.getFarmWeather(force),
+    findFarmPlaces: (query) => services.findFarmPlaces(query),
+    setFarmPlace: (place) => services.setFarmPlace(place),
+    saveAlertRule: (input) => services.saveAlertRule(input),
+    deleteAlertRule: (id) => services.deleteAlertRule(id),
+    setAutoAlerts: (auto) => services.setAutoAlerts(auto),
+    markAlertsRead: () => services.markAlertsRead(),
+    writeNewsDigest: () => services.writeNewsDigest(),
     getFlows: () => services.getFlows(),
     refreshFlows: () => services.refreshFlows(),
     setFlowsSync: (on) => services.setFlowsSync(on),

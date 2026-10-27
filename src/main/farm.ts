@@ -15,7 +15,11 @@ import {
   type HoldingCosts,
   type MarketNote,
   type SeasonalPattern,
-  type CropOutlook
+  type CropOutlook,
+  type FarmSupport,
+  type FarmSupportInput,
+  type SupportScheme,
+  PM_KISAN_PERIODS
 } from '@shared/farm'
 import type { HoldingRow } from '@shared/types'
 import { schema, type Db } from './db'
@@ -586,6 +590,7 @@ export function farmReport(db: Db, personId?: number, today = todayIso()): FarmR
   const fy = fyOf(today)
   const inFy = (d: string) => d >= fy.from && d <= fy.to
   const all = seasons.flatMap((s) => s.entries)
+  const support = supportOf(db, personId, today)
   const lastPrice = db
     .select({ date: schema.priceHistory.date })
     .from(schema.priceHistory)
@@ -606,8 +611,10 @@ export function farmReport(db: Db, personId?: number, today = todayIso()): FarmR
     thisFy: {
       fy: fy.label,
       sales: Math.round(all.filter((e) => e.type === 'SALE' && inFy(e.date)).reduce((s, e) => s + e.amount - (e.charges ?? 0), 0)),
-      costs: Math.round(all.filter((e) => e.type === 'COST' && inFy(e.date)).reduce((s, e) => s + e.amount, 0))
+      costs: Math.round(all.filter((e) => e.type === 'COST' && inFy(e.date)).reduce((s, e) => s + e.amount, 0)),
+      support: Math.round(support.entries.filter((e) => inFy(e.date)).reduce((s, e) => s + e.amount, 0))
     },
+    support,
     pricesAsOf: lastPrice?.date ?? null,
     priceError: getSetting(db, 'farm:priceError'),
     outlook: crops.map((c) =>
@@ -623,6 +630,56 @@ export function farmReport(db: Db, personId?: number, today = todayIso()): FarmR
     transport: transportCosts(db)
   }
 }
+
+// ---------------- government support ----------------
+
+export function saveSupport(db: Db, input: FarmSupportInput): number {
+  if (!(input.amount > 0)) throw new Error('Enter the amount received.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Enter the date it came in.')
+  const v = { personId: input.personId, scheme: input.scheme, date: input.date, amount: input.amount, note: input.note?.trim() || null }
+  if (input.id) {
+    db.update(schema.farmSupport).set(v).where(eq(schema.farmSupport.id, input.id)).run()
+    return input.id
+  }
+  return db.insert(schema.farmSupport).values(v).returning().get().id
+}
+
+export function deleteSupport(db: Db, id: number): void {
+  db.delete(schema.farmSupport).where(eq(schema.farmSupport.id, id)).run()
+}
+
+/** Support received, and this year's PM-KISAN periods for anyone who got an instalment in the last two years. */
+export function supportOf(db: Db, personId: number | undefined, today: string): FarmReport['support'] {
+  const names = new Map(db.select().from(schema.persons).all().map((p) => [p.id, p.name]))
+  const entries: FarmSupport[] = db
+    .select()
+    .from(schema.farmSupport)
+    .where(personId ? eq(schema.farmSupport.personId, personId) : undefined)
+    .orderBy(desc(schema.farmSupport.date))
+    .all()
+    .map((r) => ({ ...r, scheme: r.scheme as SupportScheme, personName: names.get(r.personId) ?? '' }))
+  const fy = fyOf(today)
+  const start = Number(fy.from.slice(0, 4))
+  const twoYears = `${Number(today.slice(0, 4)) - 2}${today.slice(4)}`
+  const people = [...new Set(entries.filter((e) => e.scheme === 'PM_KISAN' && e.date >= twoYears).map((e) => e.personId))]
+  const pmKisan = people.map((pid) => ({
+    personId: pid,
+    personName: names.get(pid) ?? '',
+    periods: PM_KISAN_PERIODS.map((p, i) => {
+      const from = `${i === 2 ? start : start}-${p.from}`
+      const to = `${i === 2 ? start + 1 : start}-${p.to}`
+      // An instalment can arrive a little after its period; it counts for the earliest open period.
+      const received = entries.find((e) => e.personId === pid && e.scheme === 'PM_KISAN' && e.date >= from && e.date <= addDaysIso(to, 45)) ?? null
+      return { label: p.label, received, due: today >= from }
+    })
+  }))
+  // One payment can't fill two periods.
+  for (const p of pmKisan)
+    for (let i = 1; i < p.periods.length; i++) if (p.periods[i].received && p.periods[i].received === p.periods[i - 1].received) p.periods[i].received = null
+  return { entries, pmKisan }
+}
+
+const addDaysIso = (iso: string, days: number) => new Date(Date.parse(iso) + days * 86400_000).toISOString().slice(0, 10)
 
 // ---------------- net worth ----------------
 

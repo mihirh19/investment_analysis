@@ -146,7 +146,23 @@ export interface PropertyMeta extends Common {
   tenancies?: Tenancy[]
   rentPayments?: RentPayment[]
   expenses?: PropertyExpense[]
+  /** Farmland: what the 7/12 (village form VII/XII) says. */
+  land?: LandRecord
 }
+
+export interface LandRecord {
+  surveyNo?: string
+  khataNo?: string
+  village?: string
+  taluka?: string
+  district?: string
+  areaAcres?: number
+  irrigation?: 'IRRIGATED' | 'RAINFED' | 'PARTLY'
+}
+
+/** Land units in acres. A Saurashtra vigha is 16 guntha; north Gujarat's bigha differs, so it isn't offered. */
+export const LAND_UNITS = { acre: 1, hectare: 2.4710538, guntha: 1 / 40, vigha: 16 / 40 } as const
+export type LandUnit = keyof typeof LAND_UNITS
 
 export const PROPERTY_SUBTYPES = [
   'FLAT',

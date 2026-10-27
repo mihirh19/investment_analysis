@@ -21,7 +21,14 @@ The app's use of information received from Google APIs adheres to the [Google AP
 
 To show live prices and reference data, the app downloads public information (stock prices, fund NAVs, exchange rates, home price indices, mandi crop prices) from public sources. These requests do not include the user's holdings or personal details.
 
-- **Research desk:** downloads NSE's public end-of-day price files and the results filings companies publish with NSE, slowly and one file at a time. The download can be paused in Research. Price history comes from Yahoo Finance.
+- **Research desk:** downloads public information from NSE, slowly and one file at a time:
+  - end-of-day price files and the results filings companies publish;
+  - the results and corporate-actions calendars;
+  - shareholding patterns;
+  - company announcements;
+  - each company's sector classification.
+
+  The download can be paused in Research. Price history comes from Yahoo Finance. Fetching a company's shareholding patterns tells NSE which company was looked up, as visiting its page would.
 - **Money flows:** only after the screen is first opened, the app downloads the following, slowly. Updates can be paused on the screen.
   - From NSE: FII/DII figures, F&O participant positions, bulk and block deals, and takeover disclosures.
   - From NSDL: its foreign portfolio investment reports.
@@ -37,14 +44,17 @@ To show live prices and reference data, the app downloads public information (st
   - Fintraffic's Digitraffic (Baltic ship positions).
 
   Updates can be paused on the map.
+- **Farm weather:** if the user picks the farm's village, its name is sent to Open-Meteo's place search once, and then its map position (latitude and longitude) every few hours for the forecast. Nothing else is sent.
+- **Crop exports:** when asked on the Farm page, India's public export figures for that crop come from UN Comtrade.
 - **Live ships worldwide:** if the user enters their own aisstream.io key, the key is stored encrypted on the computer and sent only to aisstream.io, to receive ship positions for a map area.
 
 None of these requests carry the user's holdings or personal details.
 
 **Claude (optional, off unless the user adds their own Anthropic API key):**
 - "Ask your money" and the phone's chat send the question and the figures needed to answer it to Anthropic's API, and may include Gmail search results when the user allows the chat to use Gmail.
-- Statement reading sends the statement's text.
+- Statement reading sends the statement's text; reading a mandi bill sends the photo of the bill.
 - The farm market note sends only public crop prices.
+- The announcements digest sends the recent public announcements of held and watched companies, which shows Anthropic which companies the family follows, but no amounts or holdings.
 - Each feature has its own switch in Settings → Claude.
 
 ## Contact

@@ -1,22 +1,24 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { INSTITUTION, longShare, type FlowsReport, type FoPosition } from '@shared/flows'
+import { quarterLabel, type StakeChange } from '@shared/research'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { FlowBars } from '../components/FlowBars'
 import { Button } from '../components/ui'
-import { useFlows, useRefreshFlows, useSetFlowsSync } from '../lib/api'
+import { useFlows, useOwnershipReport, useRefreshFlows, useSetFlowsSync } from '../lib/api'
 import { shortDate, toneClass } from '../lib/format'
 import { useOpenSymbol } from '../lib/links'
 
 // Where the big money is going: foreign (FII/FPI) and domestic (DII) institutions in the cash
 // market and in F&O, foreign investors month by month, mutual fund flows, and the big deals.
 
-type View = 'cash' | 'fo' | 'fpi' | 'mf' | 'deals'
+type View = 'cash' | 'fo' | 'fpi' | 'mf' | 'deals' | 'own'
 const VIEWS: { key: View; label: string }[] = [
   { key: 'cash', label: 'FII & DII' },
   { key: 'fo', label: 'F&O positions' },
   { key: 'fpi', label: 'Foreign investors by month' },
   { key: 'mf', label: 'Mutual funds' },
-  { key: 'deals', label: 'Big deals' }
+  { key: 'deals', label: 'Big deals' },
+  { key: 'own', label: 'Ownership changes' }
 ]
 
 const cr = (v: number | null | undefined, digits = 0) =>
@@ -72,6 +74,7 @@ export function Flows() {
       {d && view === 'fpi' && <Fpi d={d} />}
       {d && view === 'mf' && <Mf d={d} />}
       {d && view === 'deals' && <Deals d={d} />}
+      {view === 'own' && <OwnershipChanges />}
       {s && (
         <p className="mt-8 text-[12px] text-ink-muted">
           Sources:{' '}
@@ -458,3 +461,97 @@ function Deals({ d }: { d: FlowsReport }) {
   )
 }
 
+
+// ---------------- ownership changes (shareholding patterns) ----------------
+
+const points = (v: number | null) =>
+  v === null ? '—' : Math.abs(v) < 0.00005 ? '0.00' : `${v > 0 ? '+' : '−'}${Math.abs(v * 100).toFixed(2)}`
+const share = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(2)}%`)
+
+/** Quarter-on-quarter changes in who owns each company: your companies in full, every company's promoters. */
+function OwnershipChanges() {
+  const q = useOwnershipReport()
+  const open = useOpenSymbol()
+  const r = q.data
+  if (q.error) return <ErrorNote error={q.error} />
+  if (!r) return <p className="text-ink-muted">Opening the shareholding patterns…</p>
+  const row = (c: StakeChange, full: boolean) => (
+    <tr key={c.symbol} className="border-b border-rule">
+      <td className="py-1">
+        <button type="button" className="text-left hover:text-stamp hover:underline" onClick={() => open(c.symbol)}>
+          {c.company} <span className="text-[12px] text-ink-muted">{c.symbol}</span>
+        </button>
+        {c.held && <span className="ml-2 text-[12px] text-gain">held</span>}
+        {!c.held && c.watched && <span className="ml-2 text-[12px] text-ink-muted">watched</span>}
+      </td>
+      <td className="px-2 text-ink-muted">
+        {quarterLabel(c.prevAsOf)} → {quarterLabel(c.asOf)}
+      </td>
+      <td className="num px-2">{share(c.promoter)}</td>
+      <td className={`num px-2 ${toneClass(c.promoterChange)}`}>{points(c.promoterChange)}</td>
+      {full && (
+        <>
+          <td className="num px-2">{share(c.fpi)}</td>
+          <td className={`num px-2 ${toneClass(c.fpiChange)}`}>{points(c.fpiChange)}</td>
+          <td className="num px-2">{share(c.mf)}</td>
+          <td className={`num px-2 ${toneClass(c.mfChange)}`}>{points(c.mfChange)}</td>
+        </>
+      )}
+    </tr>
+  )
+  const head = (full: boolean) => (
+    <thead>
+      <tr className="border-b border-rule-strong text-[12px] text-ink-muted">
+        <th className="py-1 text-left font-medium">Company</th>
+        <th className="px-2 text-left font-medium">Quarters</th>
+        <th className="px-2 text-right font-medium">Promoters</th>
+        <th className="px-2 text-right font-medium">Change</th>
+        {full && (
+          <>
+            <th className="px-2 text-right font-medium">Foreign (FPI)</th>
+            <th className="px-2 text-right font-medium">Change</th>
+            <th className="px-2 text-right font-medium">Mutual funds</th>
+            <th className="px-2 text-right font-medium">Change</th>
+          </>
+        )}
+      </tr>
+    </thead>
+  )
+  return (
+    <div className="space-y-8">
+      <section>
+        <h2 className="mb-1 text-[15px] font-semibold text-stamp">Your companies</h2>
+        <p className="mb-2 text-[13px] text-ink-muted">
+          Held and watched stocks, latest quarter against the one before, biggest moves first. Changes are in percentage points of all shares.
+        </p>
+        {r.mine.length === 0 ? (
+          <p className="text-[13px] text-ink-muted">Nothing yet: the patterns are fetched from NSE in the background while Research is on.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13.5px]">
+              {head(true)}
+              <tbody>{r.mine.map((c) => row(c, true))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+      <section>
+        <h2 className="mb-1 text-[15px] font-semibold text-stamp">Promoters buying or selling, across the market</h2>
+        <p className="mb-2 text-[13px] text-ink-muted">
+          Companies that filed in the last two months whose promoters’ share moved by half a point or more. A fall can also come from new shares
+          being issued to others.
+        </p>
+        {r.promoterMoves.length === 0 ? (
+          <p className="text-[13px] text-ink-muted">{r.updatedAt ? 'No big moves in the recent filings.' : 'Waiting for the first download from NSE.'}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13.5px]">
+              {head(false)}
+              <tbody>{r.promoterMoves.map((c) => row(c, false))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

@@ -3,7 +3,22 @@ import type { ResearchStatus } from '@shared/research'
 import { schema, type Db } from '../db'
 import type { FetchFn } from '../market/http'
 import { HttpError } from '../market/http'
-import { deliveryUrl, NseClient, parseDayFiles, parseDeliveryFile, parseIndices, peUrl, prUrl } from './nse'
+import {
+  deliveryUrl,
+  NSE_API,
+  NseClient,
+  parseCorporateActions,
+  parseDayFiles,
+  parseDeliveryFile,
+  parseEventCalendar,
+  parseIndices,
+  parseShpList,
+  parseAnnouncements,
+  parseShpXbrl,
+  parseSymbolData,
+  peUrl,
+  prUrl
+} from './nse'
 import { parseResultsXbrl } from './xbrl'
 import {
   BAR_YEARS,
@@ -17,13 +32,24 @@ import {
   heldStocks,
   latestQuoteDate,
   markChecked,
+  markShpChecked,
   pendingFilings,
   progress,
   refreshFundamentals,
+  saveActions,
+  saveEvents,
   saveIndices,
   saveQuotes,
   saveRefs,
-  storeFiling
+  industryWanted,
+  saveIndustry,
+  saveAnnouncements,
+  saveShpDetail,
+  saveShpList,
+  shpDetailWanted,
+  shpStale,
+  storeFiling,
+  watchedSymbols
 } from './store'
 
 export const SYNC_KEY = 'research:sync'
@@ -138,6 +164,10 @@ export class ResearchSync {
         if (!this.enabled() || Date.now() < this.restUntil) return
         await this.step(() => this.dailyFiles())
         await this.step(() => this.newFilings())
+        await this.step(() => this.calendar())
+        await this.step(() => this.ownership())
+        await this.step(() => this.announcements())
+        await this.step(() => this.industries())
         await this.step(() => this.priceHistory())
         const held = new Set(heldStocks(this.db).keys())
         while (this.enabled() && Date.now() >= this.restUntil) {
@@ -171,6 +201,21 @@ export class ResearchSync {
     // Already in, unless its list failed last time (then it is tried again).
     if (company?.checkedAt && !company.error && pendingFilings(this.db, s, 1).length === 0) return Promise.resolve()
     return this.company(s)
+  }
+
+  /** Who owns the company: its shareholding patterns, fetched alongside the results. */
+  openOwnership(symbol: string): void {
+    const key = `shp:${symbol}`
+    if (this.inFlight.has(key)) return
+    const work = this.ownership(symbol)
+      .catch((e) => {
+        this.lastError = e instanceof Error ? e.message : String(e)
+      })
+      .finally(() => {
+        this.inFlight.delete(key)
+        this.onUpdate()
+      })
+    this.inFlight.set(key, work)
   }
 
   private async step(work: () => Promise<void>): Promise<void> {
@@ -286,6 +331,106 @@ export class ResearchSync {
       this.technicalsDone = true
       this.onUpdate()
     }
+  }
+
+  /** Results days coming up and corporate actions from a month back to three months ahead, twice a day. */
+  private async calendar(): Promise<void> {
+    const key = 'research:calendarAt'
+    const at = this.db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value
+    if (at && Date.now() - Date.parse(at) < 12 * HOUR) return
+    saveEvents(this.db, parseEventCalendar(await this.nse.json(`${NSE_API}/event-calendar?index=equities`)))
+    const d = (offset: number) => {
+      const x = new Date(Date.now() + offset * 86400_000)
+      return `${String(x.getUTCDate()).padStart(2, '0')}-${String(x.getUTCMonth() + 1).padStart(2, '0')}-${x.getUTCFullYear()}`
+    }
+    saveActions(this.db, parseCorporateActions(await this.nse.json(`${NSE_API}/corporates-corporateActions?index=equities&from_date=${d(-30)}&to_date=${d(90)}`)))
+    const now = new Date().toISOString()
+    this.db.insert(schema.settings).values({ key, value: now }).onConflictDoUpdate({ target: schema.settings.key, set: { value: now } }).run()
+    this.onUpdate()
+  }
+
+  /**
+   * Shareholding patterns: every filing across the market (promoters' share) once a day, each held or
+   * watched company's full history once a week, and the full split for their latest five quarters (a year back).
+   */
+  private async ownership(only?: string): Promise<void> {
+    if (!only) await this.shpWindow()
+    const symbols = only ? [only] : [...new Set([...heldStocks(this.db).keys(), ...watchedSymbols(this.db)])]
+    const go = () => (only !== undefined || this.enabled()) && Date.now() >= this.restUntil
+    for (const s of shpStale(this.db, symbols)) {
+      if (!go()) return
+      this.current = `shareholding of ${s}`
+      try {
+        saveShpList(this.db, parseShpList(await this.nse.json(`${NSE_API}/corporate-share-holdings-master?index=equities&symbol=${encodeURIComponent(s)}`)))
+      } catch (e) {
+        // NSE has nothing for it (a new listing, an ETF): asked again next week, not every pass.
+        if (!(e instanceof HttpError && e.status === 404)) throw e
+      }
+      markShpChecked(this.db, s)
+    }
+    for (const w of shpDetailWanted(this.db, symbols)) {
+      if (!go()) return
+      this.current = `shareholding of ${w.symbol}, ${w.asOf}`
+      let detail = null
+      try {
+        detail = parseShpXbrl(await this.nse.text(w.url))
+      } finally {
+        saveShpDetail(this.db, w.symbol, w.asOf, detail, w.attempts + 1)
+      }
+    }
+    this.current = null
+    this.onUpdate()
+  }
+
+  /** Announcements across the market every two hours, from the day of the last look (the first time, a week). */
+  private async announcements(): Promise<void> {
+    const key = 'research:annAt'
+    const at = this.db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value
+    if (at && Date.now() - Date.parse(at) < 2 * HOUR) return
+    const today = isoDay(istNow())
+    const from = at ? isoDay(new Date(Date.parse(at) + 5.5 * HOUR)) : isoDay(new Date(Date.now() - 7 * 86400_000))
+    const d = (iso: string) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`
+    this.current = 'announcements'
+    saveAnnouncements(this.db, parseAnnouncements(await this.nse.json(`${NSE_API}/corporate-announcements?index=equities&from_date=${d(from)}&to_date=${d(today)}`)))
+    const now = new Date().toISOString()
+    this.db.insert(schema.settings).values({ key, value: now }).onConflictDoUpdate({ target: schema.settings.key, set: { value: now } }).run()
+    this.current = null
+    this.onUpdate()
+  }
+
+  /** NSE's classification of each company, a batch a pass until every company has one, then monthly. */
+  private async industries(): Promise<void> {
+    for (const s of industryWanted(this.db, 150)) {
+      if (!this.enabled() || Date.now() < this.restUntil) return
+      this.current = `industry of ${s}`
+      try {
+        saveIndustry(this.db, s, parseSymbolData(await this.nse.json(`${NSE_API}/NextApi/apiClient/GetQuoteApi?functionName=getSymbolData&marketType=N&series=EQ&symbol=${encodeURIComponent(s)}`)))
+      } catch (e) {
+        // Not traded in the EQ series (or gone): remembered as unclassified, asked again next month.
+        if (!(e instanceof HttpError && e.status === 404)) throw e
+        saveIndustry(this.db, s, null)
+      }
+    }
+    this.current = null
+  }
+
+  /** Every shareholding pattern filed since the last look, 30 days at a time (the first time, about four months). */
+  private async shpWindow(): Promise<void> {
+    const key = 'research:shpWindowAt'
+    const at = this.db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value
+    if (at && Date.now() - Date.parse(at) < 20 * HOUR) return
+    const today = isoDay(istNow())
+    const d = (iso: string) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`
+    let from = at ? isoDay(new Date(Date.parse(at) - 2 * 86400_000)) : isoDay(new Date(Date.now() - 130 * 86400_000))
+    while (from <= today) {
+      if (!this.enabled() || Date.now() < this.restUntil) return
+      const to = [isoDay(new Date(Date.parse(from) + 29 * 86400_000)), today].sort()[0]
+      this.current = `shareholding filings ${from} to ${to}`
+      saveShpList(this.db, parseShpList(await this.nse.json(`${NSE_API}/corporate-share-holdings-master?index=equities&from_date=${d(from)}&to_date=${d(to)}`)))
+      from = isoDay(new Date(Date.parse(to) + 86400_000))
+    }
+    const now = new Date().toISOString()
+    this.db.insert(schema.settings).values({ key, value: now }).onConflictDoUpdate({ target: schema.settings.key, set: { value: now } }).run()
   }
 
   /** Results filed across the market since the last look (the backlog covers older ones). */

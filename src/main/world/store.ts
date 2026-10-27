@@ -167,7 +167,7 @@ export function places(db: Db): WorldPlace[] {
 export function worldMap(
   db: Db,
   status: { sources: WorldSourceStatus[]; enabled: boolean; refreshing: boolean }
-): WorldMap {
+): Omit<WorldMap, 'money'> {
   return {
     figures: figures(db),
     places: places(db),

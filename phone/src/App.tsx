@@ -8,7 +8,8 @@ import { Plan } from './screens/Plan'
 import { Assets } from './screens/Assets'
 import { Doing } from './screens/Doing'
 import { Spending } from './screens/Spending'
-import { field, Primary, Sheet } from './ui'
+import { field, Primary, Seg, Sheet } from './ui'
+import { useLang, type Lang } from './lib/i18n'
 
 // The chat (and the Claude SDK) loads only when Ask is first opened, keeping the app quick to start.
 const Ask = lazy(() => import('./screens/Ask').then((m) => ({ default: m.Ask })))
@@ -124,8 +125,20 @@ function Unlock() {
 
 function Menu({ onClose }: { onClose: () => void }) {
   const { sync, syncing, lock, fetchedAt, pending, error } = useData()
+  const { lang, setLang, t } = useLang()
   return (
     <Sheet title="Sync and settings" onClose={onClose}>
+      <div className="mb-4">
+        <Seg
+          label={t('Language')}
+          value={lang}
+          onChange={(v) => setLang(v as Lang)}
+          options={[
+            { value: 'en', label: 'English' },
+            { value: 'gu', label: 'ગુજરાતી' }
+          ]}
+        />
+      </div>
       <dl className="mb-4 text-[15px]">
         <div className="flex justify-between border-b border-rule py-2">
           <dt className="text-ink-muted">Google account</dt>
@@ -181,6 +194,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 export function App() {
   const { phase, snapshot, syncing, error, sync } = useData()
+  const { t: tr } = useLang()
   const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem('fp.tab') as Tab) || 'home')
   const [menu, setMenu] = useState(false)
   const [asking, setAsking] = useState(false)
@@ -225,7 +239,7 @@ export function App() {
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-30 flex items-center justify-between bg-paper/95 px-4 pt-2 pb-2 backdrop-blur">
-        <h1 className="wide text-[20px] font-semibold">{tabs.find((t) => t.key === shown)?.label ?? 'Home'}</h1>
+        <h1 className="wide text-[20px] font-semibold">{tr(tabs.find((t) => t.key === shown)?.label ?? 'Home')}</h1>
         <div className="flex items-center gap-1">
           {snapshot.ai && (
             <button
@@ -281,7 +295,7 @@ export function App() {
             >
               <path d={t.icon} />
             </svg>
-            {t.label}
+            {tr(t.label)}
           </button>
         ))}
       </nav>

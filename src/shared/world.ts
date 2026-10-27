@@ -19,6 +19,7 @@ export type WorldMetricKey =
   | 'population'
   | 'reserves'
   | 'gdpUsd'
+  | 'money'
 
 export interface WorldMetric {
   key: WorldMetricKey
@@ -210,6 +211,18 @@ export const WORLD_METRICS: WorldMetric[] = [
     good: 'neither',
     panelOnly: true,
     note: 'Current US dollars.'
+  },
+  {
+    key: 'money',
+    label: 'Your money',
+    unit: '%',
+    source: 'your holdings',
+    yearly: false,
+    lo: 0,
+    mid: 0,
+    hi: 5,
+    good: 'neither',
+    note: 'Share of the family’s investments in each country, with funds opened up into what they hold.'
   }
 ]
 
@@ -377,6 +390,14 @@ export interface WorldSourceStatus {
   everyHours: number
 }
 
+/** Where the family's investments sit, by country (funds looked through). */
+export interface MoneyByCountry {
+  totalInr: number
+  /** In overseas funds whose holdings aren't on file. */
+  unknownInr: number
+  countries: { iso3: string; name: string; valueInr: number; share: number; direct: number; viaFunds: number }[]
+}
+
 export interface WorldMap {
   figures: WorldFigures
   places: WorldPlace[]
@@ -384,6 +405,8 @@ export interface WorldMap {
   events: WorldEvent[]
   /** Shanghai containerised freight index, one reading a week. */
   freight: FreightPoint[]
+  /** The family's money by country; its shares are also the "money" figures. */
+  money: MoneyByCountry
   sources: WorldSourceStatus[]
   /** The background updates are on (they start the first time the map is opened). */
   enabled: boolean

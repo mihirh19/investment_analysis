@@ -9,6 +9,8 @@ export interface TerminalApi {
   openPanel(kind: string, params?: Record<string, unknown>): void
   /** Opens the list of every screen. */
   openMenu(): void
+  /** Switches to a saved workspace by its name (as Ask your money can). */
+  openWorkspace(name: string): void
 }
 
 export const TerminalCtx = createContext<TerminalApi | null>(null)

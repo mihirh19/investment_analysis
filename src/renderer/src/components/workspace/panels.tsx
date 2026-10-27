@@ -3,6 +3,8 @@ import type { IDockviewPanelProps } from 'dockview-react'
 import { ErrorNote } from '../Shell'
 import { StockChart, DEFAULT_CHART, type ChartSettings } from '../StockChart'
 import { Financials, Overview, Peers, ResultsNote } from '../Company'
+import { Ownership } from '../Ownership'
+import { Valuation } from '../Valuation'
 import { Breadth, Empty, Indices, Movers, World as WorldMarkets } from '../Monitor'
 import { Screener } from '../Screener'
 import { fieldOf, fieldText } from '../ScreenTable'
@@ -31,7 +33,7 @@ export interface PanelParams {
   /** The link group followed or driven; null to keep the panel's own symbol. */
   group?: LinkGroup | null
   symbol?: string
-  view?: 'overview' | 'financials' | 'peers'
+  view?: 'overview' | 'financials' | 'valuation' | 'ownership' | 'peers'
   chart?: ChartSettings
   /** Watchlist shown: a saved list's id, or the family's holdings. */
   list?: number | 'family'
@@ -142,6 +144,8 @@ function ChartPanel(p: Props) {
 const COMPANY_VIEWS = [
   { key: 'overview', label: 'Overview' },
   { key: 'financials', label: 'Financials' },
+  { key: 'valuation', label: 'Valuation' },
+  { key: 'ownership', label: 'Ownership' },
   { key: 'peers', label: 'Peers' }
 ] as const
 
@@ -191,6 +195,8 @@ function CompanyPanel(p: Props) {
             <ResultsNote c={c} />
             {view === 'overview' && <Overview c={c} />}
             {view === 'financials' && <Financials c={c} />}
+            {view === 'valuation' && <Valuation c={c} />}
+            {view === 'ownership' && <Ownership symbol={c.symbol} name={c.name} />}
             {view === 'peers' && (
               <Drives p={p}>
                 <Peers c={c} />

@@ -378,9 +378,9 @@ function Licences() {
         , under the Apache License 2.0. The terminal’s tabs and splits use dockview (MIT).
       </p>
       <p>
-        Data: NSE (prices, results filings, F&O positions, deals, disclosures), NSDL (foreign portfolio investment), AMFI (mutual fund flows and NAVs),
+        Data: NSE (prices, results filings, shareholding patterns, announcements, classifications, F&O positions, deals, disclosures), NSDL (foreign portfolio investment), AMFI (mutual fund flows and NAVs),
         Yahoo Finance (price history and quotes, delayed), IMF PortWatch, UN Comtrade, the World Bank, BIS, OECD, USGS, GDACS, Fintraffic / digitraffic.fi
-        (CC BY 4.0), shipping lanes by newzealandpaul/Shipping-Lanes (CC BY 4.0), and country borders from Natural Earth. All are fetched by this computer
+        (CC BY 4.0), shipping lanes by newzealandpaul/Shipping-Lanes (CC BY 4.0), weather by Open-Meteo.com (CC BY 4.0), and country borders from Natural Earth. All are fetched by this computer
         for its own use and nothing is shared.
       </p>
     </section>

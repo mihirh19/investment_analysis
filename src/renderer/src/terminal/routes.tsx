@@ -5,6 +5,13 @@ import { Activity } from '../pages/Activity'
 import { ImportPage } from '../pages/Import'
 import { People } from '../pages/People'
 import { Exposure } from '../pages/Exposure'
+import { Xray } from '../pages/Xray'
+import { Sectors } from '../pages/Sectors'
+import { News } from '../pages/News'
+import { Commodities } from '../pages/Commodities'
+import { Alerts } from '../pages/Alerts'
+import { Scenarios } from '../pages/Scenarios'
+import { Calendar } from '../pages/Calendar'
 import { Dividends } from '../pages/Dividends'
 import { Retirement } from '../pages/Retirement'
 import { Insurance } from '../pages/Insurance'
@@ -34,6 +41,8 @@ export function AppRoutes() {
       <Route path="import" element={<ImportPage />} />
       <Route path="people" element={<People />} />
       <Route path="exposure" element={<Exposure />} />
+      <Route path="xray" element={<Xray />} />
+      <Route path="calendar" element={<Calendar />} />
       <Route path="dividends" element={<Dividends />} />
       <Route path="retirement" element={<Retirement />} />
       <Route path="insurance" element={<Insurance />} />
@@ -54,6 +63,11 @@ export function AppRoutes() {
       <Route path="research/screener" element={<Research mode="screener" />} />
       <Route path="research/world" element={<Research mode="world" />} />
       <Route path="research/flows" element={<Flows />} />
+      <Route path="research/sectors" element={<Sectors />} />
+      <Route path="research/news" element={<News />} />
+      <Route path="research/commodities" element={<Commodities />} />
+      <Route path="alerts" element={<Alerts />} />
+      <Route path="scenarios" element={<Scenarios />} />
       <Route path="research/:symbol" element={<Research />} />
       <Route path="*" element={<Overview />} />
     </Routes>

@@ -141,6 +141,48 @@
       "when": 1792844760118,
       "tag": "0019_flows",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792898910187,
+      "tag": "0020_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1792901185330,
+      "tag": "0021_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792903376022,
+      "tag": "0022_industry",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1792904105639,
+      "tag": "0023_announcements",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792904939831,
+      "tag": "0024_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1793072159527,
+      "tag": "0025_farm_support",
+      "breakpoints": true
     }
   ]
 }

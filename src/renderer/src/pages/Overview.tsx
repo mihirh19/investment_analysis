@@ -7,6 +7,7 @@ import { AreaStack, Donut } from '../components/viz'
 import { useAnalysis, useExposure, useFx, useHealth, useHoldings, usePersons } from '../lib/api'
 import { PeriodPicker, periodStartIndex, periodTitle, usePeriod } from '../lib/period'
 import { PageSkeleton } from '../components/Skeleton'
+import { ReportButton } from '../components/ReportButton'
 import { Sparkline } from '../components/viz'
 import type { HealthReport } from '@shared/types'
 import { compactMoney, lakhCrore, money, percent, shortDate, signedMoney, timeAgo, toneClass } from '../lib/format'
@@ -117,6 +118,7 @@ export function Overview() {
   return (
     <>
       <PageHeader title="Overview">
+        <ReportButton personId={scopePersonId(scope)} />
         <PeriodPicker />
       </PageHeader>
       <ErrorNote error={holdings.error} />

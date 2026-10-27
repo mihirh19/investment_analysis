@@ -10,16 +10,20 @@ import {
   type Metrics
 } from '@shared/research'
 import { ErrorNote } from './Shell'
+import { Ownership } from './Ownership'
+import { Valuation } from './Valuation'
 import { Columns } from './charts'
 import { BASE_COLUMNS, ScreenTable } from './ScreenTable'
 import { StockChart, useStoredChart } from './StockChart'
 import { useCompany, useScreenData } from '../lib/api'
 import { axisCrore, bigMoney, compactMoney, lakhCrore, money, percent, shortDate, toneClass, units } from '../lib/format'
 
-export type View = 'overview' | 'financials' | 'chart' | 'peers'
+export type View = 'overview' | 'financials' | 'valuation' | 'ownership' | 'chart' | 'peers'
 export const VIEWS: { key: View; label: string; codes: string[] }[] = [
   { key: 'overview', label: 'Overview', codes: ['ov', 'overview'] },
   { key: 'financials', label: 'Financials', codes: ['fin', 'financials', 'fa'] },
+  { key: 'valuation', label: 'Valuation', codes: ['val', 'valuation', 'dcf'] },
+  { key: 'ownership', label: 'Ownership', codes: ['own', 'ownership', 'hds'] },
   { key: 'chart', label: 'Price chart', codes: ['ch', 'chart', 'gp'] },
   { key: 'peers', label: 'Peers', codes: ['peer', 'peers', 'rv'] }
 ]
@@ -86,6 +90,8 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
       </div>
       {view === 'overview' && <Overview c={c} />}
       {view === 'financials' && <Financials c={c} />}
+      {view === 'valuation' && <Valuation c={c} />}
+      {view === 'ownership' && <Ownership symbol={symbol} name={c.name} />}
       {view === 'chart' && <Chart symbol={symbol} />}
       {view === 'peers' && <Peers c={c} />}
     </article>

@@ -16,5 +16,5 @@
     "baseUrl": ".",
     "paths": { "@shared/*": ["src/shared/*"] }
   },
-  "include": ["electron.vite.config.ts", "drizzle.config.ts", "vitest.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/renderer/src/lib/ticks.ts", "src/renderer/src/lib/periods.ts", "tests/**/*", "phone/src/lib/ask.ts"]
+  "include": ["electron.vite.config.ts", "drizzle.config.ts", "vitest.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/renderer/src/lib/ticks.ts", "src/renderer/src/lib/periods.ts", "tests/**/*", "phone/src/lib/ask.ts", "phone/src/lib/lang.ts"]
 }

@@ -14,11 +14,18 @@ import type { GoogleAccountView, GoogleSetup } from './mail'
 import type { Forecast, Plan } from './plan'
 import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
-import type { CropKey, CropVarieties, FarmEntryInput, FarmReport, FarmSeasonInput, HoldingCosts, MarketNote } from './farm'
+import type { CropKey, CropVarieties, CropExports, FarmEntryInput, FarmReport, FarmSupportInput, MandiBill, FarmSeasonInput, HoldingCosts, MarketNote } from './farm'
 import type { LoanInput, LoanPayment, LoansReport } from './loans'
 import type { Basis, ChartBars, ChartInterval, CompanyHit, CompanyView, ExcelSheet, LiveQuote, ResearchHome, ResearchStatus, SavedWorkspace, Watchlist } from './research'
 import type { MarketMonitor, Screen, ScreenData, WorldSeries } from './screener'
 import type { FlowsReport, FlowsStatus } from './flows'
+import type { XrayReport } from './xray'
+import type { AnnouncementsReport, CalendarReport, OwnershipReport, OwnershipView } from './research'
+import type { IndustryMap } from './sectors'
+import type { AlertRuleInput, AlertsReport, AutoAlert } from './alerts'
+import type { FarmPlace, FarmWeather } from './weather'
+import type { CommodityBoard } from './commodities'
+import type { ScenarioHolding } from './scenario'
 import type { AisStatus, ShipsView, WorldMap } from './world'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
 
@@ -837,7 +844,7 @@ export interface RequestApi {
   }): Promise<ApiResult<(Transaction & { instrumentName: string; accountName: string })[]>>
   addManualTransaction(input: ManualTxnInput): Promise<ApiResult<number>>
   deleteTransaction(id: number): Promise<ApiResult<null>>
-  pickFile(kind: ImportKind | 'BACKUP' | 'DOCUMENT' | 'STATEMENT'): Promise<ApiResult<string | null>>
+  pickFile(kind: ImportKind | 'BACKUP' | 'DOCUMENT' | 'STATEMENT' | 'PHOTO'): Promise<ApiResult<string | null>>
   hasSavedCasPassword(personId: number): Promise<ApiResult<boolean>>
   runImport(req: ImportRequest): Promise<ApiResult<ImportResult>>
   listImports(): Promise<ApiResult<ImportBatch[]>>
@@ -903,6 +910,12 @@ export interface RequestApi {
   saveFarmSeason(input: FarmSeasonInput): Promise<ApiResult<number>>
   deleteFarmSeason(id: number): Promise<ApiResult<null>>
   saveFarmEntry(input: FarmEntryInput): Promise<ApiResult<number>>
+  saveFarmSupport(input: FarmSupportInput): Promise<ApiResult<number>>
+  /** India's exports of a crop from UN Comtrade (about half a minute the first time; kept a week). */
+  getCropExports(crop: CropKey): Promise<ApiResult<CropExports | null>>
+  /** Reads a photographed mandi bill with Claude (the statements switch); returns the fields to check. */
+  readMandiBill(filePath: string): Promise<ApiResult<MandiBill>>
+  deleteFarmSupport(id: number): Promise<ApiResult<null>>
   deleteFarmEntry(id: number): Promise<ApiResult<null>>
   setFarmMarket(market: string): Promise<ApiResult<null>>
   /** Varieties for the season form: those the mandi reported lately (with today's price), then Agmarknet's list. */
@@ -932,6 +945,10 @@ export interface RequestApi {
   getMarketMonitor(): Promise<ApiResult<MarketMonitor>>
   /** Six months of world indices, currency, oil, gold and US yields from Yahoo Finance. */
   getWorldBoard(): Promise<ApiResult<WorldSeries[]>>
+  getCommodities(): Promise<ApiResult<CommodityBoard>>
+  getScenarioHoldings(personId?: number): Promise<ApiResult<ScenarioHolding[]>>
+  /** Prints the monthly report to a PDF the person saves; null when they cancel. */
+  saveMonthlyReport(personId?: number): Promise<ApiResult<string | null>>
   /** Candles for a chart from Yahoo Finance: full daily history, or recent intraday bars (delayed). */
   getChartBars(symbol: string, interval: ChartInterval): Promise<ApiResult<ChartBars>>
   /** Latest prices (delayed, from Yahoo Finance) for up to 60 symbols, with the day's sparkline. */
@@ -947,6 +964,24 @@ export interface RequestApi {
   /** Asks where to save, then writes the sheets as an Excel file; null if the person cancelled. */
   exportExcel(fileName: string, sheets: ExcelSheet[]): Promise<ApiResult<string | null>>
   /** FII/DII, F&O positions, FPI and mutual fund flows, big deals. Opening it the first time starts the downloads. */
+  /** Every company owned, directly and inside funds: where it comes from, concentration, fund overlap. */
+  getXray(personId?: number): Promise<ApiResult<XrayReport>>
+  /** Results days and dividends, bonuses and splits around today, for the family's stocks and the market. */
+  getCalendar(): Promise<ApiResult<CalendarReport>>
+  getOwnership(symbol: string): Promise<ApiResult<OwnershipView>>
+  getOwnershipReport(): Promise<ApiResult<OwnershipReport>>
+  getIndustries(): Promise<ApiResult<IndustryMap>>
+  getAnnouncements(): Promise<ApiResult<AnnouncementsReport>>
+  getAlerts(): Promise<ApiResult<AlertsReport>>
+  getFarmWeather(force?: boolean): Promise<ApiResult<FarmWeather>>
+  findFarmPlaces(query: string): Promise<ApiResult<FarmPlace[]>>
+  setFarmPlace(place: FarmPlace | null): Promise<ApiResult<FarmWeather>>
+  saveAlertRule(input: AlertRuleInput): Promise<ApiResult<AlertsReport>>
+  deleteAlertRule(id: number): Promise<ApiResult<AlertsReport>>
+  setAutoAlerts(auto: Partial<Record<AutoAlert, boolean>>): Promise<ApiResult<AlertsReport>>
+  markAlertsRead(): Promise<ApiResult<AlertsReport>>
+  /** Claude's digest of the held and watched companies' recent announcements (the newsDigest switch). */
+  writeNewsDigest(): Promise<ApiResult<AnnouncementsReport>>
   getFlows(): Promise<ApiResult<FlowsReport>>
   refreshFlows(): Promise<ApiResult<FlowsStatus>>
   setFlowsSync(on: boolean): Promise<ApiResult<FlowsStatus>>

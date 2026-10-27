@@ -5,6 +5,7 @@ import { Button, Field, Input } from './ui'
 import { openExternal, useAiStatus, useMarketNote, useSetFarmHolding, useSetFarmTransport } from '../lib/api'
 import { money, shortDate } from '../lib/format'
 import { ChatMarkdown } from '../lib/markdown'
+import { CropExports } from './CropExports'
 
 const inr = (v: number | null | undefined) => money(v, 'INR', 0)
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`)
@@ -177,6 +178,7 @@ function CropOutlookCard({ o, r }: { o: CropOutlook; r: FarmReport }) {
           usually weigh on prices.
         </p>
       )}
+      <CropExports crop={o.crop} />
       <Note o={o} />
     </article>
   )

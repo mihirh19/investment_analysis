@@ -2,11 +2,13 @@ import { useEffect } from 'react'
 import type { ManualAssetInput } from '@shared/assets'
 import type { VehicleInput } from '@shared/vehicles'
 import type { Plan } from '@shared/plan'
-import type { CropKey, FarmEntryInput, FarmSeasonInput, HoldingCosts } from '@shared/farm'
+import type { CropKey, FarmEntryInput, FarmSupportInput, FarmSeasonInput, HoldingCosts } from '@shared/farm'
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Basis, ChartInterval, ExcelSheet, SavedWorkspace } from '@shared/research'
+import type { AlertRuleInput, AutoAlert } from '@shared/alerts'
+import type { FarmPlace } from '@shared/weather'
 import type { Screen } from '@shared/screener'
 import type {
   ApiResult,
@@ -266,6 +268,11 @@ export const useSaveFarmSeason = () => useWrite((input: FarmSeasonInput) => api(
 export const useDeleteFarmSeason = () => useWrite((id: number) => api().deleteFarmSeason(id))
 export const useSaveFarmEntry = () => useWrite((input: FarmEntryInput) => api().saveFarmEntry(input))
 export const useDeleteFarmEntry = () => useWrite((id: number) => api().deleteFarmEntry(id))
+export const useCropExports = (crop: CropKey, on: boolean) =>
+  useQuery({ queryKey: ['history', 'cropExports', crop], queryFn: () => unwrap(api().getCropExports(crop)), enabled: on, staleTime: 24 * 3600_000 })
+export const readMandiBill = (filePath: string) => unwrap(api().readMandiBill(filePath))
+export const useSaveFarmSupport = () => useWrite((input: FarmSupportInput) => api().saveFarmSupport(input))
+export const useDeleteFarmSupport = () => useWrite((id: number) => api().deleteFarmSupport(id))
 export const useCropVarieties = (crop: CropKey, market?: string | null) =>
   useQuery({ queryKey: ['farm-varieties', crop, market ?? ''], queryFn: () => unwrap(api().getCropVarieties(crop, market)) })
 export const useSetFarmMarket = () => useWrite((market: string) => api().setFarmMarket(market))
@@ -332,6 +339,7 @@ export const useSpending = (personId?: number) =>
 export const useSetSpendCategory = () => useWrite((txnId: number, category: SpendCategory) => api().setSpendCategory(txnId, category))
 export const useDeleteStatement = () => useWrite((id: number) => api().deleteStatement(id))
 export const pickStatement = () => unwrap(api().pickFile('STATEMENT'))
+export const pickPhoto = () => unwrap(api().pickFile('PHOTO'))
 export const askMoney = (id: string, history: ChatTurn[]) => unwrap(api().askMoney(id, history))
 export const onChatEvent = (fn: (e: ChatEvent) => void) => api().onChatEvent(fn)
 
@@ -530,3 +538,32 @@ export function useSetFlowsSync() {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (on: boolean) => unwrap(api().setFlowsSync(on)), onSuccess: () => qc.invalidateQueries({ queryKey: ['research', 'flows'] }) })
 }
+
+export const useXray = (personId?: number) =>
+  useQuery({ queryKey: ['xray', personId ?? 'all'], queryFn: () => unwrap(api().getXray(personId)) })
+
+export const useCalendar = () => useQuery({ queryKey: ['research', 'calendar'], queryFn: () => unwrap(api().getCalendar()) })
+export const useOwnership = (symbol: string) =>
+  useQuery({
+    queryKey: ['research', 'ownership', symbol],
+    queryFn: () => unwrap(api().getOwnership(symbol)),
+    refetchInterval: (q) => (q.state.data?.waiting ? 5000 : false)
+  })
+export const useFarmWeather = () => useQuery({ queryKey: ['history', 'farmWeather'], queryFn: () => unwrap(api().getFarmWeather()), staleTime: 30 * 60_000 })
+export const useRefreshFarmWeather = () => useWrite(() => api().getFarmWeather(true))
+export const useSetFarmPlace = () => useWrite((place: FarmPlace | null) => api().setFarmPlace(place))
+export const findFarmPlaces = (query: string) => unwrap(api().findFarmPlaces(query))
+export const useScenarioHoldings = (personId?: number) =>
+  useQuery({ queryKey: ['scenario', personId ?? 'all'], queryFn: () => unwrap(api().getScenarioHoldings(personId)) })
+export const useSaveMonthlyReport = () => useMutation({ mutationFn: (personId?: number) => unwrap(api().saveMonthlyReport(personId)) })
+export const useCommodities = () =>
+  useQuery({ queryKey: ['history', 'commodities'], queryFn: () => unwrap(api().getCommodities()), staleTime: 10 * 60_000, refetchInterval: 20 * 60_000 })
+export const useAlerts = () => useQuery({ queryKey: ['research', 'alerts'], queryFn: () => unwrap(api().getAlerts()), refetchInterval: 60_000 })
+export const useSaveAlertRule = () => useWrite((input: AlertRuleInput) => api().saveAlertRule(input))
+export const useDeleteAlertRule = () => useWrite((id: number) => api().deleteAlertRule(id))
+export const useSetAutoAlerts = () => useWrite((auto: Partial<Record<AutoAlert, boolean>>) => api().setAutoAlerts(auto))
+export const useMarkAlertsRead = () => useWrite(() => api().markAlertsRead())
+export const useAnnouncements = () => useQuery({ queryKey: ['research', 'announcements'], queryFn: () => unwrap(api().getAnnouncements()) })
+export const useWriteNewsDigest = () => useWrite(() => api().writeNewsDigest())
+export const useIndustries = () => useQuery({ queryKey: ['research', 'industries'], queryFn: () => unwrap(api().getIndustries()) })
+export const useOwnershipReport = () => useQuery({ queryKey: ['research', 'ownership-report'], queryFn: () => unwrap(api().getOwnershipReport()) })

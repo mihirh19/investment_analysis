@@ -22,9 +22,15 @@ import {
 import { PriceLine } from '../components/charts'
 import { Combobox } from '../components/Combobox'
 import { FarmOutlook } from '../components/FarmOutlook'
+import { FarmWeatherSection } from '../components/FarmWeather'
+import { FarmLand } from '../components/FarmLand'
+import { FarmSupportSection } from '../components/FarmSupport'
 import { ErrorNote, PageHeader } from '../components/Shell'
 import { Button, Field, Input, Select } from '../components/ui'
 import {
+  pickPhoto,
+  readMandiBill,
+  useAiStatus,
   useCropVarieties,
   useDeleteFarmEntry,
   useDeleteFarmSeason,
@@ -96,6 +102,9 @@ export function Farm() {
             </div>
           )}
 
+          <FarmWeatherSection />
+          <FarmLand personId={scopePersonId(scope)} fy={r.thisFy} />
+          <FarmSupportSection r={r} />
           {r.stock.length > 0 && <Stock stock={r.stock} />}
           {r.prices.length > 0 && <Prices prices={r.prices} defaultMarket={r.defaultMarket} />}
           <FarmOutlook r={r} />
@@ -152,7 +161,7 @@ function Summary({ r }: { r: NonNullable<ReturnType<typeof useFarm>['data']> }) 
         <div className="text-[13px] text-ink-muted">This year ({r.thisFy.fy})</div>
         <div className="wide num text-[28px] font-semibold">{inr(r.thisFy.sales)}</div>
         <div className="text-[13px] text-ink-muted">
-          sold, after mandi charges; {inr(r.thisFy.costs)} spent. Farm income is exempt from income tax.
+          sold, after mandi charges; {inr(r.thisFy.costs)} spent{r.thisFy.support > 0 ? `; ${inr(r.thisFy.support)} from government schemes` : ''}. Farm income is exempt from income tax.
         </div>
       </div>
     </div>
@@ -620,6 +629,40 @@ function EntryForm({ s, type, onDone }: { s: FarmSeasonView; type: FarmEntryType
   const [charges, setCharges] = useState('')
   const [mandi, setMandi] = useState(s.market ?? '')
   const [note, setNote] = useState('')
+  const ai = useAiStatus().data
+  const [reading, setReading] = useState(false)
+  const [billNote, setBillNote] = useState<string | null>(null)
+  const [billError, setBillError] = useState<unknown>(null)
+  // A photo of the mandi bill, read by Claude, fills the form; nothing is saved until Save.
+  const fromPhoto = async () => {
+    setBillError(null)
+    const path = await pickPhoto()
+    if (!path) return
+    setReading(true)
+    try {
+      const b = await readMandiBill(path)
+      if (b.date) setDate(b.date)
+      if (b.quantity !== null) {
+        setQ(String(b.quantity))
+        if (b.unit) setUnit(b.unit)
+      }
+      if (b.rate !== null) {
+        setRate(String(b.rate))
+        if (b.rateUnit === 'QTL' || b.rateUnit === 'MAN') setRateUnit(b.rateUnit)
+      }
+      const gross = b.gross ?? (b.net !== null && b.charges !== null ? b.net + b.charges : null)
+      if (gross !== null) setAmount(String(Math.round(gross)))
+      if (b.charges !== null) setCharges(String(Math.round(b.charges)))
+      if (b.mandi) setMandi(b.mandi)
+      const crop = b.crop && b.crop !== s.crop ? `The bill is for ${CROPS[b.crop].label}, not ${CROPS[s.crop].label}. ` : ''
+      setNote([b.trader, b.variety].filter(Boolean).join(', '))
+      setBillNote(`${crop}Read from the photo; check each figure before saving.${b.notes ? ` ${b.notes}` : ''}`)
+    } catch (e) {
+      setBillError(e)
+    } finally {
+      setReading(false)
+    }
+  }
   const quintals = num(q) !== null ? toQuintals(num(q)!, unit) : null
   // Rates are often quoted per man (20 kg); store them per quintal.
   const ratePerQtl = num(rate) !== null ? (rateUnit === 'MAN' ? num(rate)! * 5 : num(rate)!) : null
@@ -645,7 +688,19 @@ function EntryForm({ s, type, onDone }: { s: FarmSeasonView; type: FarmEntryType
   }
   return (
     <form onSubmit={submit} className="mt-3 rounded-md bg-sheet p-3">
-      <h4 className="mb-2 text-[15px] font-semibold">{type === 'COST' ? 'Add a cost' : ENTRY_LABELS[type]}</h4>
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-4">
+        <h4 className="text-[15px] font-semibold">{type === 'COST' ? 'Add a cost' : ENTRY_LABELS[type]}</h4>
+        {type === 'SALE' &&
+          (ai?.statements ? (
+            <button type="button" className="text-[13px] text-stamp hover:underline disabled:opacity-50" disabled={reading} onClick={() => void fromPhoto()}>
+              {reading ? 'Reading the bill…' : 'Fill from a photo of the mandi bill'}
+            </button>
+          ) : (
+            <span className="text-[12.5px] text-ink-muted">Turn on statement reading in Settings → Claude to fill this from a photo of the bill.</span>
+          ))}
+      </div>
+      {billNote && <p className="mb-2 rounded-sm border border-warn/50 bg-warn-wash px-3 py-1.5 text-[13px]">{billNote}</p>}
+      <ErrorNote error={billError} />
       <div className="flex flex-wrap items-start gap-3">
         <Field label="Date">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

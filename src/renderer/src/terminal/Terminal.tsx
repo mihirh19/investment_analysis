@@ -13,6 +13,7 @@ import {
   saveWorkspaces,
   useMarketSubscription,
   usePersons,
+  useAlerts,
   useQuotes,
   useResearchHome,
   useResearchSubscription,
@@ -22,7 +23,7 @@ import {
 import { percent, toneClass } from '../lib/format'
 import { titleFor } from '../lib/nav'
 import { useScope, type Scope } from '../lib/scope'
-import { TerminalCtx, type TerminalApi } from '../lib/terminal'
+import { TerminalCtx, useTerminal, type TerminalApi } from '../lib/terminal'
 
 // The whole app as a trading terminal: a command line and function keys along the top, every
 // screen and tool as a tab that can be split, stacked or floated, and a status bar with a ticker.
@@ -245,7 +246,11 @@ export function Terminal() {
         const focused = api.activePanel
         addTool(api, kind, params as PanelParams, focused ? { referencePanel: focused.id, direction: 'right' } : undefined)
       },
-      openMenu: () => setMenu(true)
+      openMenu: () => setMenu(true),
+      openWorkspace(name) {
+        const ws = listRef.current?.find((w) => w.name.toLowerCase() === name.toLowerCase())
+        if (ws) load(ws.id)
+      }
     }),
     []
   )
@@ -504,8 +509,22 @@ function StatusBar() {
           {s.history.days < s.history.want ? `, prices ${s.history.days}/${s.history.want} days` : ''}
         </span>
       )}
+      <AlertsBadge />
       <Clock />
     </footer>
+  )
+}
+
+/** Unread alerts; opens the Alerts screen. */
+function AlertsBadge() {
+  const a = useAlerts()
+  const terminal = useTerminal()
+  const n = a.data?.unread ?? 0
+  if (n === 0) return null
+  return (
+    <button type="button" className="whitespace-nowrap font-semibold text-stamp hover:underline" onClick={() => terminal?.openScreen('/alerts')}>
+      {n} new alert{n === 1 ? '' : 's'}
+    </button>
   )
 }
 

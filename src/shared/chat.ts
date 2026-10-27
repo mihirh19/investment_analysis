@@ -38,6 +38,10 @@ export interface ChatSources {
   fundHistory(code: string): Promise<unknown>
   /** India's consumer price inflation, overall and by category. */
   inflation?(): unknown
+  /** The app's screens, for opening one in a tab (desktop only). */
+  screens?: { code: string; label: string; route: string }[]
+  /** Saved workspace names (desktop only). */
+  workspaces?(): string[]
   /** Where the chat runs; the phone has the synced figures only. */
   where?: 'desktop' | 'phone'
   /** The connected Gmail accounts, when the person has allowed it. */
@@ -71,7 +75,7 @@ How to answer:
 - Point to the page that shows more (Holdings, Tax, Performance, Spending, Property & rent, Vehicles, Farm, Loans & EMIs, Forecast & inflation, Sectors & exposure, Funds).
 - You are not a SEBI-registered investment adviser. Explain, compare and show facts (costs, overlaps, tax effects, past returns), but don't tell the person to buy, sell or switch a particular security, fund or sector. If asked, lay out the facts that bear on the choice and suggest a SEBI-registered adviser for a recommendation.
 - Past returns don't predict future ones; say so when comparing returns.
-
+${phone ? '' : '- You can open screens for the person: open_screen shows a screen or a company in a new tab, open_workspace switches to a saved workspace. Use them when asked to show, open or go to something, or when a screen shows the answer better; say what you opened.\n'}
 ${MARKET(phone)}
 ${phone ? '' : `\n${GMAIL(mailboxes)}`}`
 
@@ -96,7 +100,9 @@ const TOOL_WORDS: Record<string, string> = {
   inflation: 'inflation',
   gmail_search: 'your Gmail',
   gmail_read: 'an email',
-  gmail_import: 'importing from Gmail'
+  gmail_import: 'importing from Gmail',
+  open_screen: 'opening a screen',
+  open_workspace: 'switching workspace'
 }
 
 /** Keeps a tool result compact: rounds long decimals and cuts very long lists. */
@@ -243,6 +249,52 @@ export async function ask(
         ]
       : [])
   ]
+
+  const screens = phone ? undefined : src.screens
+  if (screens) {
+    const list = screens.map((s) => `${s.code} (${s.label})`).join(', ')
+    tools.push(
+      tool(
+        'open_screen',
+        `Opens a screen of the app in a new tab: one of ${list}; or a company's page when symbol is given (NSE symbol), optionally on one of its views.`,
+        z.object({
+          screen: z.string().optional().describe('A screen code or name from the list'),
+          symbol: z.string().optional().describe('An NSE symbol, to open that company'),
+          view: z.enum(['overview', 'financials', 'valuation', 'ownership', 'chart', 'peers']).optional()
+        }),
+        (i) => {
+          let route: string | null = null
+          let what = ''
+          if (i.symbol) {
+            const s = i.symbol.trim().toUpperCase().replace(/[^A-Z0-9&-]/g, '')
+            if (!s) throw new Error('Give an NSE symbol, like INFY.')
+            route = `/research/${encodeURIComponent(s)}${i.view && i.view !== 'overview' ? `?view=${i.view}` : ''}`
+            what = `${s}${i.view ? ` (${i.view})` : ''}`
+          } else if (i.screen) {
+            const want = i.screen.trim().toLowerCase()
+            const hit = screens.find((s) => s.code.toLowerCase() === want || s.label.toLowerCase() === want) ?? screens.find((s) => s.label.toLowerCase().includes(want))
+            if (!hit) throw new Error(`No screen called ${i.screen}. Screens: ${list}.`)
+            route = hit.route
+            what = hit.label
+          }
+          if (!route) throw new Error('Say which screen or company to open.')
+          emit({ id, type: 'open', route })
+          return `Opened ${what} in a new tab.`
+        }
+      ) as unknown as (typeof tools)[number]
+    )
+    if (src.workspaces) {
+      const names = src.workspaces()
+      tools.push(
+        tool('open_workspace', `Switches the terminal to a saved workspace: ${names.join(', ')}.`, z.object({ name: z.string() }), (i) => {
+          const hit = names.find((n) => n.toLowerCase() === i.name.trim().toLowerCase())
+          if (!hit) throw new Error(`No workspace called ${i.name}. Workspaces: ${names.join(', ')}.`)
+          emit({ id, type: 'workspace', name: hit })
+          return `Switched to the ${hit} workspace.`
+        }) as unknown as (typeof tools)[number]
+      )
+    }
+  }
 
   const runner = client.beta.messages.toolRunner({
     model: AI_MODEL,

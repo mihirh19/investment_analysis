@@ -10,6 +10,7 @@ import { registerIpc } from './ipc'
 import { decryptSecret, encryptSecret, loadOrCreateDbKey, writeDbKey } from './keystore'
 import { MarketData } from './market/refresh'
 import { ResearchSync } from './research/sync'
+import { AlertWatcher } from './alerts'
 import { FlowsSync } from './flows/sync'
 import { WorldSync } from './world/sync'
 import { renderLinks } from './market/render'
@@ -74,6 +75,7 @@ if (!app.requestSingleInstanceLock()) {
     let flowsSync: FlowsSync
     let worldSync: WorldSync
     let services: Services
+    let alertWatcher: AlertWatcher
     try {
       const userData = app.getPath('userData')
       const keyFile = join(userData, 'db.key')
@@ -130,6 +132,19 @@ if (!app.requestSingleInstanceLock()) {
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
         }, 3000)
       })
+      // Price rules and automatic alerts: a desktop notification each (a summary when many come at once).
+      alertWatcher = new AlertWatcher(
+        db,
+        (symbols) => services.getQuotes(symbols),
+        (events) => {
+          if (Notification.isSupported()) {
+            for (const e of events.slice(0, 4)) new Notification({ title: e.title, body: e.body }).show()
+            if (events.length > 4) new Notification({ title: `${events.length - 4} more alerts`, body: 'Open Alerts in Family Portfolio to see them all.' }).show()
+          }
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
+        },
+        () => services.getFarmWeather()
+      )
       services = createServices({
         db,
         casparserExe: app.isPackaged
@@ -178,6 +193,7 @@ if (!app.requestSingleInstanceLock()) {
     // After the first price refresh has had the network to itself.
     setTimeout(() => researchSync.start(), 45_000)
     setTimeout(() => flowsSync.start(), 75_000)
+    alertWatcher.start()
     worldSync.start()
     // Connected Gmail accounts are checked for new statements a minute after start, then every 12 hours.
     const checkMail = () => {

@@ -422,3 +422,151 @@ function sharesRose(y: YearRow, p: YearRow): boolean {
   const sp = div(profitOf(p), p.eps)
   return s !== null && sp !== null && s > sp * 1.005
 }
+
+/** Results days and corporate actions around today, marked for the family's stocks and watchlists. */
+export interface CalendarReport {
+  results: { symbol: string; company: string; date: string; purpose: string; details: string; held: CompanyHeld | null; watched: boolean }[]
+  actions: {
+    symbol: string
+    company: string
+    exDate: string
+    recordDate: string | null
+    subject: string
+    kind: string
+    amount: number | null
+    held: CompanyHeld | null
+    watched: boolean
+    /** Dividend a share × shares held, before tax. */
+    expectedInr: number | null
+  }[]
+  updatedAt: string | null
+}
+
+// ---------------- ownership (shareholding patterns) ----------------
+
+/** Who owns a company, in the groups the shareholding pattern reports. Fractions of all shares. */
+export const OWNER_GROUPS = ['promoter', 'fpi', 'mf', 'insurance', 'otherDii', 'retail', 'hni', 'corporate', 'other'] as const
+export type OwnerGroup = (typeof OWNER_GROUPS)[number]
+export const OWNER_LABEL: Record<OwnerGroup, string> = {
+  promoter: 'Promoters',
+  fpi: 'Foreign investors (FPI)',
+  mf: 'Mutual funds',
+  insurance: 'Insurance',
+  otherDii: 'Banks, pension and other Indian institutions',
+  retail: 'Small shareholders (up to ₹2 lakh)',
+  hni: 'Large individual shareholders',
+  corporate: 'Companies',
+  other: 'Everyone else'
+}
+
+export interface ShpHolder {
+  name: string
+  /** The pattern's own heading for this holder (promoter, mutual fund, insurance, foreign institution…). */
+  kind: string
+  share: number
+}
+
+export interface ShpQuarter {
+  asOf: string
+  promoter: number | null
+  /** Filled in once the quarter's full pattern (XBRL) has been read. */
+  groups: Record<OwnerGroup, number> | null
+  shareholders: number | null
+  /** Named holders of 1% or more. */
+  holders: ShpHolder[] | null
+  filedAt: string | null
+}
+
+export interface OwnershipView {
+  symbol: string
+  /** Newest first. */
+  quarters: ShpQuarter[]
+  /** Still being fetched from NSE. */
+  waiting: boolean
+}
+
+export interface StakeChange {
+  symbol: string
+  company: string
+  asOf: string
+  prevAsOf: string
+  promoter: number | null
+  promoterChange: number | null
+  fpi: number | null
+  fpiChange: number | null
+  mf: number | null
+  mfChange: number | null
+  held: CompanyHeld | null
+  watched: boolean
+}
+
+export interface OwnershipReport {
+  /** Held and watched companies, latest quarter against the one before. */
+  mine: StakeChange[]
+  /** Every company that filed recently whose promoters' stake moved by half a point or more. */
+  promoterMoves: StakeChange[]
+  updatedAt: string | null
+}
+
+// ---------------- announcements ----------------
+
+export const ANN_TAGS = ['results', 'orders', 'deal', 'rating', 'legal', 'capital', 'dividend', 'management', 'meeting', 'news', 'routine', 'other'] as const
+export type AnnTag = (typeof ANN_TAGS)[number]
+export const ANN_TAG_LABEL: Record<AnnTag, string> = {
+  results: 'Results',
+  orders: 'Orders',
+  deal: 'Deals and mergers',
+  rating: 'Credit rating',
+  legal: 'Legal and regulator',
+  capital: 'Shares and capital',
+  dividend: 'Dividends',
+  management: 'Management',
+  meeting: 'Meetings and calls',
+  news: 'News and updates',
+  routine: 'Routine filings',
+  other: 'Other'
+}
+/** Kinds worth seeing across the whole market, not only for your companies. */
+export const MARKET_TAGS: AnnTag[] = ['orders', 'deal', 'rating', 'legal', 'capital']
+
+// First match wins, so the narrower kinds come before the broad ones.
+const ANN_RULES: [AnnTag, RegExp][] = [
+  ['routine', /newspaper|loss of share|duplicate share|trading window|certificate under|regulation 74|compliance certificate|esop|esos|esps|monitoring agency|statement of deviation|voting pattern|book closure intimation|change in rta|registrar|options to purchase|committee meeting/i],
+  ['legal', /action\(s\) taken|orders passed|litigation|penalty|default|insolvency|fraud|search|show cause|regulatory action|investigation|licen[cs]e|regulatory approval/i],
+  ['results', /financial result|outcome of board meeting|audited result|unaudited result/i],
+  ['rating', /credit rating/i],
+  ['deal', /acquisition|amalgamation|merger|demerger|scheme of arrangement|joint venture|divest|disinvest|sale of (unit|undertaking|stake|business)|sale or disposal|takeover/i],
+  ['orders', /bagging|receiving of orders|order win|contract|letter of award|commencement of commercial production/i],
+  ['capital', /allotment|buy ?back|rights issue|preferential|qip|bonus|split|fund ?raising|issue of securities|warrants|reduction of capital/i],
+  ['dividend', /dividend|record date/i],
+  ['management', /resignation|cessation|change in (director|management|key|company secretary|auditor)|appointment|re-appointment/i],
+  ['meeting', /analyst|institutional investor|con\.? ?call|investor presentation|shareholders meeting|agm|egm|postal ballot/i],
+  ['news', /press release|updates|news|clarification|price movement/i]
+]
+
+export function tagAnnouncement(category: string, text: string): AnnTag {
+  for (const [tag, re] of ANN_RULES) if (re.test(category)) return tag
+  for (const [tag, re] of ANN_RULES) if (tag !== 'news' && tag !== 'routine' && re.test(text)) return tag
+  return 'other'
+}
+
+export interface Announcement {
+  id: string
+  symbol: string
+  company: string
+  /** ISO time it reached the exchange. */
+  at: string
+  category: string
+  tag: AnnTag
+  text: string
+  url: string | null
+}
+
+export interface AnnouncementsReport {
+  /** Held and watched companies, last 30 days, newest first. */
+  mine: (Announcement & { held: boolean; watched: boolean })[]
+  /** Every company, the last three days, kinds in MARKET_TAGS only. */
+  market: Announcement[]
+  digest: { at: string; text: string; count: number } | null
+  updatedAt: string | null
+}

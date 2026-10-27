@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { ChatTurn } from '@shared/ai'
 import { ChatMarkdown } from '../lib/markdown'
 import { askMoney, onChatEvent, openExternal, useAiStatus, useSetAiFeatures, useSetAiKey } from '../lib/api'
+import { useTerminal } from '../lib/terminal'
 
 const OPEN_EVENT = 'fp:open-ask'
 /** Opens the chat from anywhere (the sidebar button). */
@@ -109,6 +110,10 @@ export function AskPanel() {
   const [looking, setLooking] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const current = useRef<string | null>(null)
+  // The chat can open screens and workspaces; the latest terminal is read when an event comes.
+  const terminal = useTerminal()
+  const terminalRef = useRef(terminal)
+  terminalRef.current = terminal
   const end = useRef<HTMLDivElement>(null)
 
   useEffect(
@@ -129,7 +134,9 @@ export function AskPanel() {
             return last?.role === 'assistant' ? [...t.slice(0, -1), { ...last, looked: e.looked }] : t
           })
           setLooking(null)
-        } else if (e.type === 'error') {
+        } else if (e.type === 'open') terminalRef.current?.openScreen(e.route, { newTab: true })
+        else if (e.type === 'workspace') terminalRef.current?.openWorkspace(e.name)
+        else if (e.type === 'error') {
           setError(e.message)
           setLooking(null)
         }

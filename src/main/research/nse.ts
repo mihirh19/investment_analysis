@@ -1,6 +1,6 @@
 import { unzipSync, strFromU8 } from 'fflate'
 import { fetchWith, HttpError, type FetchFn } from '../market/http'
-import type { Basis, DayQuote } from '@shared/research'
+import { OWNER_GROUPS, type Basis, type DayQuote, type OwnerGroup, type ShpHolder } from '@shared/research'
 import type { IndexLevel } from '@shared/screener'
 import type { Bar } from '@shared/technicals'
 
@@ -290,4 +290,202 @@ export class NseClient {
     }
     return out
   }
+}
+
+/** NSE's board-meeting calendar: results days and other meetings coming up, for every company. */
+export function parseEventCalendar(json: unknown): { symbol: string; company: string; date: string; purpose: string; details: string }[] {
+  const data = Array.isArray(json) ? json : (json as { data?: unknown[] } | null)?.data
+  if (!Array.isArray(data)) return []
+  const out = []
+  for (const r of data as Record<string, string | null>[]) {
+    const date = nseDate(r.date)
+    if (!date || !r.symbol) continue
+    out.push({ symbol: r.symbol.toUpperCase(), company: r.company ?? r.symbol, date, purpose: (r.purpose ?? '').trim(), details: (r.bm_desc ?? '').replace(/\s+/g, ' ').trim().slice(0, 500) })
+  }
+  return out
+}
+
+export type ActionKind = 'DIVIDEND' | 'BONUS' | 'SPLIT' | 'RIGHTS' | 'BUYBACK' | 'DEMERGER' | 'OTHER'
+
+/** NSE's corporate actions: dividends (₹ a share), bonuses, splits, rights, buybacks, with ex and record dates. */
+export function parseCorporateActions(json: unknown): { symbol: string; exDate: string; recordDate: string | null; subject: string; kind: ActionKind; amount: number | null }[] {
+  const data = Array.isArray(json) ? json : (json as { data?: unknown[] } | null)?.data
+  if (!Array.isArray(data)) return []
+  const out = []
+  for (const r of data as Record<string, string | null>[]) {
+    const exDate = nseDate(r.exDate)
+    const subject = (r.subject ?? '').replace(/\s+/g, ' ').trim()
+    if (!exDate || !r.symbol || !subject) continue
+    if (r.series && !['EQ', 'BE', 'BZ', 'SM', 'ST'].includes(r.series)) continue
+    const kind: ActionKind = /dividend/i.test(subject)
+      ? 'DIVIDEND'
+      : /bonus/i.test(subject)
+        ? 'BONUS'
+        : /split|sub-division/i.test(subject)
+          ? 'SPLIT'
+          : /rights/i.test(subject)
+            ? 'RIGHTS'
+            : /buy\s*back/i.test(subject)
+              ? 'BUYBACK'
+              : /demerger/i.test(subject)
+                ? 'DEMERGER'
+                : 'OTHER'
+    // "Interim Dividend - Rs 12 Per Share"; several dividends in one line are added up.
+    const amounts = kind === 'DIVIDEND' ? [...subject.matchAll(/(?:Rs|Re)\.?\s*([\d.]+)/gi)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n)) : []
+    out.push({ symbol: r.symbol.toUpperCase(), exDate, recordDate: nseDate(r.recDate), subject, kind, amount: amounts.length ? amounts.reduce((a, b) => a + b, 0) : null })
+  }
+  return out
+}
+
+/** NSE's shareholding-pattern list: one row per filing, promoters' share and the XBRL file's address. */
+export function parseShpList(json: unknown): { symbol: string; asOf: string; promoter: number | null; url: string | null; filedAt: string | null }[] {
+  const data = Array.isArray(json) ? json : (json as { data?: unknown[] } | null)?.data
+  if (!Array.isArray(data)) return []
+  const out = []
+  for (const r of data as Record<string, string | null>[]) {
+    const asOf = nseDate(r.date)
+    if (!asOf || !r.symbol) continue
+    const p = Number(r.pr_and_prgrp)
+    out.push({
+      symbol: r.symbol.toUpperCase(),
+      asOf,
+      promoter: r.pr_and_prgrp && Number.isFinite(p) ? Math.round(p * 100) / 10000 : null,
+      url: r.xbrl && /^https:\/\/nsearchives\.nseindia\.com\//.test(r.xbrl) ? r.xbrl : null,
+      filedAt: nseDate(r.submissionDate)
+    })
+  }
+  return out
+}
+
+// The pattern's categories, as XBRL members, added up into the app's groups.
+const SHP_GROUP: Record<string, OwnerGroup> = {
+  ShareholdingOfPromoterAndPromoterGroupMember: 'promoter',
+  InstitutionsForeignPortfolioInvestorCategoryOneMember: 'fpi',
+  InstitutionsForeignPortfolioInvestorCategoryTwoMember: 'fpi',
+  MutualFundsOrUTIMember: 'mf',
+  InsuranceCompaniesMember: 'insurance',
+  ResidentIndividualShareholdersHoldingNominalShareCapitalUpToRsTwoLakhMember: 'retail',
+  ResidentIndividualShareholdersHoldingNominalShareCapitalInExcessOfRsTwoLakhMember: 'hni',
+  BodiesCorporateMember: 'corporate'
+}
+const SHP_HOLDER_KIND: Record<string, string> = {
+  OthersIndianShareholders: 'Promoter',
+  OtherForeignShareholders: 'Promoter',
+  MutualFundsOrUTI: 'Mutual fund',
+  InsuranceCompanies: 'Insurance',
+  Banks: 'Bank',
+  ProvidentFundsOrPensionFunds: 'Pension fund',
+  AlternativeInvestmentFunds: 'AIF',
+  InstitutionsForeignPortfolioInvestorCategoryOne: 'Foreign investor',
+  InstitutionsForeignPortfolioInvestorCategoryTwo: 'Foreign investor',
+  DetailsOfSharesHeldByOtherInstitutionsForeign: 'Foreign institution',
+  ForeignPortfolioInvestorCategoryOne: 'Foreign investor',
+  ForeignPortfolioInvestorCategoryTwo: 'Foreign investor',
+  BodiesCorporate: 'Company',
+  OtherNonInstitutions: 'Other'
+}
+
+/**
+ * A quarterly shareholding pattern (SHP XBRL): the share held by each group (promoters, foreign
+ * investors, mutual funds…) and the named holders of 1% or more.
+ */
+export function parseShpXbrl(xml: string): { asOf: string; groups: Record<OwnerGroup, number>; shareholders: number | null; holders: ShpHolder[] } | null {
+  const asOf = /<xbrli:context id="MainI">[\s\S]*?<xbrli:instant>(\d{4}-\d{2}-\d{2})</.exec(xml)?.[1]
+  if (!asOf) return null
+  // Contexts that name one category of shareholders and nothing else.
+  const category = new Map<string, string>()
+  for (const m of xml.matchAll(/<xbrli:context id="([^"]+)">([\s\S]*?)<\/xbrli:context>/g)) {
+    const dims = [...m[2].matchAll(/explicitMember dimension="[^"]*CategoryOfShareholdersAxis">[^:<]*:([A-Za-z]+)</g)]
+    if (dims.length === 1 && !m[2].includes('typedMember')) category.set(m[1], dims[0][1])
+  }
+  const fact = (el: string) => {
+    const out = new Map<string, string>()
+    for (const m of xml.matchAll(new RegExp(`<in-bse-shp:${el} contextRef="([^"]+)"[^>]*>([^<]*)<`, 'g'))) out.set(m[1], m[2])
+    return out
+  }
+  const share = fact('ShareholdingAsAPercentageOfTotalNumberOfShares')
+  const count = fact('NumberOfShareholders')
+  const byMember = new Map<string, number>()
+  for (const [ctx, member] of category) {
+    const v = Number(share.get(ctx))
+    if (Number.isFinite(v)) byMember.set(member, v)
+  }
+  if (!byMember.has('ShareholdingOfPromoterAndPromoterGroupMember')) return null
+  const groups = Object.fromEntries(OWNER_GROUPS.map((g) => [g, 0])) as Record<OwnerGroup, number>
+  for (const [member, g] of Object.entries(SHP_GROUP)) groups[g] += byMember.get(member) ?? 0
+  groups.otherDii = Math.max(0, (byMember.get('InstitutionsDomesticMember') ?? 0) - groups.mf - groups.insurance)
+  const known = OWNER_GROUPS.filter((g) => g !== 'other').reduce((s, g) => s + groups[g], 0)
+  groups.other = Math.max(0, 1 - known)
+  for (const g of OWNER_GROUPS) groups[g] = Math.round(groups[g] * 1e6) / 1e6
+  const totalCtx = [...category].find(([, m]) => m === 'ShareholdingPatternMember')?.[0]
+  const total = totalCtx ? Number(count.get(totalCtx)) : NaN
+
+  const names = fact('NameOfTheShareholder')
+  const holders: ShpHolder[] = []
+  for (const [ctx, name] of names) {
+    const key = ctx.replace(/^D_/, '')
+    const kind = SHP_HOLDER_KIND[key.replace(/_Context\d+$/, '')]
+    const v = Number(share.get(key))
+    if (!kind || !Number.isFinite(v) || v < 0.01) continue
+    holders.push({ name: name.replace(/\s+/g, ' ').trim(), kind, share: v })
+  }
+  holders.sort((a, b) => b.share - a.share)
+  return { asOf, groups, shareholders: Number.isFinite(total) ? total : null, holders }
+}
+
+/** One company's details from NSE's quote API: its classification, sector P/E and index memberships. */
+export function parseSymbolData(json: unknown): {
+  symbol: string
+  macro: string | null
+  sector: string | null
+  industry: string | null
+  basicIndustry: string | null
+  sectorIndex: string | null
+  sectorPe: number | null
+  symbolPe: number | null
+  indices: string[]
+  listedOn: string | null
+} | null {
+  const e = (json as { equityResponse?: { metaData?: Record<string, unknown>; secInfo?: Record<string, unknown> }[] } | null)?.equityResponse?.[0]
+  const symbol = e?.metaData?.symbol
+  if (typeof symbol !== 'string' || !e?.secInfo) return null
+  const i = e.secInfo
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() && v.trim() !== '-' && v.trim().toUpperCase() !== 'NA' ? v.trim() : null)
+  const num = (v: unknown) => {
+    const n = Number(v)
+    return v !== null && v !== '' && Number.isFinite(n) && n > 0 ? n : null
+  }
+  return {
+    symbol: symbol.toUpperCase(),
+    macro: str(i.macro),
+    sector: str(i.sector),
+    industry: str(i.industryInfo),
+    basicIndustry: str(i.basicIndustry),
+    sectorIndex: str(i.pdSectorInd),
+    sectorPe: num(i.pdSectorPe),
+    symbolPe: num(i.pdSymbolPe),
+    indices: Array.isArray(i.indexList) ? (i.indexList as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+    listedOn: nseDate(typeof i.listingDate === 'string' ? i.listingDate.slice(0, 11) : null)
+  }
+}
+
+/** NSE's corporate announcements: what each company told the exchange, with the attachment's address. */
+export function parseAnnouncements(json: unknown): { id: string; symbol: string; company: string; at: string; category: string; text: string; url: string | null }[] {
+  const data = Array.isArray(json) ? json : (json as { data?: unknown[] } | null)?.data
+  if (!Array.isArray(data)) return []
+  const out = []
+  for (const r of data as Record<string, string | null>[]) {
+    const at = nseStamp(r.an_dt ?? r.exchdisstime)
+    if (!r.seq_id || !r.symbol || !at) continue
+    out.push({
+      id: String(r.seq_id),
+      symbol: r.symbol.toUpperCase(),
+      company: (r.sm_name ?? r.symbol).trim(),
+      at,
+      category: (r.desc ?? '').trim(),
+      text: (r.attchmntText ?? '').replace(/\s+/g, ' ').trim().slice(0, 1200),
+      url: r.attchmntFile && /^https:\/\/nsearchives\.nseindia\.com\//.test(r.attchmntFile) ? r.attchmntFile : null
+    })
+  }
+  return out
 }

@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import {
   arrange,
   computeMetrics,
@@ -9,7 +9,17 @@ import {
   type CompanyView,
   type DayQuote,
   type Filing,
-  type ResearchRow
+  type ResearchRow,
+  type CalendarReport,
+  type OwnershipReport,
+  type OwnershipView,
+  type ShpQuarter,
+  type StakeChange,
+  type Announcement,
+  type AnnouncementsReport,
+  type AnnTag,
+  MARKET_TAGS,
+  tagAnnouncement
 } from '@shared/research'
 import {
   fundamentalsOf,
@@ -24,7 +34,8 @@ import {
 import { adjustBars, rankStrength, technicalsOf, type Bar, type Technicals } from '@shared/technicals'
 import { schema, type Db } from '../db'
 import { listHoldings } from '../portfolio/holdings'
-import type { FilingRef } from './nse'
+import type { FilingRef, parseAnnouncements, parseCorporateActions, parseEventCalendar, parseShpList, parseShpXbrl, parseSymbolData } from './nse'
+import type { IndustryMap } from '@shared/sectors'
 
 /** Results older than this aren't fetched: NSE's XBRL files start in late 2018. */
 export const RESULTS_FROM = '2018-06-30'
@@ -215,7 +226,7 @@ function industryOf(db: Db, symbol: string, isin: string | null): string | null 
   const row = isin
     ? db.select().from(schema.sectorMap).where(eq(schema.sectorMap.isin, isin)).get()
     : db.select().from(schema.sectorMap).where(eq(schema.sectorMap.symbol, symbol)).get()
-  return row?.industry ?? null
+  return row?.industry ?? db.select({ s: schema.researchIndustry.sector }).from(schema.researchIndustry).where(eq(schema.researchIndustry.symbol, symbol)).get()?.s ?? null
 }
 
 export function companyView(db: Db, symbol: string, basis: Basis | null = null, held = heldStocks(db)): CompanyView | null {
@@ -356,7 +367,11 @@ export function screenData(db: Db, held = heldStocks(db)): ScreenData {
       .all()
       .map((t) => [t.symbol, JSON.parse(t.dataJson) as Technicals])
   )
-  const industries = new Map(db.select({ s: schema.sectorMap.symbol, i: schema.sectorMap.industry }).from(schema.sectorMap).all().map((r) => [r.s, r.i]))
+  // NSE's index lists first (the Nifty 500); every other company from its own classification.
+  const industries = new Map<string | null, string | null>(
+    db.select({ s: schema.researchIndustry.symbol, i: schema.researchIndustry.sector }).from(schema.researchIndustry).all().map((r) => [r.s, r.i])
+  )
+  for (const r of db.select({ s: schema.sectorMap.symbol, i: schema.sectorMap.industry }).from(schema.sectorMap).all()) industries.set(r.s, r.i)
   const companies = listedCompanies(db)
   const rows: ScreenRow[] = []
   for (const c of companies) {
@@ -509,4 +524,269 @@ export function refreshTechnicals(db: Db): number {
     for (const [s, t] of all) tx.insert(schema.researchTechnicals).values({ symbol: s, date: t.date, dataJson: JSON.stringify(t) }).run()
   })
   return all.size
+}
+
+// ---------------- calendar: results days and corporate actions ----------------
+
+export function saveEvents(db: Db, rows: ReturnType<typeof parseEventCalendar>): void {
+  db.transaction((tx) => {
+    for (const r of rows) {
+      const rest = { company: r.company, details: r.details }
+      tx.insert(schema.researchEvents).values(r).onConflictDoUpdate({ target: [schema.researchEvents.symbol, schema.researchEvents.date, schema.researchEvents.purpose], set: rest }).run()
+    }
+  })
+}
+
+export function saveActions(db: Db, rows: ReturnType<typeof parseCorporateActions>): void {
+  db.transaction((tx) => {
+    for (const r of rows) {
+      tx.insert(schema.researchActions)
+        .values(r)
+        .onConflictDoUpdate({ target: [schema.researchActions.symbol, schema.researchActions.exDate, schema.researchActions.subject], set: { recordDate: r.recordDate, kind: r.kind, amount: r.amount } })
+        .run()
+    }
+  })
+}
+
+export function calendarReport(db: Db, today = new Date().toISOString().slice(0, 10)): CalendarReport {
+  const held = heldStocks(db)
+  const watched = watchedSymbols(db)
+  const shift = (days: number) => new Date(Date.parse(today) + days * 86400_000).toISOString().slice(0, 10)
+  const names = new Map(listedCompanies(db).map((c) => [c.symbol, c.name ?? c.symbol]))
+  const results = db
+    .select()
+    .from(schema.researchEvents)
+    .where(and(sql`${schema.researchEvents.date} >= ${shift(-7)}`, sql`${schema.researchEvents.date} <= ${shift(45)}`))
+    .orderBy(schema.researchEvents.date)
+    .all()
+    .map((r) => ({ ...r, held: held.get(r.symbol) ?? null, watched: watched.has(r.symbol) }))
+  const actions = db
+    .select()
+    .from(schema.researchActions)
+    .where(and(sql`${schema.researchActions.exDate} >= ${shift(-30)}`, sql`${schema.researchActions.exDate} <= ${shift(90)}`))
+    .orderBy(schema.researchActions.exDate)
+    .all()
+    .map((r) => {
+      const h = held.get(r.symbol) ?? null
+      return {
+        ...r,
+        company: names.get(r.symbol) ?? r.symbol,
+        held: h,
+        watched: watched.has(r.symbol),
+        expectedInr: h && r.kind === 'DIVIDEND' && r.amount ? h.quantity * r.amount : null
+      }
+    })
+  const updatedAt = db.select().from(schema.settings).where(eq(schema.settings.key, 'research:calendarAt')).get()?.value ?? null
+  return { results, actions, updatedAt }
+}
+
+/** Every symbol on any watchlist. */
+export function watchedSymbols(db: Db): Set<string> {
+  return new Set(
+    db
+      .select({ s: schema.watchlists.symbolsJson })
+      .from(schema.watchlists)
+      .all()
+      .flatMap((w) => JSON.parse(w.s) as string[])
+  )
+}
+
+// ---------------- ownership ----------------
+
+const QUARTER_END = /-(03-31|06-30|09-30|12-31)$/
+
+export function saveShpList(db: Db, rows: ReturnType<typeof parseShpList>): void {
+  db.transaction((tx) => {
+    for (const r of rows) {
+      tx.insert(schema.researchShp)
+        .values(r)
+        .onConflictDoUpdate({ target: [schema.researchShp.symbol, schema.researchShp.asOf], set: { promoter: r.promoter, url: r.url, filedAt: r.filedAt } })
+        .run()
+    }
+  })
+}
+
+export function markShpChecked(db: Db, symbol: string): void {
+  const at = new Date().toISOString()
+  db.insert(schema.researchShpChecked).values({ symbol, at }).onConflictDoUpdate({ target: schema.researchShpChecked.symbol, set: { at } }).run()
+}
+
+/** Companies whose full shareholding history hasn't been asked for in the last week. */
+export function shpStale(db: Db, symbols: Iterable<string>, now = Date.now()): string[] {
+  const at = new Map(db.select().from(schema.researchShpChecked).all().map((r) => [r.symbol, Date.parse(r.at)]))
+  return [...symbols].filter((s) => !(now - (at.get(s) ?? 0) < 7 * 86400_000))
+}
+
+/** Each company's latest quarters whose full pattern hasn't been read yet. */
+export function shpDetailWanted(db: Db, symbols: Iterable<string>, quarters = 5): { symbol: string; asOf: string; url: string; attempts: number }[] {
+  const out = []
+  for (const symbol of symbols) {
+    const rows = db.select().from(schema.researchShp).where(eq(schema.researchShp.symbol, symbol)).orderBy(desc(schema.researchShp.asOf)).all()
+    for (const r of rows.filter((r) => QUARTER_END.test(r.asOf)).slice(0, quarters))
+      if (r.url && !r.detailJson && r.attempts < 3) out.push({ symbol, asOf: r.asOf, url: r.url, attempts: r.attempts })
+  }
+  return out
+}
+
+export function saveShpDetail(db: Db, symbol: string, asOf: string, detail: ReturnType<typeof parseShpXbrl>, attempts: number): void {
+  db.update(schema.researchShp)
+    .set({ detailJson: detail ? JSON.stringify({ groups: detail.groups, shareholders: detail.shareholders, holders: detail.holders }) : null, attempts, ...(detail ? { promoter: detail.groups.promoter } : {}) })
+    .where(and(eq(schema.researchShp.symbol, symbol), eq(schema.researchShp.asOf, asOf)))
+    .run()
+}
+
+const toQuarter = (r: typeof schema.researchShp.$inferSelect): ShpQuarter => {
+  const d = r.detailJson ? (JSON.parse(r.detailJson) as Pick<ShpQuarter, 'groups' | 'shareholders' | 'holders'>) : null
+  return { asOf: r.asOf, promoter: r.promoter, groups: d?.groups ?? null, shareholders: d?.shareholders ?? null, holders: d?.holders ?? null, filedAt: r.filedAt }
+}
+
+export function ownershipView(db: Db, symbol: string): OwnershipView {
+  const s = symbol.toUpperCase()
+  const quarters = db
+    .select()
+    .from(schema.researchShp)
+    .where(eq(schema.researchShp.symbol, s))
+    .orderBy(desc(schema.researchShp.asOf))
+    .all()
+    .filter((r) => QUARTER_END.test(r.asOf))
+    .map(toQuarter)
+  return { symbol: s, quarters, waiting: shpStale(db, [s]).length > 0 || shpDetailWanted(db, [s]).length > 0 }
+}
+
+/** The latest quarter against the one before, for one company's rows (newest first). */
+function stakeChange(symbol: string, company: string, rows: ShpQuarter[]): Omit<StakeChange, 'held' | 'watched'> | null {
+  const [a, b] = rows
+  if (!a || !b) return null
+  const diff = (x: number | null | undefined, y: number | null | undefined) => (x === null || x === undefined || y === null || y === undefined ? null : x - y)
+  return {
+    symbol,
+    company,
+    asOf: a.asOf,
+    prevAsOf: b.asOf,
+    promoter: a.promoter,
+    promoterChange: diff(a.promoter, b.promoter),
+    fpi: a.groups?.fpi ?? null,
+    fpiChange: diff(a.groups?.fpi, b.groups?.fpi),
+    mf: a.groups?.mf ?? null,
+    mfChange: diff(a.groups?.mf, b.groups?.mf)
+  }
+}
+
+export function ownershipReport(db: Db, today = new Date().toISOString().slice(0, 10)): OwnershipReport {
+  const held = heldStocks(db)
+  const watched = watchedSymbols(db)
+  const names = new Map(listedCompanies(db).map((c) => [c.symbol, c.name ?? c.symbol]))
+  const since = new Date(Date.parse(today) - 400 * 86400_000).toISOString().slice(0, 10)
+  const bySymbol = new Map<string, ShpQuarter[]>()
+  for (const r of db.select().from(schema.researchShp).where(sql`${schema.researchShp.asOf} >= ${since}`).orderBy(desc(schema.researchShp.asOf)).all()) {
+    if (!QUARTER_END.test(r.asOf)) continue
+    const list = bySymbol.get(r.symbol) ?? []
+    list.push(toQuarter(r))
+    bySymbol.set(r.symbol, list)
+  }
+  const tag = (c: Omit<StakeChange, 'held' | 'watched'>): StakeChange => ({ ...c, held: held.get(c.symbol) ?? null, watched: watched.has(c.symbol) })
+  const mine = [...new Set([...held.keys(), ...watched])]
+    .map((s) => stakeChange(s, names.get(s) ?? s, bySymbol.get(s) ?? []))
+    .filter((c): c is NonNullable<typeof c> => c !== null)
+    .map(tag)
+    .sort((a, b) => Math.abs(b.fpiChange ?? b.promoterChange ?? 0) - Math.abs(a.fpiChange ?? a.promoterChange ?? 0))
+  const recent = new Date(Date.parse(today) - 60 * 86400_000).toISOString().slice(0, 10)
+  const promoterMoves = [...bySymbol]
+    .filter(([, rows]) => (rows[0].filedAt ?? rows[0].asOf) >= recent)
+    .map(([s, rows]) => stakeChange(s, names.get(s) ?? s, rows))
+    .filter(
+      (c): c is NonNullable<typeof c> =>
+        c !== null && c.promoterChange !== null && Math.abs(c.promoterChange) >= 0.005 && Date.parse(c.asOf) - Date.parse(c.prevAsOf) <= 200 * 86400_000
+    )
+    .map(tag)
+    .sort((a, b) => Math.abs(b.promoterChange!) - Math.abs(a.promoterChange!))
+    .slice(0, 150)
+  const updatedAt = db.select().from(schema.settings).where(eq(schema.settings.key, 'research:shpWindowAt')).get()?.value ?? null
+  return { mine, promoterMoves, updatedAt }
+}
+
+// ---------------- industries ----------------
+
+export function saveIndustry(db: Db, symbol: string, d: ReturnType<typeof parseSymbolData>): void {
+  const v = {
+    macro: d?.macro ?? null,
+    sector: d?.sector ?? null,
+    industry: d?.industry ?? null,
+    basicIndustry: d?.basicIndustry ?? null,
+    sectorIndex: d?.sectorIndex ?? null,
+    sectorPe: d?.sectorPe ?? null,
+    symbolPe: d?.symbolPe ?? null,
+    indicesJson: d ? JSON.stringify(d.indices) : null,
+    listedOn: d?.listedOn ?? null,
+    checkedAt: new Date().toISOString()
+  }
+  db.insert(schema.researchIndustry).values({ symbol, ...v }).onConflictDoUpdate({ target: schema.researchIndustry.symbol, set: v }).run()
+}
+
+/** Companies to classify next: never asked, or asked over a month ago; held and watched first, then the biggest. */
+export function industryWanted(db: Db, limit: number, now = Date.now()): string[] {
+  const at = new Map(db.select({ s: schema.researchIndustry.symbol, at: schema.researchIndustry.checkedAt }).from(schema.researchIndustry).all().map((r) => [r.s, Date.parse(r.at)]))
+  const mcap = new Map(db.select({ s: schema.researchQuotes.symbol, m: schema.researchQuotes.mcap }).from(schema.researchQuotes).all().map((r) => [r.s, r.m ?? 0]))
+  const first = new Set([...heldStocks(db).keys(), ...watchedSymbols(db)])
+  return listedCompanies(db)
+    .map((c) => c.symbol)
+    .filter((s) => !(now - (at.get(s) ?? 0) < 30 * 86400_000))
+    .sort((a, b) => Number(first.has(b)) - Number(first.has(a)) || (mcap.get(b) ?? 0) - (mcap.get(a) ?? 0))
+    .slice(0, limit)
+}
+
+export function industryMap(db: Db): IndustryMap {
+  const classes = db
+    .select({ symbol: schema.researchIndustry.symbol, macro: schema.researchIndustry.macro, sector: schema.researchIndustry.sector, industry: schema.researchIndustry.industry, basicIndustry: schema.researchIndustry.basicIndustry })
+    .from(schema.researchIndustry)
+    .all()
+    .filter((c) => c.sector)
+  return { classes, companies: listedCompanies(db).length, classified: classes.length }
+}
+
+// ---------------- announcements ----------------
+
+export const DIGEST_KEY = 'research:digest'
+
+export function saveAnnouncements(db: Db, rows: ReturnType<typeof parseAnnouncements>, keepFrom = new Date(Date.now() - 60 * 86400_000).toISOString().slice(0, 10)): void {
+  db.transaction((tx) => {
+    for (const r of rows) {
+      const v = { ...r, tag: tagAnnouncement(r.category, r.text) }
+      tx.insert(schema.researchAnnouncements).values(v).onConflictDoUpdate({ target: schema.researchAnnouncements.id, set: v }).run()
+    }
+    tx.delete(schema.researchAnnouncements).where(sql`${schema.researchAnnouncements.at} < ${keepFrom}`).run()
+  })
+}
+
+const toAnn = (r: typeof schema.researchAnnouncements.$inferSelect): Announcement => ({ ...r, tag: r.tag as AnnTag })
+
+/** Held and watched companies' announcements since a date, newest first (routine filings left out unless asked). */
+export function myAnnouncements(db: Db, since: string, routine = true) {
+  const held = new Set(heldStocks(db).keys())
+  const watched = watchedSymbols(db)
+  const mine = [...new Set([...held, ...watched])]
+  if (mine.length === 0) return []
+  return db
+    .select()
+    .from(schema.researchAnnouncements)
+    .where(and(sql`${schema.researchAnnouncements.at} >= ${since}`, inArray(schema.researchAnnouncements.symbol, mine)))
+    .orderBy(desc(schema.researchAnnouncements.at))
+    .all()
+    .filter((r) => routine || r.tag !== 'routine')
+    .map((r) => ({ ...toAnn(r), held: held.has(r.symbol), watched: watched.has(r.symbol) }))
+}
+
+export function announcementsReport(db: Db, today = new Date().toISOString().slice(0, 10)): AnnouncementsReport {
+  const day = (n: number) => new Date(Date.parse(today) - n * 86400_000).toISOString().slice(0, 10)
+  const market = db
+    .select()
+    .from(schema.researchAnnouncements)
+    .where(and(sql`${schema.researchAnnouncements.at} >= ${day(3)}`, inArray(schema.researchAnnouncements.tag, MARKET_TAGS)))
+    .orderBy(desc(schema.researchAnnouncements.at))
+    .limit(400)
+    .all()
+    .map(toAnn)
+  const get = (k: string) => db.select().from(schema.settings).where(eq(schema.settings.key, k)).get()?.value ?? null
+  const digest = get(DIGEST_KEY)
+  return { mine: myAnnouncements(db, day(30)), market, digest: digest ? JSON.parse(digest) : null, updatedAt: get('research:annAt') }
 }

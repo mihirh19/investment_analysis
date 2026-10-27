@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import {
-  CROPS,
   FARM_COST_KINDS,
   QTY_UNITS,
   SEASON_LABELS,
@@ -12,19 +11,29 @@ import {
   type QtyUnit
 } from '@shared/farm'
 import { useData } from '../lib/data'
+import { useLang } from '../lib/i18n'
 import { Card, day, field, inr, Label, lakhCrore, Primary, Seg, Sheet, today } from '../ui'
 
-const qty = (q: number) => `${q.toLocaleString('en-IN', { maximumFractionDigits: 2 })} qtl`
-const inMan = (q: number) => `${(q * 5).toLocaleString('en-IN', { maximumFractionDigits: 1 })} man`
-const perMan = (p: number | null) => (p ? `${inr(p / 5)}/man` : '')
 const pct = (a: number | null, b: number | null) => (a && b ? `${a >= b ? '+' : '−'}${Math.abs((a / b - 1) * 100).toFixed(1)}%` : '—')
 const toneOf = (a: number | null, b: number | null) => (!a || !b ? 'text-ink-muted' : a >= b ? 'text-gain' : 'text-loss')
 
 const SHEET_TITLES: Record<FarmEntryType, string> = { COST: 'Add a cost', HARVEST: 'Record the harvest', SALE: 'Record a sale', LOSS: 'Used at home or spoilt' }
 
+/** Quantities and rates in quintals and man (20 kg), in the chosen language. */
+function useUnits() {
+  const { t } = useLang()
+  return {
+    qty: (q: number) => `${q.toLocaleString('en-IN', { maximumFractionDigits: 2 })} ${t('qtl')}`,
+    inMan: (q: number) => `${(q * 5).toLocaleString('en-IN', { maximumFractionDigits: 1 })} ${t('man')}`,
+    perMan: (p: number | null) => (p ? `${inr(p / 5)}/${t('man')}` : '')
+  }
+}
+
 /** Cost, harvest or sale from the phone; the computer applies it on its next sync. */
 function EntrySheet({ s, type, onClose }: { s: FarmSeasonView; type: FarmEntryType; onClose: () => void }) {
   const { record } = useData()
+  const { t, crop } = useLang()
+  const { qty } = useUnits()
   const [f, setF] = useState({
     date: today(),
     kind: 'SEED' as FarmCostKind,
@@ -59,33 +68,33 @@ function EntrySheet({ s, type, onClose }: { s: FarmSeasonView; type: FarmEntryTy
     onClose()
   }
   return (
-    <Sheet title={`${SHEET_TITLES[type]}: ${CROPS[s.crop].label}`} onClose={onClose}>
+    <Sheet title={`${t(SHEET_TITLES[type])}: ${crop(s.crop)}`} onClose={onClose}>
       <form onSubmit={submit}>
         {type === 'COST' ? (
           <>
-            <Label text="What for">
+            <Label text={t('What for')}>
               <select className={field} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as FarmCostKind })}>
                 {(Object.keys(FARM_COST_KINDS) as FarmCostKind[]).map((k) => (
                   <option key={k} value={k}>
-                    {FARM_COST_KINDS[k]}
+                    {t(FARM_COST_KINDS[k])}
                   </option>
                 ))}
               </select>
             </Label>
-            <Label text="Amount (₹)">
+            <Label text={t('Amount (₹)')}>
               <input type="number" inputMode="decimal" min="1" required className={field} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
             </Label>
           </>
         ) : (
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <Label text={type === 'HARVEST' ? 'How much was harvested' : `How much (${qty(s.inStockQtl)} in stock)`}>
+            <Label text={type === 'HARVEST' ? t('How much was harvested') : t('How much ({q} in stock)', { q: qty(s.inStockQtl) })}>
               <input type="number" inputMode="decimal" min="0" step="any" required className={field} value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
             </Label>
-            <Label text="Unit">
+            <Label text={t('Unit')}>
               <select className={field} value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value as QtyUnit })}>
                 {(Object.keys(QTY_UNITS) as QtyUnit[]).map((u) => (
                   <option key={u} value={u}>
-                    {u === 'QTL' ? 'quintal' : u === 'MAN' ? 'man (20 kg)' : 'kg'}
+                    {u === 'QTL' ? t('quintal') : u === 'MAN' ? t('man (20 kg)') : t('kg')}
                   </option>
                 ))}
               </select>
@@ -95,36 +104,36 @@ function EntrySheet({ s, type, onClose }: { s: FarmSeasonView; type: FarmEntryTy
         {type === 'SALE' && (
           <>
             <div className="grid grid-cols-[1fr_auto] gap-2">
-              <Label text="Rate">
+              <Label text={t('Rate')}>
                 <input type="number" inputMode="decimal" min="0" step="any" className={field} value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} />
               </Label>
-              <Label text="Per">
+              <Label text={t('Per')}>
                 <select className={field} value={f.rateUnit} onChange={(e) => setF({ ...f, rateUnit: e.target.value as 'MAN' | 'QTL' })}>
-                  <option value="MAN">man</option>
-                  <option value="QTL">quintal</option>
+                  <option value="MAN">{t('man')}</option>
+                  <option value="QTL">{t('quintal')}</option>
                 </select>
               </Label>
             </div>
-            {ratePerQtl && quintals && <p className="-mt-1 mb-3 text-[13px] text-ink-muted">{inr(ratePerQtl * quintals)} in all</p>}
+            {ratePerQtl && quintals && <p className="-mt-1 mb-3 text-[13px] text-ink-muted">{t('{x} in all', { x: inr(ratePerQtl * quintals) })}</p>}
             <div className="grid grid-cols-2 gap-2">
-              <Label text="Mandi charges (₹)">
+              <Label text={t('Mandi charges (₹)')}>
                 <input type="number" inputMode="decimal" min="0" className={field} value={f.charges} onChange={(e) => setF({ ...f, charges: e.target.value })} />
               </Label>
-              <Label text="Sold at">
+              <Label text={t('Sold at')}>
                 <input className={field} value={f.mandi} onChange={(e) => setF({ ...f, mandi: e.target.value })} />
               </Label>
             </div>
           </>
         )}
-        <Label text="On">
+        <Label text={t('On')}>
           <input type="date" required max={today()} className={field} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
         </Label>
         {type !== 'HARVEST' && type !== 'COST' && quintals && quintals > s.inStockQtl + 1e-6 && (
-          <p className="mb-3 text-[14px] text-loss">Only {qty(s.inStockQtl)} of this season is in stock.</p>
+          <p className="mb-3 text-[14px] text-loss">{t('Only {q} of this season is in stock.', { q: qty(s.inStockQtl) })}</p>
         )}
         <div className="pb-3">
           <Primary type="submit" disabled={!ok}>
-            Save
+            {t('Save')}
           </Primary>
         </div>
       </form>
@@ -133,12 +142,14 @@ function EntrySheet({ s, type, onClose }: { s: FarmSeasonView; type: FarmEntryTy
 }
 
 function PriceRow({ p }: { p: CropPrice }) {
+  const { t, crop } = useLang()
+  const { perMan } = useUnits()
   const now = p.latest?.modal ?? null
   return (
     <li className="border-b border-rule py-2.5 last:border-0">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[15px] font-medium">
-          {CROPS[p.crop].label} <span className="text-[13px] font-normal text-ink-muted">{p.market}</span>
+          {crop(p.crop)} <span className="text-[13px] font-normal text-ink-muted">{p.market}</span>
         </span>
         <span className="num text-[17px] font-semibold">{now ? inr(now) : '—'}</span>
       </div>
@@ -148,17 +159,17 @@ function PriceRow({ p }: { p: CropPrice }) {
             {perMan(now)}, {day(p.latest.date)}
           </span>
           <span>
-            30 days <span className={toneOf(now, p.avg30)}>{pct(now, p.avg30)}</span>
+            {t('30 days')} <span className={toneOf(now, p.avg30)}>{pct(now, p.avg30)}</span>
             {p.yearAgo ? (
               <>
                 {' '}
-                · year ago <span className={toneOf(now, p.yearAgo)}>{pct(now, p.yearAgo)}</span>
+                · {t('year ago')} <span className={toneOf(now, p.yearAgo)}>{pct(now, p.yearAgo)}</span>
               </>
             ) : null}
             {p.msp ? (
               <>
                 {' '}
-                · MSP <span className={toneOf(now, p.msp)}>{pct(now, p.msp)}</span>
+                · {t('MSP')} <span className={toneOf(now, p.msp)}>{pct(now, p.msp)}</span>
               </>
             ) : null}
           </span>
@@ -171,7 +182,11 @@ function PriceRow({ p }: { p: CropPrice }) {
       )}
       {p.target && (
         <div className={`mt-0.5 text-[12px] ${p.targetReached ? 'font-semibold text-gain' : 'text-ink-muted'}`}>
-          Target {inr(p.target)}: {p.targetReached ? 'reached' : now ? `${inr(p.target - now)} to go` : 'no price yet'}
+          {p.targetReached
+            ? t('Target {x}: reached', { x: inr(p.target) })
+            : now
+              ? t('Target {x}: {y} to go', { x: inr(p.target), y: inr(p.target - now) })
+              : t('Target {x}: no price yet', { x: inr(p.target) })}
         </div>
       )}
     </li>
@@ -181,6 +196,8 @@ function PriceRow({ p }: { p: CropPrice }) {
 /** The farm on the phone: the godown, the field, today's mandi prices and each season. */
 export function Farm() {
   const { snapshot, pending } = useData()
+  const { t, crop, lang } = useLang()
+  const { qty, inMan } = useUnits()
   const [scope, setScope] = useState<'all' | string>('all')
   const [sheet, setSheet] = useState<{ s: FarmSeasonView; type: FarmEntryType } | null>(null)
   const farm = snapshot?.farm
@@ -196,33 +213,38 @@ export function Farm() {
     <>
       {people.length > 1 && (
         <div className="mb-3">
-          <Seg label="Whose farm" value={scope} onChange={setScope} options={[{ value: 'all', label: 'All' }, ...people.map((p) => ({ value: p, label: p }))]} />
+          <Seg label={t('Whose farm')} value={scope} onChange={setScope} options={[{ value: 'all', label: t('All') }, ...people.map((p) => ({ value: p, label: p }))]} />
         </div>
       )}
       <Card>
-        <div className="text-[14px] text-ink-muted">In the godown, at today&rsquo;s price</div>
+        <div className="text-[14px] text-ink-muted">{t('In the godown, at today’s price')}</div>
         <div className="wide num text-left text-[34px] leading-tight font-semibold">{lakhCrore(stock.reduce((s, x) => s + x.value, 0))}</div>
         <div className="text-[13px] text-ink-muted">
-          Counted in net worth{farm.pricesAsOf ? `; prices of ${day(farm.pricesAsOf)}` : ''}
+          {t('Counted in net worth')}
+          {farm.pricesAsOf ? t('; prices of {d}', { d: day(farm.pricesAsOf) }) : ''}
         </div>
         {growing.length > 0 && (
           <div className="mt-2 text-[14px]">
-            In the field: <b className="num">{lakhCrore(growing.reduce((s, g) => s + (g.expectedValue ?? 0), 0))}</b>{' '}
-            <span className="text-ink-muted">expected ({growing.map((g) => CROPS[g.crop].label).join(', ')}), not counted yet</span>
+            {t('In the field:')} <b className="num">{lakhCrore(growing.reduce((s, g) => s + (g.expectedValue ?? 0), 0))}</b>{' '}
+            <span className="text-ink-muted">{t('expected ({crops}), not counted yet', { crops: growing.map((g) => crop(g.crop)).join(', ') })}</span>
           </div>
         )}
-        {waiting > 0 && <div className="mt-2 text-[13px] text-warn">{waiting} entr{waiting === 1 ? 'y' : 'ies'} waiting for the computer to sync.</div>}
+        {waiting > 0 && (
+          <div className="mt-2 text-[13px] text-warn">
+            {lang === 'gu' || waiting !== 1 ? t('{n} entries waiting for the computer to sync.', { n: waiting }) : '1 entry waiting for the computer to sync.'}
+          </div>
+        )}
       </Card>
 
       {stock.length > 0 && (
-        <Card title="In the godown">
+        <Card title={t('In the godown')}>
           <ul>
             {stock.map((x) => (
               <li key={`${x.personId}-${x.crop}-${x.variety ?? ''}`} className="flex justify-between gap-3 border-b border-rule py-2 last:border-0">
                 <div className="min-w-0">
                   <div className="text-[15px]">
-                    {CROPS[x.crop].label}
-                    {x.variety ? ` ${x.variety}` : ''} <span className="text-[13px] text-ink-muted">{CROPS[x.crop].gu}</span>
+                    {crop(x.crop)}
+                    {x.variety ? ` ${x.variety}` : ''}
                   </div>
                   <div className="text-[12px] text-ink-muted">
                     {qty(x.quantityQtl)} ({inMan(x.quantityQtl)}){people.length > 1 ? `, ${x.personName}` : ''}
@@ -230,7 +252,7 @@ export function Farm() {
                 </div>
                 <div className="num shrink-0 text-right">
                   <div className="text-[15px] font-semibold">{x.price ? inr(x.value) : '—'}</div>
-                  {x.cost !== null && x.price ? <div className={`text-[12px] ${x.value >= x.cost ? 'text-gain' : 'text-loss'}`}>gain {inr(x.value - x.cost)}</div> : null}
+                  {x.cost !== null && x.price ? <div className={`text-[12px] ${x.value >= x.cost ? 'text-gain' : 'text-loss'}`}>{t('gain {x}', { x: inr(x.value - x.cost) })}</div> : null}
                 </div>
               </li>
             ))}
@@ -239,7 +261,7 @@ export function Farm() {
       )}
 
       {farm.prices.length > 0 && (
-        <Card title="Mandi prices" aside="₹ a quintal">
+        <Card title={t('Mandi prices')} aside={t('₹ a quintal')}>
           <ul>
             {farm.prices.map((p) => (
               <PriceRow key={p.crop} p={p} />
@@ -250,7 +272,7 @@ export function Farm() {
       )}
 
       {(farm.outlook ?? []).some((o) => o.pattern || o.note) && (
-        <Card title="Selling: past seasons and news">
+        <Card title={t('Selling: past seasons and news')}>
           <ul>
             {(farm.outlook ?? [])
               .filter((o) => o.pattern || o.note)
@@ -259,24 +281,31 @@ export function Farm() {
                 const h = (k: number) => o.pattern?.horizons.find((x) => x.months === k)
                 return (
                   <li key={o.crop} className="border-b border-rule py-2 last:border-0">
-                    <div className="text-[15px] font-medium">{CROPS[o.crop].label}</div>
+                    <div className="text-[15px] font-medium">{crop(o.crop)}</div>
                     {o.pattern &&
                       [3, 6].map((k) =>
                         h(k)?.changes.length ? (
                           <div key={k} className="text-[13px] text-ink-muted">
-                            From {o.pattern!.fromMonth}, {k} months on: typically {fmt(h(k)!.median)} ({fmt(h(k)!.min)} to {fmt(h(k)!.max)}, {h(k)!.changes.length} years)
+                            {t('From {m}, {k} months on: typically {a} ({b} to {c}, {n} years)', {
+                              m: o.pattern!.fromMonth,
+                              k,
+                              a: fmt(h(k)!.median),
+                              b: fmt(h(k)!.min),
+                              c: fmt(h(k)!.max),
+                              n: h(k)!.changes.length
+                            })}
                           </div>
                         ) : null
                       )}
                     {o.note?.range && (
                       <div className="mt-1 text-[13px]">
-                        Claude&rsquo;s range, next 1–3 months: <b className="num">{inr(o.note.range.low)}–{inr(o.note.range.high)}</b>
-                        {o.note.confidence ? ` (${o.note.confidence} confidence)` : ''}
+                        {t('Claude’s range, next 1–3 months:')} <b className="num">{inr(o.note.range.low)}–{inr(o.note.range.high)}</b>
+                        {o.note.confidence ? ` ${t('({c} confidence)', { c: t(o.note.confidence) })}` : ''}
                       </div>
                     )}
                     {o.note && (
                       <details className="mt-1 text-[13px]">
-                        <summary className="text-stamp">Market note, {day(o.note.at.slice(0, 10))}</summary>
+                        <summary className="text-stamp">{t('Market note, {d}', { d: day(o.note.at.slice(0, 10)) })}</summary>
                         <div className="mt-1 whitespace-pre-wrap text-ink-muted">{o.note.text.replaceAll('**', '')}</div>
                       </details>
                     )}
@@ -284,22 +313,26 @@ export function Farm() {
                 )
               })}
           </ul>
-          <p className="mt-2 text-[12px] text-ink-muted">Past years and the news, not a promise of what comes next; the choice is yours.</p>
+          <p className="mt-2 text-[12px] text-ink-muted">{t('Past years and the news, not a promise of what comes next; the choice is yours.')}</p>
         </Card>
       )}
 
       {seasons.map((s) => (
-        <Card key={s.id} title={`${CROPS[s.crop].label}${s.variety ? ` ${s.variety}` : ''}, ${SEASON_LABELS[s.season]}${s.season === 'STOCK' ? '' : ` ${s.year}`}`} aside={people.length > 1 ? s.personName : undefined}>
+        <Card
+          key={s.id}
+          title={`${crop(s.crop)}${s.variety ? ` ${s.variety}` : ''}, ${t(SEASON_LABELS[s.season])}${s.season === 'STOCK' ? '' : ` ${s.year}`}`}
+          aside={people.length > 1 ? s.personName : undefined}
+        >
           <dl className="grid grid-cols-2 gap-y-1 text-[14px]">
             {s.areaAcres ? (
               <>
-                <dt className="text-ink-muted">Area</dt>
-                <dd className="text-right">{s.areaAcres} acres</dd>
+                <dt className="text-ink-muted">{t('Area')}</dt>
+                <dd className="text-right">{t('{n} acres', { n: s.areaAcres })}</dd>
               </>
             ) : null}
             {s.status === 'GROWING' && s.expectedQtl ? (
               <>
-                <dt className="text-ink-muted">Expected</dt>
+                <dt className="text-ink-muted">{t('Expected')}</dt>
                 <dd className="text-right">
                   {qty(s.expectedQtl)}
                   {s.expectedValue ? `, ${lakhCrore(s.expectedValue)}` : ''}
@@ -308,7 +341,7 @@ export function Farm() {
             ) : null}
             {s.inStockQtl ? (
               <>
-                <dt className="text-ink-muted">In stock</dt>
+                <dt className="text-ink-muted">{t('In stock')}</dt>
                 <dd className="text-right">
                   {qty(s.inStockQtl)}, {lakhCrore(s.stockValue)}
                 </dd>
@@ -316,22 +349,22 @@ export function Farm() {
             ) : null}
             {s.salesNet ? (
               <>
-                <dt className="text-ink-muted">Sold for</dt>
+                <dt className="text-ink-muted">{t('Sold for')}</dt>
                 <dd className="text-right">{inr(s.salesNet)}</dd>
               </>
             ) : null}
             {s.costs ? (
               <>
-                <dt className="text-ink-muted">Costs</dt>
+                <dt className="text-ink-muted">{t('Costs')}</dt>
                 <dd className="text-right">{inr(s.costs)}</dd>
               </>
             ) : null}
             {s.season !== 'STOCK' && (s.costs > 0 || s.salesNet > 0) ? (
               <>
-                <dt className="text-ink-muted">{s.status === 'GROWING' ? 'Expected profit' : 'Profit so far'}</dt>
+                <dt className="text-ink-muted">{s.status === 'GROWING' ? t('Expected profit') : t('Profit so far')}</dt>
                 <dd className={`text-right font-semibold ${s.profit >= 0 ? 'text-gain' : 'text-loss'}`}>
                   {inr(s.profit)}
-                  {s.profitPerAcre !== null ? <span className="font-normal text-ink-muted"> ({inr(s.profitPerAcre)}/acre)</span> : null}
+                  {s.profitPerAcre !== null ? <span className="font-normal text-ink-muted"> ({t('{x}/acre', { x: inr(s.profitPerAcre) })})</span> : null}
                 </dd>
               </>
             ) : null}
@@ -339,23 +372,23 @@ export function Farm() {
           <div className="mt-3 grid grid-cols-2 gap-2">
             {s.season !== 'STOCK' && (
               <button className="min-h-11 rounded-xl border border-rule-strong text-[14px]" onClick={() => setSheet({ s, type: 'COST' })}>
-                Add a cost
+                {t('Add a cost')}
               </button>
             )}
             {s.season !== 'STOCK' && (
               <button className="min-h-11 rounded-xl border border-rule-strong text-[14px]" onClick={() => setSheet({ s, type: 'HARVEST' })}>
-                Harvest
+                {t('Harvest')}
               </button>
             )}
             {s.inStockQtl > 0 && (
               <button className="min-h-11 rounded-xl bg-stamp text-[14px] font-semibold text-white dark:text-[#10162a]" onClick={() => setSheet({ s, type: 'SALE' })}>
-                Record a sale
+                {t('Record a sale')}
               </button>
             )}
           </div>
         </Card>
       ))}
-      <p className="px-1 pb-2 text-[12px] text-ink-muted">New seasons and stock are added on the computer (Farm page).</p>
+      <p className="px-1 pb-2 text-[12px] text-ink-muted">{t('New seasons and stock are added on the computer (Farm page).')}</p>
       {sheet && <EntrySheet s={sheet.s} type={sheet.type} onClose={() => setSheet(null)} />}
     </>
   )

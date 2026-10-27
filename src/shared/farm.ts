@@ -26,6 +26,42 @@ export const CROPS = {
   POTATO: { label: 'Potato', gu: 'બટાકા', agmark: 'Potato', agmarkId: 24 }
 } as const
 export type CropKey = keyof typeof CROPS
+
+/** What India exports of each crop, as the customs (HS) code UN Comtrade reports it under. */
+export const CROP_HS: Partial<Record<CropKey, { code: string; what: string }>> = {
+  GROUNDNUT: { code: '1202', what: 'groundnuts, shelled or in shell' },
+  WHEAT: { code: '1001', what: 'wheat' },
+  COTTON: { code: '5201', what: 'raw cotton (lint, not carded)' },
+  CUMIN: { code: '090931', what: 'cumin seed, whole' },
+  CASTOR: { code: '151530', what: 'castor oil (most castor leaves India as oil)' },
+  CHANA: { code: '071320', what: 'chickpeas' },
+  SESAME: { code: '120740', what: 'sesame seed' },
+  MUSTARD: { code: '120750', what: 'mustard seed' },
+  MAIZE: { code: '1005', what: 'maize' },
+  SOYBEAN: { code: '2304', what: 'soybean meal (most soybean leaves India as meal)' },
+  CORIANDER: { code: '090921', what: 'coriander seed, whole' },
+  FENNEL: { code: '090961', what: 'fennel and similar seeds, whole' },
+  ONION: { code: '070310', what: 'onions and shallots' },
+  GARLIC: { code: '070320', what: 'garlic' },
+  POTATO: { code: '0701', what: 'potatoes' },
+  JOWAR: { code: '1007', what: 'sorghum' },
+  BAJRA: { code: '100829', what: 'millet' }
+}
+
+export interface CropExports {
+  crop: CropKey
+  hs: string
+  what: string
+  /** The latest full year reported, its total and the year before. */
+  year: number | null
+  tonnes: number | null
+  usd: number | null
+  prevTonnes: number | null
+  /** Biggest buyers that year. */
+  partners: { iso: string; name: string; tonnes: number; usd: number; share: number | null; prevTonnes: number | null }[]
+  latestMonth: { month: string; tonnes: number; usd: number; yearAgoTonnes: number | null } | null
+  fetchedAt: string
+}
 export const CROP_KEYS = Object.keys(CROPS) as CropKey[]
 
 /**
@@ -121,6 +157,7 @@ export const FARM_COST_KINDS = {
   LAND_RENT: 'Land rent',
   TRANSPORT: 'Transport',
   STORAGE: 'Storage & bags',
+  INSURANCE: 'Crop insurance premium',
   OTHER: 'Other'
 } as const
 export type FarmCostKind = keyof typeof FARM_COST_KINDS
@@ -133,6 +170,58 @@ export const QTY_UNITS: Record<QtyUnit, { label: string; perQtl: number }> = {
   KG: { label: 'kg', perQtl: 100 }
 }
 export const toQuintals = (value: number, unit: QtyUnit) => value / QTY_UNITS[unit].perQtl
+
+/** Money from the government for farming: PM-KISAN, crop insurance or crop-loss help, subsidies. */
+export const SUPPORT_SCHEMES = {
+  PM_KISAN: 'PM-KISAN instalment',
+  CROP_CLAIM: 'Crop insurance or crop-loss help',
+  SUBSIDY: 'Subsidy (equipment, drip, seed…)',
+  OTHER: 'Other support'
+} as const
+export type SupportScheme = keyof typeof SUPPORT_SCHEMES
+
+export interface FarmSupport {
+  id: number
+  personId: number
+  personName: string
+  scheme: SupportScheme
+  date: string
+  amount: number
+  note: string | null
+}
+
+export interface FarmSupportInput {
+  id?: number
+  personId: number
+  scheme: SupportScheme
+  date: string
+  amount: number
+  note?: string | null
+}
+
+/** PM-KISAN pays ₹2,000 three times a year, for the periods April–July, August–November and December–March. */
+export const PM_KISAN_PERIODS = [
+  { label: 'Apr–Jul', from: '04-01', to: '07-31' },
+  { label: 'Aug–Nov', from: '08-01', to: '11-30' },
+  { label: 'Dec–Mar', from: '12-01', to: '03-31' }
+] as const
+
+/** A mandi bill as Claude read it from a photo, for the person to check. */
+export interface MandiBill {
+  date: string | null
+  mandi: string | null
+  trader: string | null
+  crop: CropKey | null
+  variety: string | null
+  quantity: number | null
+  unit: QtyUnit | null
+  rate: number | null
+  rateUnit: QtyUnit | null
+  gross: number | null
+  charges: number | null
+  net: number | null
+  notes: string
+}
 
 export type FarmEntryType = 'COST' | 'HARVEST' | 'SALE' | 'LOSS'
 
@@ -258,8 +347,13 @@ export interface FarmReport {
   growing: { seasonId: number; personName: string; crop: CropKey; season: FarmSeasonKind; year: number; areaAcres: number | null; expectedQtl: number | null; expectedValue: number | null }[]
   seasons: FarmSeasonView[]
   prices: CropPrice[]
-  /** This financial year's farm income: sales after charges, and costs paid. */
-  thisFy: { fy: string; sales: number; costs: number }
+  /** This financial year's farm income: sales after charges, costs paid, and government support received. */
+  thisFy: { fy: string; sales: number; costs: number; support: number }
+  /** Government support received, newest first, and this year's PM-KISAN instalments for each person who gets them. */
+  support: {
+    entries: FarmSupport[]
+    pmKisan: { personId: number; personName: string; periods: { label: string; received: FarmSupport | null; due: boolean }[] }[]
+  }
   pricesAsOf: string | null
   priceError: string | null
   /** Past patterns, mandis, arrivals, hold-or-sell and Claude's note, for crops in stock or growing. */

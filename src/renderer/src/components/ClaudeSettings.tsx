@@ -150,6 +150,16 @@ export function ClaudeSettings() {
           government buying, demand) with a likely range for the next 1–3 months and its sources. An outlook, not a
           promise; at most one a day per crop, roughly US$0.10–0.30 each.
         </Toggle>
+        <Toggle
+          on={s.newsDigest}
+          disabled={!s.hasKey}
+          onChange={(v) => features.mutate([{ newsDigest: v }])}
+          title="Announcements digest"
+          sends="the last few days’ exchange announcements of your held and watched companies (company, date, kind and NSE’s summary line), which shows which companies you follow; never amounts or holdings."
+        >
+          On Research → Announcements, a short write-up of which announcements matter and why. Written only when you
+          press the button; roughly US$0.02–0.05 each.
+        </Toggle>
       </div>
       {(pdf.data ?? 0) > 0 && (
         <p className="mt-3 text-[13px] text-ink-muted">

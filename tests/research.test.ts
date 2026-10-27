@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { unzipSync, zipSync } from 'fflate'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -206,10 +207,18 @@ describe('the download, end to end', () => {
     if (url === legacyUrl) return new Response(text('tcs-2024-03-consolidated.xml'))
     if (url === newUrl) return new Response(text('tcs-2026-09-consolidated.xml'))
     if (url.includes('integrated-filing-results') && url.includes('from_date')) return new Response(JSON.stringify({ data: [], totalCount: 0 }))
-    if (url.includes('PR')) return new Response(readFileSync(fx('PR231026.zip')))
+    // The 23 Oct 2026 files, renamed to whichever day is asked for, so the test doesn't depend on today's date.
+    const pr = /PR(\d{6})\.zip$/.exec(url)
+    if (pr) return new Response(prFor(pr[1]))
     if (url.includes('PE_')) return new Response(text('PE_231026.csv'))
     return new Response('nope', { status: 404 })
   }) as unknown as typeof fetch
+
+  const prFor = (ddmmyy: string) => {
+    const full = `${ddmmyy.slice(0, 4)}20${ddmmyy.slice(4)}`
+    const files = unzipSync(readFileSync(fx('PR231026.zip')))
+    return zipSync(Object.fromEntries(Object.entries(files).map(([n, b]) => [n.replace('23102026', full).replace('231026', ddmmyy), b])))
+  }
 
   it('opening a company fetches its filings and fills the page', async () => {
     const sync = new ResearchSync(db, () => {}, fakeNse, 0)

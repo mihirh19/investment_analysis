@@ -12,6 +12,7 @@ export interface AiFeatures {
   chatMail?: boolean
   phoneChat?: boolean
   marketNotes?: boolean
+  newsDigest?: boolean
 }
 
 export interface AiStatus {
@@ -26,6 +27,8 @@ export interface AiStatus {
   phoneChat: boolean
   /** Market notes for the farm's crops (Claude searches the web; only public prices are sent). */
   marketNotes: boolean
+  /** A digest of held and watched companies' exchange announcements (only the public announcements are sent). */
+  newsDigest: boolean
   model: string
   /** This calendar month's use and its approximate cost at list prices. */
   month: { calls: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number }
@@ -209,3 +212,7 @@ export type ChatEvent =
   | { id: string; type: 'looking'; what: string }
   | { id: string; type: 'done'; looked: string[] }
   | { id: string; type: 'error'; message: string }
+  /** Open a screen (or a company) in a new tab of the terminal. */
+  | { id: string; type: 'open'; route: string }
+  /** Switch to a saved workspace by name. */
+  | { id: string; type: 'workspace'; name: string }

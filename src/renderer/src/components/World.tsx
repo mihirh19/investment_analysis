@@ -26,7 +26,7 @@ import {
   useWorldShips,
   useWorldSubscription
 } from '../lib/api'
-import { shortDate, timeAgo, toneClass } from '../lib/format'
+import { lakhCrore, shortDate, timeAgo, toneClass } from '../lib/format'
 import {
   countryShapes,
   EXPORT_COLOUR,
@@ -805,6 +805,22 @@ function PlaceFacts({ p }: { p: WorldPlace }) {
   )
 }
 
+/** The family's investments in this country, directly and through funds. */
+function YourMoney({ data, iso3 }: { data: WorldData; iso3: string }) {
+  const c = data.money?.countries.find((x) => x.iso3 === iso3)
+  if (!c) return null
+  return (
+    <>
+      <h3 className="mt-2 text-[12.5px] font-semibold text-stamp">Your money here</h3>
+      <Row label="Invested">
+        {lakhCrore(c.valueInr)} <span className="text-[11px] text-ink-muted">{(c.share * 100).toFixed(1)}% of all</span>
+      </Row>
+      {c.viaFunds > 0 && <Row label="Through funds">{lakhCrore(c.viaFunds)}</Row>}
+      {c.direct > 0 && c.viaFunds > 0 && <Row label="Held directly">{lakhCrore(c.direct)}</Row>}
+    </>
+  )
+}
+
 function CountryFacts({
   data,
   iso3,
@@ -854,8 +870,9 @@ function CountryFacts({
           </div>
         )}
       </div>
+      <YourMoney data={data} iso3={iso3} />
       <h3 className="mt-2 text-[12.5px] font-semibold text-stamp">Figures</h3>
-      {WORLD_METRICS.map((mm) => {
+      {WORLD_METRICS.filter((mm) => mm.key !== 'money').map((mm) => {
         const f = figureAt(data.figures[mm.key]?.[iso3], null)
         if (!f) return null
         return (

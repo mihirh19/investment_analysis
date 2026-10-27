@@ -727,3 +727,123 @@ export const flowFetched = sqliteTable('flow_fetched', {
   status: text('status').$type<'DONE' | 'NONE'>().notNull(),
   at: text('at').notNull()
 })
+
+/** Board meetings coming up (results days), from NSE's event calendar. */
+export const researchEvents = sqliteTable(
+  'research_events',
+  {
+    symbol: text('symbol').notNull(),
+    date: text('date').notNull(),
+    purpose: text('purpose').notNull(),
+    company: text('company').notNull(),
+    details: text('details').notNull()
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.date, t.purpose] }), index('research_events_date').on(t.date)]
+)
+
+/** Dividends, bonuses, splits, rights and buybacks, from NSE's corporate actions. */
+export const researchActions = sqliteTable(
+  'research_actions',
+  {
+    symbol: text('symbol').notNull(),
+    exDate: text('ex_date').notNull(),
+    subject: text('subject').notNull(),
+    recordDate: text('record_date'),
+    kind: text('kind').notNull(),
+    amount: real('amount')
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.exDate, t.subject] }), index('research_actions_ex').on(t.exDate)]
+)
+
+/** Quarterly shareholding patterns from NSE: promoters' share for every filing, the full split once its XBRL is read. */
+export const researchShp = sqliteTable(
+  'research_shp',
+  {
+    symbol: text('symbol').notNull(),
+    asOf: text('as_of').notNull(),
+    promoter: real('promoter'),
+    url: text('url'),
+    filedAt: text('filed_at'),
+    /** Groups, shareholder count and named holders, as JSON, once the XBRL has been read. */
+    detailJson: text('detail_json'),
+    attempts: integer('attempts').notNull().default(0)
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.asOf] }), index('research_shp_filed').on(t.filedAt)]
+)
+
+/** When each company's full shareholding history was last asked for. */
+export const researchShpChecked = sqliteTable('research_shp_checked', {
+  symbol: text('symbol').primaryKey(),
+  at: text('at').notNull()
+})
+
+/** NSE's four-level classification of every listed company (macro, sector, industry, basic industry). */
+export const researchIndustry = sqliteTable('research_industry', {
+  symbol: text('symbol').primaryKey(),
+  macro: text('macro'),
+  sector: text('sector'),
+  industry: text('industry'),
+  basicIndustry: text('basic_industry'),
+  /** The sector index NSE compares the stock with, and the two P/Es it shows. */
+  sectorIndex: text('sector_index'),
+  sectorPe: real('sector_pe'),
+  symbolPe: real('symbol_pe'),
+  indicesJson: text('indices_json'),
+  listedOn: text('listed_on'),
+  checkedAt: text('checked_at').notNull()
+})
+
+/** Corporate announcements from NSE, kept for 60 days. */
+export const researchAnnouncements = sqliteTable(
+  'research_announcements',
+  {
+    id: text('id').primaryKey(),
+    symbol: text('symbol').notNull(),
+    company: text('company').notNull(),
+    at: text('at').notNull(),
+    category: text('category').notNull(),
+    tag: text('tag').notNull(),
+    text: text('text').notNull(),
+    url: text('url')
+  },
+  (t) => [index('research_ann_symbol').on(t.symbol, t.at), index('research_ann_at').on(t.at)]
+)
+
+/** Price alerts the person sets. */
+export const alertRules = sqliteTable('alert_rules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  symbol: text('symbol').notNull(),
+  kind: text('kind').notNull(),
+  value: real('value').notNull(),
+  note: text('note'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  firedAt: text('fired_at'),
+  createdAt: text('created_at').notNull()
+})
+
+/** Alerts that fired, each once (the key says what it was about). */
+export const alertEvents = sqliteTable(
+  'alert_events',
+  {
+    key: text('key').primaryKey(),
+    at: text('at').notNull(),
+    kind: text('kind').notNull(),
+    symbol: text('symbol'),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    read: integer('read', { mode: 'boolean' }).notNull().default(false)
+  },
+  (t) => [index('alert_events_at').on(t.at)]
+)
+
+/** Government support for farming: PM-KISAN instalments, crop insurance or crop-loss claims, subsidies. */
+export const farmSupport = sqliteTable('farm_support', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  personId: integer('person_id')
+    .notNull()
+    .references(() => persons.id),
+  scheme: text('scheme').notNull(),
+  date: text('date').notNull(),
+  amount: real('amount').notNull(),
+  note: text('note')
+})

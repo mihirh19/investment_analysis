@@ -1,7 +1,10 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import {
+  LAND_UNITS,
   PROPERTY_EXPENSE_KINDS,
   PROPERTY_SUBTYPES,
+  type LandRecord,
+  type LandUnit,
   type HousingCity,
   type PropertyExpenseKind,
   type PropertyMeta,
@@ -211,7 +214,7 @@ function PropertySection({
 
       <div className="mt-6 grid grid-cols-1 gap-x-10 gap-y-8 @7xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
         <div className="min-w-0">
-          <Market p={p} />
+          {m.propertyType === 'LAND' ? <Land p={p} /> : <Market p={p} />}
           <Estimates p={p} />
         </div>
         <div className="min-w-0">
@@ -263,6 +266,55 @@ function H({ children, aside }: { children: React.ReactNode; aside?: React.React
 }
 
 // ---------------- the city's market ----------------
+
+const ANYROR_URL = 'https://anyror.gujarat.gov.in/'
+const acres = (a: number) => `${a.toLocaleString('en-IN', { maximumFractionDigits: 2 })} acres (${(a / LAND_UNITS.hectare).toLocaleString('en-IN', { maximumFractionDigits: 3 })} ha)`
+const WATER: Record<NonNullable<LandRecord['irrigation']>, string> = { IRRIGATED: 'Irrigated', PARTLY: 'Partly irrigated', RAINFED: 'Rain-fed' }
+
+/** Farmland: the 7/12 details, value per acre against Jantri, and valuing it at a local rate per acre. */
+function Land({ p }: { p: PropertyView }) {
+  const m = p.meta
+  const l = m.land ?? {}
+  const add = useAddManualEntry()
+  const [rate, setRate] = useState('')
+  const area = l.areaAcres ?? null
+  const rows: [string, React.ReactNode, string?][] = []
+  if (l.surveyNo) rows.push(['Survey or block number', l.surveyNo])
+  if (l.khataNo) rows.push(['Khata number', l.khataNo])
+  const where = [l.village, l.taluka, l.district].filter(Boolean).join(', ')
+  if (where) rows.push(['Village, taluka, district', where])
+  if (area) rows.push(['Area', acres(area)])
+  if (l.irrigation) rows.push(['Water', WATER[l.irrigation]])
+  if (area && p.value) rows.push(['Value per acre', money(p.value / area)])
+  if (m.jantriValue)
+    rows.push([
+      `Jantri value${m.jantriDate ? `, ${shortDate(m.jantriDate)}` : ''}`,
+      area ? `${money(m.jantriValue)} (${money(m.jantriValue / area)} an acre)` : money(m.jantriValue)
+    ])
+  return (
+    <div className="mb-8">
+      <H>Land record</H>
+      {rows.length ? <Rows rows={rows} /> : <p className="text-[14px] text-ink-muted">Add the 7/12 details (survey number, village, area) in Edit details.</p>}
+      {area && (
+        <form
+          className="mt-3 flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            add.mutate([p.accountId, today(), Math.round(area * Number(rate))], { onSuccess: () => setRate('') })
+          }}
+        >
+          <Field label="Going rate in the village, ₹ an acre" hint="What land nearby sold for lately">
+            <Input type="number" required min="1" step="any" value={rate} onChange={(e) => setRate(e.target.value)} className="w-40" />
+          </Field>
+          <Button type="submit" variant="quiet" disabled={add.isPending || !rate}>
+            Value at {rate ? money(area * Number(rate)) : 'this rate'}
+          </Button>
+        </form>
+      )}
+      <ErrorNote error={add.error} />
+    </div>
+  )
+}
 
 function Market({ p }: { p: PropertyView }) {
   const mk = p.market
@@ -941,7 +993,15 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
     appreciation: s(m?.appreciation),
     estimate: '',
     jantriValue: s(m?.jantriValue),
-    jantriDate: m?.jantriDate ?? ''
+    jantriDate: m?.jantriDate ?? '',
+    surveyNo: m?.land?.surveyNo ?? '',
+    khataNo: m?.land?.khataNo ?? '',
+    village: m?.land?.village ?? '',
+    taluka: m?.land?.taluka ?? '',
+    district: m?.land?.district ?? '',
+    area: s(m?.land?.areaAcres),
+    areaUnit: 'acre' as LandUnit,
+    irrigation: (m?.land?.irrigation ?? '') as NonNullable<LandRecord['irrigation']> | ''
   })
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((x) => ({ ...x, [k]: val }))
 
@@ -975,7 +1035,18 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
       premiumPct: v.valuation === 'AREA' ? optNum(v.premiumPct) : undefined,
       appreciation: optNum(v.appreciation),
       jantriValue: optNum(v.jantriValue),
-      jantriDate: v.jantriValue.trim() ? v.jantriDate || today() : undefined
+      jantriDate: v.jantriValue.trim() ? v.jantriDate || today() : undefined,
+      land: isLand
+        ? {
+            surveyNo: v.surveyNo.trim() || undefined,
+            khataNo: v.khataNo.trim() || undefined,
+            village: v.village.trim() || undefined,
+            taluka: v.taluka.trim() || undefined,
+            district: v.district.trim() || undefined,
+            areaAcres: optNum(v.area) ? optNum(v.area)! * LAND_UNITS[v.areaUnit] : undefined,
+            irrigation: v.irrigation || undefined
+          }
+        : undefined
     }
     save.mutate([{ accountId: p?.accountId, personId, meta }], {
       onSuccess: (id) => {
@@ -987,6 +1058,7 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
   }
 
   const needsArea = v.valuation === 'AREA'
+  const isLand = TYPE_OF[v.subtype] === 'LAND'
   return (
     <form onSubmit={submit} className="anim-pop mb-10 rounded-md border border-rule bg-sheet p-5">
       <h2 className="mb-4 text-[17px] font-semibold">{p ? `Edit ${m!.name}` : 'Add a property'}</h2>
@@ -1095,6 +1167,55 @@ function PropertyForm({ p, onDone }: { p: PropertyView | null; onDone: () => voi
           </Field>
         )}
       </div>
+
+      {isLand && (
+        <fieldset className="mt-6">
+          <legend className="mb-2 text-[14px] font-medium">Land record (7/12)</legend>
+          <div className="grid grid-cols-2 gap-4 @5xl:grid-cols-4">
+            <Field label="Survey or block number">
+              <Input value={v.surveyNo} onChange={(e) => set('surveyNo', e.target.value)} />
+            </Field>
+            <Field label="Khata number" hint="Optional">
+              <Input value={v.khataNo} onChange={(e) => set('khataNo', e.target.value)} />
+            </Field>
+            <Field label="Area">
+              <div className="flex gap-1">
+                <Input type="number" min="0" step="any" value={v.area} onChange={(e) => set('area', e.target.value)} className="w-28" />
+                <Select value={v.areaUnit} onChange={(e) => set('areaUnit', e.target.value as LandUnit)} aria-label="Area unit">
+                  <option value="acre">acres</option>
+                  <option value="hectare">hectares</option>
+                  <option value="guntha">guntha</option>
+                  <option value="vigha">vigha (16 guntha)</option>
+                </Select>
+              </div>
+            </Field>
+            <Field label="Water">
+              <Select value={v.irrigation} onChange={(e) => set('irrigation', e.target.value as typeof v.irrigation)}>
+                <option value="">Not said</option>
+                <option value="IRRIGATED">Irrigated</option>
+                <option value="PARTLY">Partly irrigated</option>
+                <option value="RAINFED">Rain-fed</option>
+              </Select>
+            </Field>
+            <Field label="Village">
+              <Input value={v.village} onChange={(e) => set('village', e.target.value)} />
+            </Field>
+            <Field label="Taluka">
+              <Input value={v.taluka} onChange={(e) => set('taluka', e.target.value)} />
+            </Field>
+            <Field label="District">
+              <Input value={v.district} onChange={(e) => set('district', e.target.value)} />
+            </Field>
+          </div>
+          <p className="mt-2 text-[13px] text-ink-muted">
+            The 7/12 extract is on{' '}
+            <button type="button" className="text-stamp hover:underline" onClick={() => void openExternal(ANYROR_URL)}>
+              AnyRoR
+            </button>{' '}
+            (Gujarat). Its area is in hectares, ares and square metres: 1.20.34 is 1.2034 hectares.
+          </p>
+        </fieldset>
+      )}
 
       <fieldset className="mt-6">
         <legend className="mb-2 text-[14px] font-medium">How to value it</legend>

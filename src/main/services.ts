@@ -45,8 +45,20 @@ import * as farm from './farm'
 import * as loans from './loans'
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import { knownVarieties, refreshMandiPrices } from './market/mandi'
-import { PRICE_CLASSES, type CropKey, type CropVarieties, type FarmEntryInput, type FarmSeasonInput, type HoldingCosts, type MarketNote } from '@shared/farm'
+import { CROPS, PRICE_CLASSES, type CropKey, type CropVarieties, type FarmEntryInput, type FarmSupportInput, type FarmSeasonInput, type HoldingCosts, type MarketNote } from '@shared/farm'
 import { writeMarketNote } from './farmNote'
+import { writeNewsDigest } from './newsDigest'
+import * as alerts from './alerts'
+import * as farmWeather from './farmWeather'
+import { cropExports } from './farmExports'
+import { readMandiBill } from './farmBill'
+import { moneyByCountry } from './world/money'
+import { computeScenarioHoldings } from './portfolio/scenario'
+import { ALL_PAGES } from '@shared/screens'
+import { gatherReport, reportHtml } from './report'
+import { COMMODITIES, summarise, type CommodityBoard, type CommodityRow } from '@shared/commodities'
+import type { FarmPlace } from '@shared/weather'
+import type { AlertRuleInput, AutoAlert } from '@shared/alerts'
 import { refreshSchemeFacts, storedSchemeFacts } from './market/amfiData'
 import { storedCpi } from './market/cpi'
 import { deleteStatement, PdfPasswordNeeded, readStatement, saveStatement, setCategory, spendingReport, statementContent } from './statements'
@@ -64,6 +76,7 @@ import XLSX from 'xlsx'
 import type { Screen, WorldSeries } from '@shared/screener'
 import type { FlowsReport, FlowsStatus } from '@shared/flows'
 import { flowsReport } from './flows/sync'
+import { computeXray } from './portfolio/xray'
 import type { AisStatus, ShipsView, WorldMap } from '@shared/world'
 import * as worldStore from './world/store'
 import type { WorldSync } from './world/sync'
@@ -126,6 +139,7 @@ export interface ServiceDeps {
     status(): ResearchStatus
     setEnabled(on: boolean): void
     open(symbol: string): Promise<void>
+    openOwnership(symbol: string): void
   }
   /** The World map's background updates; absent in tests. */
   world?: Pick<WorldSync, 'opened' | 'setEnabled' | 'enabled' | 'status' | 'run'>
@@ -154,6 +168,7 @@ const WORLD: { key: string; label: string }[] = [
   { key: '^TNX', label: 'US 10-year yield, %' }
 ]
 let world: { at: number; series: WorldSeries[] } | null = null
+let commodityRows: { at: number; rows: CommodityRow[] } | null = null
 /** Chart candles kept briefly: daily for half an hour, intraday for a minute. */
 const chartCache = new Map<string, { at: number; data: ChartBars }>()
 const CHART_INTERVALS: ChartInterval[] = ['1m', '5m', '15m', '1h', '1d']
@@ -165,6 +180,12 @@ export const THEME_KEY = 'ui:theme'
 
 export function createServices(deps: ServiceDeps) {
   const { db } = deps
+  /** The family's money by country, added to the map's figures so it colours like any other. */
+  const withMoney = (m: Omit<WorldMap, 'money'> & { money?: WorldMap['money'] }): WorldMap => {
+    const money = moneyByCountry(db)
+    const today = new Date().toISOString().slice(0, 10)
+    return { ...m, money, figures: { ...m.figures, money: Object.fromEntries(money.countries.map((c) => [c.iso3, { [today]: c.share * 100 }])) } }
+  }
   // Statements read by older versions recorded bonds and REIT units as shares.
   reclassifyDemat(db)
   tidyListedNames(db)
@@ -303,6 +324,8 @@ export function createServices(deps: ServiceDeps) {
 
   /** What "Ask your money" can look up: the pages' own figures, without chart series. */
   const chatSources: ChatSources = {
+    screens: ALL_PAGES.map((p) => ({ code: p.code, label: p.label, route: p.to })),
+    workspaces: () => (JSON.parse(getSetting(WORKSPACES_KEY) ?? '[]') as SavedWorkspace[]).map((w) => w.name),
     persons: () => db.select().from(schema.persons).all().map((p) => ({ id: p.id, name: p.name })),
     overview(personId) {
       const a = computeAnalysis(db, personId)
@@ -890,6 +913,13 @@ export function createServices(deps: ServiceDeps) {
       return null
     },
     saveFarmEntry: (input: FarmEntryInput) => farm.saveEntry(db, input),
+    saveFarmSupport: (input: FarmSupportInput) => farm.saveSupport(db, input),
+    getCropExports: (crop: CropKey) => cropExports(db, crop, deps.fetch),
+    readMandiBill: (filePath: string) => readMandiBill(ai.clientFor('statements'), filePath, (u) => ai.record(u)),
+    deleteFarmSupport(id: number): null {
+      farm.deleteSupport(db, id)
+      return null
+    },
     deleteFarmEntry(id: number): null {
       farm.deleteEntry(db, id)
       return null
@@ -984,13 +1014,34 @@ export function createServices(deps: ServiceDeps) {
       return series
     },
     /** Opening the map the first time starts its background updates. */
+    /** World futures (Yahoo, delayed; kept 20 minutes) and prices at home: gold and silver in rupees, the farm's mandi crops. */
+    async getCommodities(): Promise<CommodityBoard> {
+      if (!commodityRows || Date.now() - commodityRows.at > 20 * 60_000) {
+        const got = await mapLimit(COMMODITIES, 4, async (c) => {
+          const closes = (await yahooHistory(c.symbol, '1y', deps.fetch, '1d')).prices.map((p) => p.close)
+          return { ...c, ...summarise(closes), points: closes }
+        })
+        const rows = COMMODITIES.map((c, i) => (got[i].ok ? (got[i] as { value: CommodityRow }).value : { ...c, last: null, change1d: null, change1m: null, change1y: null, points: [] }))
+        if (rows.every((r) => r.last === null)) throw new Error('Yahoo Finance sent no commodity prices')
+        commodityRows = { at: Date.now(), rows }
+      }
+      const metal = (k: string) => db.select().from(schema.marketPrices).where(eq(schema.marketPrices.key, k)).get()
+      const india: CommodityBoard['india'] = []
+      const gold = metal('XAU')
+      const silver = metal('XAG')
+      if (gold) india.push({ label: 'Gold, 24 carat', value: gold.price * 10, unit: '₹ a 10 g', change1d: gold.prevClose ? gold.price / gold.prevClose - 1 : null, asOf: gold.asOf })
+      if (silver) india.push({ label: 'Silver', value: silver.price * 1000, unit: '₹ a kg', change1d: silver.prevClose ? silver.price / silver.prevClose - 1 : null, asOf: silver.asOf })
+      for (const p of farm.farmReport(db).prices)
+        if (p.latest) india.push({ label: `${CROPS[p.crop].label} at ${p.market}`, value: p.latest.modal, unit: '₹ a quintal', change1d: null, asOf: p.latest.date })
+      return { rows: commodityRows.rows, india, at: new Date(commodityRows.at).toISOString() }
+    },
     getWorldMap(): WorldMap {
       deps.world?.opened()
-      return worldStore.worldMap(db, worldStatus())
+      return withMoney(worldStore.worldMap(db, worldStatus()))
     },
     setWorldSync(on: boolean): WorldMap {
       deps.world?.setEnabled(on)
-      return worldStore.worldMap(db, worldStatus())
+      return withMoney(worldStore.worldMap(db, worldStatus()))
     },
     /** Fetches every World map source now, in the background (the map refreshes as each lands). */
     refreshWorld(): null {
@@ -1116,6 +1167,51 @@ export function createServices(deps: ServiceDeps) {
       }
       XLSX.writeFile(wb, filePath)
       return filePath
+    },
+    getXray: (personId?: number) => computeXray(db, personId),
+    getScenarioHoldings: (personId?: number) => computeScenarioHoldings(db, personId),
+    monthlyReportHtml: (personId?: number) => reportHtml(gatherReport(db, personId)),
+    getCalendar: () => research.calendarReport(db),
+    getOwnership(symbol: string) {
+      const view = research.ownershipView(db, symbol.trim())
+      // Not all in yet: fetch it now; the page refreshes when it is in.
+      if (view.waiting) deps.research?.openOwnership(view.symbol)
+      return view
+    },
+    getOwnershipReport: () => research.ownershipReport(db),
+    getIndustries: () => research.industryMap(db),
+    getAnnouncements: () => research.announcementsReport(db),
+    getAlerts: () => alerts.alertsReport(db),
+    getFarmWeather: (force?: boolean) => farmWeather.farmWeather(db, deps.fetch, force),
+    findFarmPlaces: (query: string) => farmWeather.findPlaces(query, deps.fetch),
+    setFarmPlace(place: FarmPlace | null) {
+      farmWeather.setFarmPlace(db, place)
+      return farmWeather.farmWeather(db, deps.fetch)
+    },
+    saveAlertRule(input: AlertRuleInput) {
+      alerts.saveAlertRule(db, input)
+      return alerts.alertsReport(db)
+    },
+    deleteAlertRule(id: number) {
+      alerts.deleteAlertRule(db, id)
+      return alerts.alertsReport(db)
+    },
+    setAutoAlerts(auto: Partial<Record<AutoAlert, boolean>>) {
+      alerts.setAutoAlerts(db, auto)
+      return alerts.alertsReport(db)
+    },
+    markAlertsRead() {
+      alerts.markAlertsRead(db)
+      return alerts.alertsReport(db)
+    },
+    async writeNewsDigest() {
+      const since = new Date(Date.now() - 4 * 86400_000).toISOString().slice(0, 10)
+      const items = research.myAnnouncements(db, since, false).slice(0, 120)
+      if (items.length === 0) throw new Error('No announcements from your companies in the last few days.')
+      const text = await writeNewsDigest(ai.clientFor('newsDigest'), items, (u) => ai.record(u))
+      const value = JSON.stringify({ at: new Date().toISOString(), text, count: items.length })
+      db.insert(schema.settings).values({ key: research.DIGEST_KEY, value }).onConflictDoUpdate({ target: schema.settings.key, set: { value } }).run()
+      return research.announcementsReport(db)
     },
     getFlows(): FlowsReport {
       deps.flows?.opened()
