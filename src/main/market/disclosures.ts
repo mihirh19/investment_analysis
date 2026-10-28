@@ -2,7 +2,8 @@ import { unzipSync } from 'fflate'
 import { eq, inArray } from 'drizzle-orm'
 import type { DisclosureStatus } from '@shared/assets'
 import { schema, type Db } from '../db'
-import { matchPortfolios, parseAmcWorkbook, saveFundHoldings, type DisclosedPortfolio } from '../importers/amcPortfolio'
+import { readSheets } from '../sheets/read'
+import { matchPortfolios, parseAmcGrids, saveFundHoldings, type DisclosedPortfolio } from '../importers/amcPortfolio'
 import { listHoldings } from '../portfolio/holdings'
 import { BUNDLED_AMC_REGISTRY, type AmcEntry } from './amcRegistry'
 import { fetchNavAll } from './funds'
@@ -750,7 +751,8 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
         const portfolios: DisclosedPortfolio[] = []
         for (const file of p.files) {
           const buf = await download(file.url, amc.monthlyUrl!, deps.fetch)
-          for (const wb of workbooksIn(file.url, buf, only.map((x) => x.names))) portfolios.push(...parseAmcWorkbook(wb))
+          for (const wb of workbooksIn(file.url, buf, only.map((x) => x.names)))
+            portfolios.push(...parseAmcGrids(await readSheets(wb, { cellDates: true })))
         }
         const asOfFallback = monthEnd(p.period)
         // Best sheet per fund over all its names.

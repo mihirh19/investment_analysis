@@ -1,4 +1,5 @@
 import XLSX from 'xlsx'
+import type { Grid } from '../sheets/read'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { ImportResult } from '@shared/types'
 import { schema, type Db } from '../db'
@@ -55,12 +56,14 @@ export function classifyIsin(isin: string, industry: string | null): DisclosedHo
 
 export function parseAmcWorkbook(data: Buffer | ArrayBuffer): DisclosedPortfolio[] {
   const wb = XLSX.read(data, { type: 'buffer', cellDates: true })
-  const out: DisclosedPortfolio[] = []
-  for (const sheet of wb.SheetNames) {
-    const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet], { header: 1, defval: '', raw: true })
-    out.push(...parseSheet(sheet, grid).filter((p) => p.holdings.length > 0))
-  }
-  return out
+  return parseAmcGrids(
+    wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: '', raw: true }) }))
+  )
+}
+
+/** The same, from sheets already read into grids (read with dates as dates). */
+export function parseAmcGrids(grids: Grid[]): DisclosedPortfolio[] {
+  return grids.flatMap((g) => parseSheet(g.name, g.rows).filter((p) => p.holdings.length > 0))
 }
 
 interface HeaderRow {

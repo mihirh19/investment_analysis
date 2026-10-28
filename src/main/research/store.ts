@@ -63,7 +63,28 @@ export function heldStocks(db: Db): Map<string, CompanyHeld> {
   return out
 }
 
+// What the screener and the monitor are built from changes only when the download stores something,
+// so their results are kept until then (rebuilding them reads every company: half a second or more).
+const versions = new WeakMap<Db, number>()
+const memos = new WeakMap<Db, Map<string, { version: number; at: number; value: unknown }>>()
+/** Marks this database's research as changed, so the screener and the monitor are worked out again. */
+export const touchResearch = (db: Db) => {
+  versions.set(db, (versions.get(db) ?? 0) + 1)
+}
+function remember<T>(db: Db, key: string, build: () => T): T {
+  const version = versions.get(db) ?? 0
+  const memo = memos.get(db) ?? new Map()
+  memos.set(db, memo)
+  const hit = memo.get(key)
+  if (hit && hit.version === version && Date.now() - hit.at < 10 * 60_000) return hit.value as T
+  const value = build()
+  memo.set(key, { version, at: Date.now(), value })
+  return value
+}
+const heldKey = (held: Map<string, CompanyHeld>) => [...held].map(([s, h]) => `${s}:${h.quantity}`).join(',')
+
 export function saveQuotes(db: Db, quotes: DayQuote[]): void {
+  touchResearch(db)
   db.transaction((tx) => {
     for (const q of quotes) {
       const { symbol, ...rest } = q
@@ -329,6 +350,7 @@ export function refreshFundamentals(db: Db, symbols?: string[]): number {
   )
   const wanted = symbols ? new Set(symbols) : null
   const stale = counts.filter((c) => (!wanted || wanted.has(c.symbol)) && have.get(c.symbol) !== c.n)
+  if (stale.length) touchResearch(db)
   for (const c of stale) {
     const f = fundamentalsOf(filingsOf(db, c.symbol))
     const v = { symbol: c.symbol, filings: c.n, dataJson: JSON.stringify(f) }
@@ -341,6 +363,7 @@ export function refreshFundamentals(db: Db, symbols?: string[]): number {
 }
 
 export function saveIndices(db: Db, levels: IndexLevel[]): void {
+  touchResearch(db)
   db.transaction((tx) => {
     for (const l of levels) {
       const { name, ...rest } = l
@@ -351,7 +374,11 @@ export function saveIndices(db: Db, levels: IndexLevel[]): void {
 
 /** Every listed company with a price or results, as screener rows. */
 export function screenData(db: Db, held = heldStocks(db)): ScreenData {
-  refreshFundamentals(db)
+  return remember(db, `screen|${heldKey(held)}`, () => buildScreenData(db, held))
+}
+
+// Fundamentals are worked out by the download as it stores each company's results, not here.
+function buildScreenData(db: Db, held: Map<string, CompanyHeld>): ScreenData {
   const funds = new Map(
     db
       .select()
@@ -400,6 +427,10 @@ const KEY_INDICES = [
 
 export function marketMonitor(db: Db): MarketMonitor {
   const held = heldStocks(db)
+  return remember(db, `monitor|${heldKey(held)}`, () => buildMonitor(db, held))
+}
+
+function buildMonitor(db: Db, held: Map<string, CompanyHeld>): MarketMonitor {
   const { rows, pricesDate } = screenData(db, held)
   const byName = new Map(db.select().from(schema.researchIndices).all().map((i) => [i.name, i as IndexLevel]))
   const indices = KEY_INDICES.map((n) => byName.get(n)).filter((i): i is IndexLevel => !!i)
@@ -495,6 +526,7 @@ export function barsOf(db: Db, symbol: string): Bar[] {
 
 /** Works out every stock's technicals from the stored bars (a few seconds for the whole market). */
 export function refreshTechnicals(db: Db): number {
+  touchResearch(db)
   // Straight from SQLite as arrays: a million rows as objects would be slow.
   const sqlite = (db as unknown as { $client: Database.Database }).$client
   const stmt = sqlite
@@ -708,6 +740,7 @@ export function ownershipReport(db: Db, today = new Date().toISOString().slice(0
 // ---------------- industries ----------------
 
 export function saveIndustry(db: Db, symbol: string, d: ReturnType<typeof parseSymbolData>): void {
+  touchResearch(db)
   const v = {
     macro: d?.macro ?? null,
     sector: d?.sector ?? null,

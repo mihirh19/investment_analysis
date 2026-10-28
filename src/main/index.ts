@@ -16,6 +16,8 @@ import { FlowsSync } from './flows/sync'
 import { WorldSync } from './world/sync'
 import { renderLinks } from './market/render'
 import { createServices, type Services } from './services'
+import { setSheetRunner } from './sheets/read'
+import { sheetProcessRunner } from './sheets/process'
 
 function resourcePath(...parts: string[]): string {
   // Packaged: files listed under extraResources sit next to app.asar.
@@ -71,6 +73,8 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(async () => {
+    // Big spreadsheets (expense ratios, fund portfolios) are read in a separate process.
+    setSheetRunner(sheetProcessRunner(import.meta.dirname))
     let market: MarketData
     let researchSync: ResearchSync
     let flowsSync: FlowsSync
@@ -115,13 +119,13 @@ if (!app.requestSingleInstanceLock()) {
         fetch,
         { renderLinks }
       )
-      // Company results and NSE's daily files; told to the window at most every few seconds.
+      // Company results and NSE's daily files; told to the window at most every 15 seconds (screens rebuild on each).
       let pending: NodeJS.Timeout | null = null
       researchSync = new ResearchSync(db, () => {
         pending ??= setTimeout(() => {
           pending = null
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
-        }, 3000)
+        }, 15_000)
       })
       // The World map's sources, each on its own timetable; off until the map is first opened.
       worldSync = new WorldSync(db, () => {
@@ -132,7 +136,7 @@ if (!app.requestSingleInstanceLock()) {
         pending ??= setTimeout(() => {
           pending = null
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
-        }, 3000)
+        }, 15_000)
       })
       // Price rules and automatic alerts: a desktop notification each (a summary when many come at once).
       alertWatcher = new AlertWatcher(
@@ -152,7 +156,7 @@ if (!app.requestSingleInstanceLock()) {
         pending ??= setTimeout(() => {
           pending = null
           for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
-        }, 3000)
+        }, 15_000)
       })
       services = createServices({
         db,

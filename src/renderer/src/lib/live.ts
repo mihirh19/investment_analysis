@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LiveQuote } from '@shared/research'
 import type { HoldingRow } from '@shared/types'
 import { useQuotes } from './api'
@@ -8,10 +8,40 @@ import { useQuotes } from './api'
  * seconds while their market is open) and the latest quote for each comes back by symbol. Screens
  * overlay these on their own figures, which stay as they are when a symbol has no live price.
  */
-export function useLive(symbols: (string | null | undefined)[]): Map<string, LiveQuote> {
+export function useLive(symbols: (string | null | undefined)[], everyMs = 0): Map<string, LiveQuote> {
   const list = useMemo(() => [...new Set(symbols.filter((s): s is string => !!s).map((s) => s.toUpperCase()))].slice(0, 60), [symbols.join(',')])
   const q = useQuotes(list)
-  return useMemo(() => new Map((q.data ?? []).map((x) => [x.symbol.toUpperCase(), x])), [q.data])
+  const data = useThrottled(q.data, everyMs)
+  return useMemo(() => new Map((data ?? []).map((x) => [x.symbol.toUpperCase(), x])), [data])
+}
+
+/** A value that changes at most every `ms` (the latest one wins); 0 passes every change through. */
+function useThrottled<T>(value: T, ms: number): T {
+  const [shown, setShown] = useState(value)
+  const last = useRef(0)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latest = useRef(value)
+  latest.current = value
+  useEffect(() => {
+    if (!ms) return
+    const wait = last.current + ms - Date.now()
+    if (wait <= 0) {
+      last.current = Date.now()
+      setShown(value)
+    } else if (!timer.current)
+      timer.current = setTimeout(() => {
+        timer.current = null
+        last.current = Date.now()
+        setShown(latest.current)
+      }, wait)
+  }, [value, ms])
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    []
+  )
+  return ms ? shown : value
 }
 
 /** NSE-listed holdings (Indian shares and ETFs) take their live price; everything else stays as stored. */
@@ -19,7 +49,8 @@ const liveSymbol = (r: HoldingRow) => ((r.assetClass === 'EQUITY_IN' || r.assetC
 
 /** Holdings with live prices worked in: value, gain and the day's change follow the price. */
 export function useLiveHoldings(rows: HoldingRow[] | undefined): HoldingRow[] | undefined {
-  const live = useLive((rows ?? []).map(liveSymbol))
+  // Totals and charts are heavy to redraw: live prices reach them every ten seconds, not every tick.
+  const live = useLive((rows ?? []).map(liveSymbol), 10_000)
   return useMemo(() => {
     if (!rows || live.size === 0) return rows
     return rows.map((r) => {

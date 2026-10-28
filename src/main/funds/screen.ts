@@ -76,9 +76,14 @@ export function universeFrom(navs: AmfiScheme[]): UniverseFund[] {
   return out
 }
 
+// Parsed once until the stored list changes.
+let universeCache: { raw: string; value: { at: string | null; funds: UniverseFund[] } } | null = null
+
 export function storedUniverse(db: Db): { at: string | null; funds: UniverseFund[] } {
   const v = getSetting(db, UNIVERSE_KEY)
-  return v ? (JSON.parse(v) as { at: string; funds: UniverseFund[] }) : { at: null, funds: [] }
+  if (!v) return { at: null, funds: [] }
+  if (universeCache?.raw !== v) universeCache = { raw: v, value: JSON.parse(v) as { at: string; funds: UniverseFund[] } }
+  return universeCache.value
 }
 
 /** Funds the family holds, by ISIN and AMFI code. */

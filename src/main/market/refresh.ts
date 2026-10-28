@@ -1,6 +1,7 @@
 import { and, eq, inArray, max } from 'drizzle-orm'
 import type { MarketSourceStatus, MarketStatus } from '@shared/types'
 import { schema, type Db } from '../db'
+import { saveMany } from '../db/batch'
 import { listHoldings } from '../portfolio/holdings'
 import {
   fetchNavAll,
@@ -176,8 +177,8 @@ export class MarketData {
   private async tick(): Promise<void> {
     const now = Date.now()
     const open = isMarketOpen('NSE') || isMarketOpen('US')
-    // Held stocks every half minute while a market is open (screens on show get live prices besides).
-    const quotesDue = now - this.last.quotes >= (open ? MINUTE / 2 : 30 * MINUTE)
+    // Held stocks every minute while a market is open; what is on screen gets live prices besides.
+    const quotesDue = now - this.last.quotes >= (open ? MINUTE : 30 * MINUTE)
     const fundsDue = now - this.last.funds >= 120 * MINUTE
     const metaDue = now - this.last.meta >= 24 * 60 * MINUTE
     if (quotesDue || fundsDue || metaDue) await this.refresh({ quotes: quotesDue, funds: fundsDue, meta: metaDue })
@@ -395,14 +396,12 @@ export class MarketData {
       const stale = !lastDate || Date.now() - Date.parse(lastDate) > 3 * 86400000
       if (stale) {
         const { prices } = await yahooHistory('USDINR=X', lastDate ? '1mo' : '10y', this.f, '1d')
-        this.db.transaction((tx) => {
-          for (const p of prices) {
-            tx.insert(schema.fxHistory)
-              .values({ pair: 'USDINR', date: p.date, rate: p.close })
-              .onConflictDoUpdate({ target: [schema.fxHistory.pair, schema.fxHistory.date], set: { rate: p.close } })
-              .run()
-          }
-        })
+        await saveMany(
+          this.db,
+          schema.fxHistory,
+          prices.map((p) => ({ pair: 'USDINR', date: p.date, rate: p.close })),
+          [schema.fxHistory.pair, schema.fxHistory.date]
+        )
       }
       this.ok('fx')
     } catch (e) {
@@ -563,12 +562,12 @@ export class MarketData {
     const rows = await fetchNseListings(this.f)
     if (rows.length < 500) return
     const at = nowIso()
-    this.db.transaction((tx) => {
-      for (const r of rows) {
-        const v = { isin: r.isin, symbol: r.symbol, name: r.name, kind: r.kind, updatedAt: at }
-        tx.insert(schema.nseListings).values(v).onConflictDoUpdate({ target: schema.nseListings.isin, set: v }).run()
-      }
-    })
+    await saveMany(
+      this.db,
+      schema.nseListings,
+      rows.map((r) => ({ isin: r.isin, symbol: r.symbol, name: r.name, kind: r.kind, updatedAt: at })),
+      schema.nseListings.isin
+    )
     // With NSE's list in hand: ETFs a statement filed as funds, and plain company names.
     reclassifyDemat(this.db)
     tidyListedNames(this.db)
@@ -583,12 +582,12 @@ export class MarketData {
     const rows = await fetchNseIndustries(this.f)
     if (rows.length < 100) return
     const at = nowIso()
-    this.db.transaction((tx) => {
-      for (const r of rows) {
-        const v = { isin: r.isin, symbol: r.symbol, name: r.name, industry: r.industry, source: 'NSE', updatedAt: at }
-        tx.insert(schema.sectorMap).values(v).onConflictDoUpdate({ target: schema.sectorMap.isin, set: v }).run()
-      }
-    })
+    await saveMany(
+      this.db,
+      schema.sectorMap,
+      rows.map((r) => ({ isin: r.isin, symbol: r.symbol, name: r.name, industry: r.industry, source: 'NSE', updatedAt: at })),
+      schema.sectorMap.isin
+    )
   }
 
   async refreshSectors(held: Instrument[]): Promise<void> {

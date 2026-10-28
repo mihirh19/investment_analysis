@@ -9,7 +9,24 @@ import { manualHoldings } from '../manualAssets'
 
 const EPS = 1e-3
 
+// Many screens ask for the holdings after each price update, and working them out reads every
+// transaction and statement. The answer is kept until anything is written to the database (SQLite
+// counts every change on this connection) and for half a minute at most, as some values follow the date.
+const kept = new WeakMap<Db, Map<string, { changes: number; at: number; rows: HoldingRow[] }>>()
+
 export function listHoldings(db: Db, personId?: number): HoldingRow[] {
+  const changes = db.get<{ n: number }>(sql`SELECT total_changes() AS n`).n
+  const memo = kept.get(db) ?? new Map()
+  kept.set(db, memo)
+  const key = String(personId ?? '')
+  const hit = memo.get(key)
+  if (!hit || hit.changes !== changes || Date.now() - hit.at > 30_000)
+    memo.set(key, { changes, at: Date.now(), rows: workOutHoldings(db, personId) })
+  // Each caller gets its own copy, free to change.
+  return structuredClone(memo.get(key)!.rows)
+}
+
+function workOutHoldings(db: Db, personId?: number): HoldingRow[] {
   const persons = new Map(
     db
       .select()

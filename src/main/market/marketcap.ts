@@ -1,6 +1,8 @@
-import { max } from 'drizzle-orm'
+import { max, ne } from 'drizzle-orm'
 import XLSX from 'xlsx'
 import { schema, type Db } from '../db'
+import { saveMany } from '../db/batch'
+import { readSheets, type Grid } from '../sheets/read'
 import { fetchWith, type FetchFn } from './http'
 
 /**
@@ -53,9 +55,13 @@ const BAND: Record<string, CapBand> = { large: 'LARGE', mid: 'MID', small: 'SMAL
 /** Reads AMFI's list: Sr. No., Company name, ISIN, …, Average of all exchanges, Categorization. */
 export function parseCapList(data: Buffer | ArrayBuffer): CapRow[] {
   const wb = XLSX.read(data, { type: 'buffer' })
+  return capRows(wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: '' }) })))
+}
+
+/** The same, from sheets already read into grids. */
+export function capRows(grids: Grid[]): CapRow[] {
   const out: CapRow[] = []
-  for (const sheet of wb.SheetNames) {
-    const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet], { header: 1, defval: '' })
+  for (const { rows: grid } of grids) {
     const h = grid.findIndex((r) => r.some((c) => /^isin$/i.test(String(c).trim())))
     if (h < 0) continue
     const head = grid[h].map((c) => String(c).toLowerCase())
@@ -104,19 +110,16 @@ export async function refreshMarketCaps(db: Db, f?: FetchFn, now = new Date()): 
     if (stored && stored >= period) return stored
     for (const url of capUrls(period)) {
       try {
-        const rows = parseCapList(
-          await fetchWith(url, { fetch: f, timeoutMs: 60_000 }, async (res) => Buffer.from(await res.arrayBuffer()))
+        const rows = capRows(
+          await readSheets(await fetchWith(url, { fetch: f, timeoutMs: 60_000 }, (res) => res.arrayBuffer()))
         )
         if (rows.length < 500) continue
         const at = new Date().toISOString()
-        db.transaction((tx) => {
-          tx.delete(schema.marketCaps).run()
-          for (const r of rows)
-            tx.insert(schema.marketCaps)
-              .values({ ...r, period, updatedAt: at })
-              .onConflictDoNothing()
-              .run()
-        })
+        // The new list over the old, then whatever the new one no longer names.
+        const seen = new Set<string>()
+        const fresh = rows.filter((r) => !seen.has(r.isin) && !!seen.add(r.isin))
+        await saveMany(db, schema.marketCaps, fresh.map((r) => ({ ...r, period, updatedAt: at })), schema.marketCaps.isin)
+        db.delete(schema.marketCaps).where(ne(schema.marketCaps.period, period)).run()
         return period
       } catch {
         /* not published there (yet): try the next address or the half-year before */

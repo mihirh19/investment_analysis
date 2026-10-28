@@ -107,6 +107,8 @@ export function StockChart({
   const theme = useChartTheme()
   const box = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
+  // The price series, so a live tick moves its last bar without rebuilding the chart.
+  const mainRef = useRef<{ update(bar: unknown): void; candles: boolean } | null>(null)
   const [hover, setHover] = useState<Candle | null>(null)
 
   const bars = useMemo(() => {
@@ -118,6 +120,8 @@ export function StockChart({
     return settings.view === 'W' ? aggregate(b, 'W') : settings.view === 'M' ? aggregate(b, 'M') : b
   })
   const compareKey = compares.map((q) => q.dataUpdatedAt).join(',')
+  // What the chart is drawn from, apart from the last bar's price (which live ticks move).
+  const shape = `${symbol}|${settings.view}|${bars.length}|${String(bars[0]?.time)}|${String(bars.at(-1)?.time)}`
 
   useEffect(() => {
     const el = box.current
@@ -143,13 +147,13 @@ export function StockChart({
     const up = token('gain')
     const down = token('loss')
     if (comparing || !settings.candles) {
-      chart
-        .addSeries(LineSeries, { color: token('series-1'), lineWidth: 2, priceLineVisible: !comparing })
-        .setData(bars.map((b) => ({ time: t(b.time), value: b.close })))
+      const s = chart.addSeries(LineSeries, { color: token('series-1'), lineWidth: 2, priceLineVisible: !comparing })
+      s.setData(bars.map((b) => ({ time: t(b.time), value: b.close })))
+      mainRef.current = comparing ? null : { update: (b) => s.update(b as never), candles: false }
     } else {
-      chart
-        .addSeries(CandlestickSeries, { upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down })
-        .setData(bars.map((b) => ({ time: t(b.time), open: b.open, high: b.high, low: b.low, close: b.close })))
+      const s = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down })
+      s.setData(bars.map((b) => ({ time: t(b.time), open: b.open, high: b.high, low: b.low, close: b.close })))
+      mainRef.current = { update: (b) => s.update(b as never), candles: true }
     }
     if (comparing) {
       chart.priceScale('right').applyOptions({ mode: PriceScaleMode.Percentage })
@@ -224,11 +228,21 @@ export function StockChart({
     })
     return () => {
       chartRef.current = null
+      mainRef.current = null
       chart.remove()
     }
-    // compareBars is derived from compareKey.
+    // compareBars is derived from compareKey; the last bar's live moves are handled below, so only a
+    // new bar (or a different series) rebuilds the chart.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bars, compareKey, settings.candles, settings.overlays.join(), settings.panes.join(), settings.compare.join(), theme, view.show])
+  }, [shape, compareKey, settings.candles, settings.overlays.join(), settings.panes.join(), settings.compare.join(), theme, view.show])
+
+  // A live tick: move the last bar in place (indicators catch up at the next rebuild).
+  const lastBar = bars[bars.length - 1]
+  useEffect(() => {
+    const m = mainRef.current
+    if (!m || !lastBar) return
+    m.update(m.candles ? { time: t(lastBar.time), open: lastBar.open, high: lastBar.high, low: lastBar.low, close: lastBar.close } : { time: t(lastBar.time), value: lastBar.close })
+  }, [lastBar?.close, lastBar?.high, lastBar?.low])
 
   const last = bars[bars.length - 1]
   const prev = bars[bars.length - 2]

@@ -7,7 +7,11 @@ const alias = { '@shared': resolve('src/shared') }
 
 export default defineConfig({
   main: {
-    resolve: { alias }
+    resolve: { alias },
+    build: {
+      // The spreadsheet reader runs as its own process (src/main/sheets/worker.ts).
+      rollupOptions: { input: { index: resolve('src/main/index.ts'), sheets: resolve('src/main/sheets/worker.ts') } }
+    }
   },
   preload: {
     resolve: { alias },

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import XLSX from 'xlsx'
+import { readSheets } from '../sheets/read'
 import type { SchemeFacts } from '@shared/insights'
 import { schema, type Db } from '../db'
 import { nameSimilarity } from '../importers/amcPortfolio'
@@ -115,8 +115,8 @@ export async function fetchTer(f: FetchFn = fetch, today = new Date()): Promise<
       { headers }
     )
     if (!res.ok) continue
-    const wb = XLSX.read(Buffer.from(await res.arrayBuffer()), { type: 'buffer' })
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' })
+    // A 4 MB sheet: read in the separate process so the app doesn't stop for several seconds.
+    const rows = (await readSheets(await res.arrayBuffer(), { first: 1 }))[0]?.rows ?? []
     const head = (rows[0] ?? []).map((h) => String(h).toLowerCase())
     const iName = head.findIndex((h) => h === 'scheme name')
     const iDate = head.findIndex((h) => h === 'ter date')
@@ -144,7 +144,10 @@ export async function refreshSchemeFacts(db: Db, f: FetchFn = fetch, force = fal
   const at = row ? (JSON.parse(row.value) as { at: string }).at : null
   if (!force && at && Date.now() - Date.parse(at) < 7 * 86400000) return 0
   const { date, schemes } = await fetchFundPerformance(f)
-  const ter = await fetchTer(f).catch(() => new Map<string, { regular: number | null; direct: number | null }>())
+  const ter = await fetchTer(f).catch((e: unknown) => {
+    console.warn('Expense ratios not read:', e instanceof Error ? e.message : e)
+    return new Map<string, { regular: number | null; direct: number | null }>()
+  })
   // TER names match the performance names nearly always (exactly, or once spacing and punctuation
   // are ignored); the rest are matched by similarity among the same fund house's names only. The
   // work is done in slices so the app stays responsive while it runs.
@@ -173,11 +176,17 @@ export async function refreshSchemeFacts(db: Db, f: FetchFn = fetch, force = fal
   return schemes.length
 }
 
+// The parsed facts, kept until the stored copy changes (they are read on every fund screen).
+let parsed: { raw: string; value: { date: string | null; schemes: SchemeFacts[] } } | null = null
+
 export function storedSchemeFacts(db: Db): { date: string | null; schemes: SchemeFacts[] } {
   const row = db.select().from(schema.settings).where(eq(schema.settings.key, KEY)).get()
   if (!row) return { date: null, schemes: [] }
-  const v = JSON.parse(row.value) as { date: string; schemes: SchemeFacts[] }
-  return { date: v.date, schemes: v.schemes }
+  if (parsed?.raw !== row.value) {
+    const v = JSON.parse(row.value) as { date: string; schemes: SchemeFacts[] }
+    parsed = { raw: row.value, value: { date: v.date, schemes: v.schemes } }
+  }
+  return parsed.value
 }
 
 /** A name with case, punctuation and plan words ignored, for exact matching. */
@@ -196,17 +205,39 @@ function groupByHouse(names: string[]): Map<string, string[]> {
   return m
 }
 
+// An index of the facts by name and by fund house, built once per list of facts.
+const indexes = new WeakMap<SchemeFacts[], { byKey: Map<string, SchemeFacts>; byHouse: Map<string, SchemeFacts[]>; found: Map<string, SchemeFacts | null> }>()
+
+function indexOf(schemes: SchemeFacts[]) {
+  let ix = indexes.get(schemes)
+  if (!ix) {
+    const byKey = new Map<string, SchemeFacts>()
+    const byHouse = new Map<string, SchemeFacts[]>()
+    for (const s of schemes) {
+      const k = nameKey(s.name)
+      if (!byKey.has(k)) byKey.set(k, s)
+      const h = houseOf(s.name)
+      byHouse.set(h, [...(byHouse.get(h) ?? []), s])
+    }
+    ix = { byKey, byHouse, found: new Map() }
+    indexes.set(schemes, ix)
+  }
+  return ix
+}
+
 /** The AMFI facts for a fund held, by its name (plan words ignored). */
 export function factsFor(schemes: SchemeFacts[], name: string): SchemeFacts | null {
-  const key = nameKey(name)
-  const exact = schemes.find((s) => nameKey(s.name) === key)
-  if (exact) return exact
-  const house = houseOf(name)
-  let best: { s: SchemeFacts; score: number } | null = null
-  for (const s of schemes) {
-    if (houseOf(s.name) !== house) continue
-    const score = nameSimilarity(name, s.name)
-    if (!best || score > best.score) best = { s, score }
+  const ix = indexOf(schemes)
+  if (ix.found.has(name)) return ix.found.get(name)!
+  let hit = ix.byKey.get(nameKey(name)) ?? null
+  if (!hit) {
+    let best: { s: SchemeFacts; score: number } | null = null
+    for (const s of ix.byHouse.get(houseOf(name)) ?? []) {
+      const score = nameSimilarity(name, s.name)
+      if (!best || score > best.score) best = { s, score }
+    }
+    hit = best && best.score >= 0.75 ? best.s : null
   }
-  return best && best.score >= 0.75 ? best.s : null
+  ix.found.set(name, hit)
+  return hit
 }
