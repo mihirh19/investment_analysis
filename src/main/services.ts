@@ -184,6 +184,7 @@ const quoteCache = new Map<string, { at: number; q: LiveQuote }>()
 /** A plain symbol is an NSE stock; indices, currencies and futures go as Yahoo writes them. */
 const yahooSymbol = (s: string) => (/[\^=.]/.test(s) ? s : `${s}.NS`)
 export const THEME_KEY = 'ui:theme'
+const THEME_CHOSEN_KEY = 'ui:theme-chosen'
 
 export function createServices(deps: ServiceDeps) {
   const { db } = deps
@@ -512,12 +513,15 @@ export function createServices(deps: ServiceDeps) {
   const services = {
     getTheme(): Theme {
       const v = getSetting(THEME_KEY)
-      // The terminal look is the default; the others are a choice in Settings.
-      return v === 'light' || v === 'dark' || v === 'system' ? v : 'terminal'
+      // The simple look is the default. The terminal was the default before 0.25.0, so a terminal
+      // nobody chose on purpose (no choice saved since then) moves to the simple look once.
+      if (v === 'terminal' && getSetting(THEME_CHOSEN_KEY)) return 'terminal'
+      return v === 'light' || v === 'dark' || v === 'system' ? v : 'simple'
     },
     setTheme(theme: Theme): null {
-      if (!['light', 'dark', 'system', 'terminal'].includes(theme)) throw new Error('Unknown theme')
+      if (!['simple', 'light', 'dark', 'system', 'terminal'].includes(theme)) throw new Error('Unknown theme')
       setSetting(THEME_KEY, theme)
+      setSetting(THEME_CHOSEN_KEY, '1')
       deps.applyTheme?.(theme)
       return null
     },

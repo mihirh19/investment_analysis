@@ -18,7 +18,6 @@ import {
   useQuotes,
   useResearchHome,
   useResearchSubscription,
-  useTheme,
   useWorkspaces
 } from '../lib/api'
 import { percent, toneClass } from '../lib/format'
@@ -130,10 +129,6 @@ export function Terminal() {
   useMarketSubscription()
   useLiveQuotesSubscription()
   useResearchSubscription()
-  const theme = useTheme().data ?? 'terminal'
-  useEffect(() => {
-    document.documentElement.classList.toggle('terminal', theme === 'terminal')
-  }, [theme])
 
   const saved = useWorkspaces()
   const [list, setList] = useState<SavedWorkspace[] | null>(null)

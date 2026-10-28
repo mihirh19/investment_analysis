@@ -238,17 +238,17 @@ describe('AMFI directory', () => {
 
 // ---------------- end to end against a database ----------------
 
-function disclosureWorkbook(): Buffer {
+function disclosureWorkbook(asOn = 'September 30,2026', hdfc = 60): Buffer {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(
     wb,
     XLSX.utils.aoa_to_sheet([
       ['PPFAS Mutual Fund'],
       ['Parag Parikh Flexi Cap Fund (An open-ended dynamic equity scheme)'],
-      ['Monthly Portfolio Statement as on September 30,2026'],
+      [`Monthly Portfolio Statement as on ${asOn}`],
       ['Name of the Instrument', 'ISIN', 'Industry / Rating', 'Quantity', 'Market Value', '% to Net Assets'],
-      ['HDFC Bank Limited', 'INE040A01034', 'Banks', 1, 1, 60],
-      ['TREPS', '', '', '', 1, 40]
+      ['HDFC Bank Limited', 'INE040A01034', 'Banks', 1, 1, hdfc],
+      ['TREPS', '', '', '', 1, 100 - hdfc]
     ]),
     'PPFCF'
   )
@@ -363,10 +363,15 @@ describe('automatic monthly disclosures and ETF prices', () => {
       if (url === 'https://amc.ppfas.com/downloads/portfolio-disclosure/')
         return new Response(
           '<a href="/downloads/portfolio-disclosure/2026/PPFAS_Monthly_Portfolio_Report_September_30_2026.xls">Monthly portfolio September 2026</a>' +
-            '<a href="/downloads/portfolio-disclosure/2026/PPFAS_Monthly_Portfolio_Report_August_31_2026.xls">Monthly portfolio August 2026</a>'
+            '<a href="/downloads/portfolio-disclosure/2026/PPFAS_Monthly_Portfolio_Report_August_31_2026.xls">Monthly portfolio August 2026</a>' +
+            '<a href="/downloads/portfolio-disclosure/2026/PPFAS_Monthly_Portfolio_Report_July_31_2026.xls">Monthly portfolio July 2026</a>' +
+            '<a href="/downloads/portfolio-disclosure/2026/PPFAS_Monthly_Portfolio_Report_June_30_2026.xls">Monthly portfolio June 2026</a>' +
+            '<a href="/downloads/portfolio-disclosure/2026/PPFAS_Monthly_Portfolio_Report_May_31_2026.xls">Monthly portfolio May 2026</a>'
         )
       if (url.includes('PPFAS_Monthly_Portfolio_Report_September_30_2026.xls'))
         return new Response(new Uint8Array(disclosureWorkbook()))
+      if (url.includes('PPFAS_Monthly_Portfolio_Report_July_31_2026.xls'))
+        return new Response(new Uint8Array(disclosureWorkbook('July 31,2026', 70)))
       return new Response('not found', { status: 404 })
     }) as typeof fetch
   }
@@ -413,20 +418,28 @@ describe('automatic monthly disclosures and ETF prices', () => {
       funds: ['Parag Parikh Flexi Cap Fund - Direct Plan - Growth']
     })
     expect(ppfas.files[0]).toMatch(/September_30_2026\.xls$/)
-    // A fund with one month on file also asks for the month before; that file missing changes nothing.
-    expect(calls.filter((u) => u.includes('August_31_2026'))).toHaveLength(1)
+    // Earlier months for the fund page's history: three per run, newest first. August's file is
+    // missing (nothing stored), July's is read, June's too (missing), May waits for the next run.
+    expect(['August_31', 'July_31', 'June_30', 'May_31'].map((m) => calls.filter((u) => u.includes(m)).length)).toEqual([1, 1, 1, 0])
 
     const rows = db.select().from(schema.fundHoldings).all()
     expect(rows.map((r) => [r.name, r.source, r.asOf, r.weight])).toEqual([
       ['HDFC Bank Limited', 'AMC_AUTO', '2026-09-30', 0.6],
-      ['TREPS', 'AMC_AUTO', '2026-09-30', 0.4]
+      ['TREPS', 'AMC_AUTO', '2026-09-30', 0.4],
+      ['HDFC Bank Limited', 'AMC_AUTO', '2026-07-31', 0.7],
+      ['TREPS', 'AMC_AUTO', '2026-07-31', 0.3]
     ])
     // Nippon's page isn't served by the fake, so it is reported, not fatal.
     expect(notFound).toContain('Nippon India Mutual Fund')
 
-    // A second run the same month does not download again.
+    // The next run fetches only the month still to look for, not September again.
     calls = []
     await syncDisclosures(db, { fetch: f, now: new Date('2026-10-12T00:00:00Z') })
+    expect(calls.filter((u) => u.includes('ppfas')).map((u) => u.split('/').pop())).toEqual(['', 'PPFAS_Monthly_Portfolio_Report_May_31_2026.xls'])
+
+    // After that, nothing more this month: files missing from the page aren't asked for again.
+    calls = []
+    await syncDisclosures(db, { fetch: f, now: new Date('2026-10-13T00:00:00Z') })
     expect(calls.filter((u) => u.includes('ppfas'))).toEqual([])
     expect(getDisclosureStatus(db).find((s) => s.amc === 'PPFAS Mutual Fund')?.state).toBe('UP_TO_DATE')
   })

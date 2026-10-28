@@ -45,7 +45,8 @@ const fakeClaude = createServer((req, res) => {
 // Keep animation frames running even when other windows cover the test window (charts handle input on them).
 const app = spawn(electron, [appDir, `--remote-debugging-port=${port}`, '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'], {
   stdio: 'ignore',
-  env: { ...process.env, FP_USER_DATA: userData, FP_SEED_DIR: seedDir, ANTHROPIC_BASE_URL: 'http://127.0.0.1:9401' }
+  // The screens are walked in the terminal (its menu reaches every one); the simple look is checked after.
+  env: { ...process.env, FP_USER_DATA: userData, FP_SEED_DIR: seedDir, FP_THEME: 'terminal', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9401' }
 })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let target
@@ -108,6 +109,13 @@ const nav = async (label) => {
   await ev(`[...document.querySelectorAll('header button')].find((b) => b.textContent.trim() === 'Menu')?.click()`)
   await sleep(250)
   return ev(`(() => { const b = [...document.querySelectorAll('[aria-label=Menu] button')].find((e) => e.textContent.trim().endsWith(${JSON.stringify(want)}) && !e.title); if (!b) return 'NOT FOUND'; b.click(); return 'ok' })()`)
+}
+/** In the simple look: Settings, from the More menu. */
+const simpleSettings = async () => {
+  await ev(`[...document.querySelectorAll('nav[aria-label=Main] button')].find((b) => b.textContent.trim() === 'More')?.click()`)
+  await sleep(300)
+  await ev(`[...document.querySelectorAll('nav[aria-label=Main] a')].find((a) => a.textContent.trim() === 'Settings & backup')?.click()`)
+  await sleep(1200)
 }
 const ok = async (step) => {
   await sleep(1200)
@@ -294,15 +302,39 @@ await clickText('button', 'Add a policy')
 await ok('open policy form')
 await nav('Settings & backup')
 await clickText('[role=radio]', 'Dark')
-await sleep(800)
+await sleep(1500)
 await ok('switch theme to dark')
+// Dark is the simple layout in dark colours: back to Settings through More.
+await simpleSettings()
 await clickText('[role=radio]', 'Terminal')
 await ok('switch theme to terminal')
 const terminalOn = await ev(`document.documentElement.classList.contains('terminal')`)
 if (!terminalOn) failures++
 console.log((terminalOn ? 'ok   ' : 'FAIL ') + 'terminal theme applied outside Research')
+// The terminal opens its saved workspace: Settings again from the menu.
+await nav('Settings & backup')
+await sleep(800)
+// The simple look: its own frame, every top-bar area and the home screen.
+await clickText('[role=radio]', 'Simple')
+await sleep(1500)
+const simpleOn = await ev(`document.documentElement.classList.contains('simple') && !!document.querySelector('nav[aria-label=Main]')`)
+if (!simpleOn) failures++
+console.log((simpleOn ? 'ok   ' : 'FAIL ') + 'simple look shows its top bar')
+for (const area of ['Home', 'Investments', 'Stocks', 'Mutual funds', 'Farm', 'Plan']) {
+  await ev(`[...document.querySelectorAll('nav[aria-label=Main] a')].find((a) => a.textContent.trim() === ${JSON.stringify(area)})?.click()`)
+  await ok(`simple: ${area}`)
+}
+await simpleSettings()
+await ok('simple: More, Settings')
 await clickText('[role=radio]', 'Same as Windows')
-await ok('switch theme back to Windows')
+await sleep(1500)
+await ok('switch theme to Windows (simple layout)')
+await simpleSettings()
+await clickText('[role=radio]', 'Terminal')
+await sleep(1500)
+await ok('back to the terminal')
+await nav('Settings & backup')
+await sleep(800)
 await clickText('button', 'Show recovery key')
 await ok('show recovery key')
 await clickText('button', 'Set up Google sign-in')

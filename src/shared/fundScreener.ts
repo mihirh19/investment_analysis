@@ -434,6 +434,16 @@ export interface FundDetail {
   holdings: { asOf: string; prevAsOf: string | null; rows: FundHoldingRow[]; exited: { name: string; weight: number }[] } | null
   sectors: { sector: string; weight: number; change: number | null }[]
   assetMix: { type: string; weight: number }[]
+  /**
+   * The portfolio month by month (up to six month-ends, oldest first): each holding's and each
+   * sector's share of the fund in each month, null where the holding wasn't there. Null with fewer
+   * than two months on file.
+   */
+  history: {
+    months: string[]
+    rows: { name: string; isin: string | null; sector: string | null; assetType: string; weights: (number | null)[] }[]
+    sectors: { sector: string; weights: number[] }[]
+  } | null
   /** Why there are no holdings, when there aren't. */
   holdingsNote: string | null
   /** Followed from the screener: its monthly portfolio is fetched though no one holds it. */

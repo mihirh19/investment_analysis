@@ -10,7 +10,7 @@ export function Button({
     quiet: 'border border-rule-strong text-ink hover:bg-paper disabled:opacity-50',
     danger: 'text-loss hover:bg-loss/10 disabled:opacity-50'
   }[variant]
-  return <button className={`rounded-md px-3.5 py-1.5 text-[15px] font-medium ${styles} ${className}`} {...rest} />
+  return <button className={`rounded-lg px-3.5 py-1.5 text-[15px] font-medium ${styles} ${className}`} {...rest} />
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 const inputCls =
-  'rounded-md border border-rule-strong bg-sheet px-2.5 py-1.5 text-[15px] text-ink placeholder:text-ink-muted/70'
+  'rounded-lg border border-rule-strong bg-sheet px-2.5 py-1.5 text-[15px] text-ink placeholder:text-ink-muted/70'
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className ?? ''}`} />

@@ -17,6 +17,8 @@ import { Valuation } from './Valuation'
 import { Columns } from './charts'
 import { BASE_COLUMNS, ScreenTable } from './ScreenTable'
 import { StockChart, useStoredChart } from './StockChart'
+import { scorecard, stockContext, type Tone } from '@shared/scorecard'
+import { useOpenSymbol } from '../lib/links'
 import { useCompany, useScreenData } from '../lib/api'
 import { axisCrore, bigMoney, compactMoney, lakhCrore, money, percent, shortDate, toneClass, units } from '../lib/format'
 
@@ -53,10 +55,15 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
     )
   const setView = (v: View) => navigate(`/research/${encodeURIComponent(symbol)}${v === 'overview' ? '' : `?view=${v}`}`, { replace: true })
   return (
-    <article aria-labelledby="company-name">
-      <Header c={c} />
+    // Tickertape's arrangement: the price and the scorecard stay at the left while the views change.
+    <article aria-labelledby="company-name" className="grid items-start gap-8 @5xl:grid-cols-[300px_minmax(0,1fr)]">
+      <aside className="space-y-4 @5xl:sticky @5xl:top-16">
+        <PriceCard c={c} />
+        <Scorecard c={c} />
+      </aside>
+      <div className="min-w-0">
       <ResultsNote c={c} />
-      <div role="tablist" aria-label="Company views" className="mb-5 flex gap-1 border-b border-rule">
+      <div role="tablist" aria-label="Company views" className="mb-5 flex gap-1 overflow-x-auto border-b border-rule">
         {VIEWS.map((v) => (
           <button
             key={v.key}
@@ -90,12 +97,13 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
           </div>
         )}
       </div>
-      {view === 'overview' && <Overview c={c} />}
+      {view === 'overview' && <Overview c={c} onPeers={() => setView('peers')} />}
       {view === 'financials' && <Financials c={c} />}
       {view === 'valuation' && <Valuation c={c} />}
       {view === 'ownership' && <Ownership symbol={symbol} name={c.name} />}
       {view === 'chart' && <Chart symbol={symbol} />}
       {view === 'peers' && <Peers c={c} />}
+      </div>
     </article>
   )
 }
@@ -174,15 +182,213 @@ export function ResultsNote({ c }: { c: CompanyView }) {
   )
 }
 
+// ---------------- the left column: price and scorecard ----------------
+
+/** The company, its price (live while NSE is open) and where it sits in its year's range. */
+function PriceCard({ c }: { c: CompanyView }) {
+  const live = useLive([c.symbol]).get(c.symbol.toUpperCase())
+  const q = c.quote && live ? { ...c.quote, close: live.price, prevClose: live.prevClose ?? c.quote.prevClose, date: live.time.slice(0, 10) } : c.quote
+  const change = q?.prevClose ? q.close - q.prevClose : null
+  return (
+    <section className="rounded-xl border border-rule p-5">
+      <h2 id="company-name" className="text-[19px] leading-snug font-semibold text-ink">
+        {c.name}
+      </h2>
+      <div className="mt-0.5 text-[13px] text-ink-muted">
+        {c.symbol} · NSE{c.industry ? ` · ${c.industry}` : ''}
+      </div>
+      {q && (
+        <>
+          <div className="num mt-4 text-left text-[26px] leading-none font-semibold">
+            <FlashNum value={q.close} text={money(q.close, 'INR', 2)} />
+          </div>
+          <div className={`num mt-1 text-left text-[13.5px] ${toneClass(change)}`}>
+            {change === null ? '' : `${change >= 0 ? '+' : '−'}${Math.abs(change).toFixed(2)} (${percent(q.prevClose ? q.close / q.prevClose - 1 : null)})`}{' '}
+            <span className="text-ink-muted">
+              {live ? `live, ${new Date(live.time).toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}` : `on ${shortDate(q.date)}`}
+            </span>
+          </div>
+          {q.low52 !== null && q.high52 !== null && q.high52 > q.low52 && (
+            <div className="mt-4">
+              <Range52 low={q.low52} high={q.high52} close={q.close} />
+            </div>
+          )}
+        </>
+      )}
+      {c.held && (
+        <p className="mt-4 rounded-lg bg-stamp-wash px-3 py-2 text-[13px] text-stamp">
+          {units(c.held.quantity)} shares held by {c.held.people.join(' and ')}, worth {lakhCrore(c.held.valueInr)}
+        </p>
+      )}
+    </section>
+  )
+}
+
+const LEVEL_CLS: Record<Tone, string> = {
+  good: 'bg-gain/10 text-gain',
+  bad: 'bg-loss/10 text-loss',
+  neutral: 'bg-sheet text-ink-muted'
+}
+
+/** Performance, valuation, growth, profitability, momentum and red flags, each in a line of plain words. */
+function Scorecard({ c }: { c: CompanyView }) {
+  const data = useScreenData()
+  const rows = data.data?.rows ?? []
+  const row = rows.find((r) => r.symbol === c.symbol)
+  const [open, setOpen] = useState<string | null>(null)
+  if (!row) return null
+  const cards = scorecard(row, rows, c.bank)
+  return (
+    <section aria-labelledby="scorecard" className="rounded-xl border border-rule">
+      <h3 id="scorecard" className="border-b border-rule px-5 py-3 text-[15px] font-semibold">
+        Scorecard
+      </h3>
+      <ul>
+        {cards.map((s) => (
+          <li key={s.key} className="border-b border-rule last:border-0">
+            <button
+              type="button"
+              aria-expanded={open === s.key}
+              onClick={() => setOpen(open === s.key ? null : s.key)}
+              className="flex w-full items-center gap-2 px-5 py-2.5 text-left hover:bg-sheet"
+            >
+              <span className="flex-1 text-[14px]">{s.title}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${LEVEL_CLS[s.tone]}`}>{s.level === 'None' ? 'n/a' : s.level}</span>
+              <svg aria-hidden viewBox="0 0 12 12" className={'size-3 fill-none stroke-current text-ink-muted transition-transform ' + (open === s.key ? 'rotate-180' : '')} strokeWidth="1.6">
+                <path d="m3 4.5 3 3 3-3" />
+              </svg>
+            </button>
+            {open === s.key && <p className="px-5 pb-3 text-[13px] text-ink-muted">{s.text}</p>}
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-rule px-5 py-2.5 text-[11.5px] text-ink-muted">
+        Against its industry and the market, from NSE results and prices. A description, not advice to buy or sell.
+      </p>
+    </section>
+  )
+}
+
 // ---------------- overview ----------------
 
-export function Overview({ c }: { c: CompanyView }) {
+/** Three cards: its industry, its size among listed companies, and how much its price swings. */
+function InfoCards({ c }: { c: CompanyView }) {
+  const data = useScreenData()
+  const rows = data.data?.rows ?? []
+  const row = rows.find((r) => r.symbol === c.symbol)
+  if (!row) return null
+  const ctx = stockContext(row, rows)
+  const card = 'rounded-xl border border-rule p-4'
+  return (
+    <div className="mb-6 grid gap-4 @3xl:grid-cols-3">
+      <div className={card}>
+        <div className="text-[14px] font-semibold">{c.industry ?? 'Industry not given'}</div>
+        <p className="mt-1 text-[13px] text-ink-muted">{c.industry ? `${ctx.peers} listed companies in this industry.` : 'NSE gives industries for Nifty 500 companies.'}</p>
+      </div>
+      <div className={card}>
+        <div className="text-[14px] font-semibold">{ctx.capBand ?? 'Size not known'}</div>
+        <p className="mt-1 text-[13px] text-ink-muted">
+          {ctx.capRank ? `Market cap of ${bigMoney(row.mcap)}, ranked ${ctx.capRank.toLocaleString('en-IN')} among listed companies.` : 'No market cap yet.'}
+        </p>
+      </div>
+      <div className={card}>
+        <div className="text-[14px] font-semibold">
+          {ctx.volatilityPercentile === null ? 'Risk not known' : ctx.volatilityPercentile >= 0.67 ? 'High risk' : ctx.volatilityPercentile <= 0.33 ? 'Low risk' : 'Moderate risk'}
+        </div>
+        <p className="mt-1 text-[13px] text-ink-muted">
+          {row.volatility === null || ctx.volatilityPercentile === null
+            ? 'Needs a year of prices.'
+            : `Price swings ${pct(row.volatility, 0)} a year; steadier than ${Math.round((1 - ctx.volatilityPercentile) * 100)}% of listed stocks.`}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** The headline figures, with the industry's middle company for comparison. */
+function KeyMetrics({ c }: { c: CompanyView }) {
+  const data = useScreenData()
+  const rows = data.data?.rows ?? []
+  const row = rows.find((r) => r.symbol === c.symbol)
+  const ctx = row ? stockContext(row, rows) : null
+  const items: [string, string][] = [
+    ['P/E (last 4 quarters)', times(c.metrics.pe)],
+    ['Price to book', times(c.metrics.pb)],
+    ['Dividend yield', pct(row?.dividendYield ?? null, 2)],
+    ['Industry P/E', times(ctx?.industryPe ?? null)],
+    ['Industry price to book', times(ctx?.industryPb ?? null)]
+  ]
+  return (
+    <section className="mb-6">
+      <h3 className="mb-3 text-[16px] font-semibold">Key figures</h3>
+      <dl className="grid grid-cols-2 gap-4 @2xl:grid-cols-3 @4xl:grid-cols-5">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-[12.5px] text-ink-muted">{label}</dt>
+            <dd className="num mt-0.5 text-left text-[17px] font-semibold">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
+/** A few companies like it, as cards (the full table is under Peers). */
+function SimilarStocks({ c, onPeers }: { c: CompanyView; onPeers: () => void }) {
+  const data = useScreenData()
+  const open = useOpenSymbol()
+  if (!c.industry) return null
+  const peers = (data.data?.rows ?? [])
+    .filter((r) => r.industry === c.industry && r.symbol !== c.symbol)
+    .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
+    .slice(0, 4)
+  if (!peers.length) return null
+  return (
+    <section className="mt-10">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h3 className="text-[16px] font-semibold">Similar stocks</h3>
+        <button type="button" onClick={onPeers} className="text-[13.5px] text-stamp hover:underline">
+          Compare with all peers
+        </button>
+      </div>
+      <ul className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-4">
+        {peers.map((p) => (
+          <li key={p.symbol}>
+            <button type="button" onClick={() => open(p.symbol)} className="block w-full rounded-xl border border-rule p-4 text-left hover:border-rule-strong hover:bg-sheet">
+              <div className="truncate text-[14px] font-semibold">{p.name}</div>
+              <div className="text-[12px] text-ink-muted">{p.symbol}</div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+                <div>
+                  <dt className="text-ink-muted">P/E</dt>
+                  <dd className="font-semibold">{times(p.pe)}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-muted">1 year</dt>
+                  <dd className={`font-semibold ${toneClass(p.ret1y)}`}>{pct(p.ret1y, 1)}</dd>
+                </div>
+              </dl>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+export function Overview({ c, onPeers }: { c: CompanyView; onPeers?: () => void }) {
   const m = c.metrics
   const quarters = [...c.quarters].reverse().slice(-12)
   const rev = (f: Flow) => f.revenue ?? f.totalIncome
   const profit = (f: Flow) => f.ownersProfit ?? f.netProfit
+  const [chart, setChart] = useStoredChart('chart:company-overview')
   return (
     <>
+      <div className="mb-6">
+        <StockChart symbol={c.symbol} settings={chart} onSettings={setChart} height={300} />
+      </div>
+      <InfoCards c={c} />
+      <KeyMetrics c={c} />
+      <h3 className="mb-2 text-[16px] font-semibold">More figures</h3>
       <Ratios m={m} bank={c.bank} />
       {quarters.length > 1 && (
         <div className="mt-8 grid gap-8 @5xl:grid-cols-2">
@@ -229,6 +435,7 @@ export function Overview({ c }: { c: CompanyView }) {
           </ul>
         </section>
       )}
+      {onPeers && <SimilarStocks c={c} onPeers={onPeers} />}
     </>
   )
 }

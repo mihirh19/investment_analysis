@@ -17,6 +17,10 @@ import { WorldSync } from './world/sync'
 import { renderLinks } from './market/render'
 import { createServices, type Services } from './services'
 import { setSheetRunner } from './sheets/read'
+import type { Theme } from '@shared/types'
+
+/** Windows' light or dark for a theme: the terminal is dark underneath, the simple look light. */
+const nativeThemeFor = (t: Theme) => (t === 'terminal' ? 'dark' : t === 'simple' ? 'light' : t)
 import { sheetProcessRunner } from './sheets/process'
 
 function resourcePath(...parts: string[]): string {
@@ -174,7 +178,7 @@ if (!app.requestSingleInstanceLock()) {
         flows: flowsSync,
         world: worldSync,
         dbKey: key,
-        applyTheme: (t) => (nativeTheme.themeSource = t === 'terminal' ? 'dark' : t),
+        applyTheme: (t) => (nativeTheme.themeSource = nativeThemeFor(t)),
         openUrl: (url) => shell.openExternal(url),
         emitChat: (e) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send(CHAT_EVENT, e)),
         replaceDatabase(filePath, newKey) {
@@ -195,7 +199,7 @@ if (!app.requestSingleInstanceLock()) {
       // The saved light/dark choice (the FP_THEME development switch wins when set).
       if (!process.env.FP_THEME) {
         const t = services.getTheme()
-        nativeTheme.themeSource = t === 'terminal' ? 'dark' : t
+        nativeTheme.themeSource = nativeThemeFor(t)
       }
       await seedDemo(db, services)
       applyDevTheme(services)

@@ -397,7 +397,7 @@ const MARK: Record<'OK' | 'WARN' | 'INFO', { icon: string; cls: string; label: s
 }
 
 /** The data health check-up: what makes the numbers incomplete or costs money, with a link to fix it. */
-function Checklist({ report }: { report: HealthReport }) {
+export function Checklist({ report }: { report: HealthReport }) {
   const passed = report.checks.filter((c) => c.status === 'OK')
   const open = report.checks.filter((c) => c.status !== 'OK')
   return (

@@ -126,6 +126,18 @@ describe('one fund’s page', () => {
       expect(d.sectors.find((s) => s.sector === 'FMCG')).toBeUndefined()
       expect(d.sectors.find((s) => s.sector === 'Energy')).toMatchObject({ weight: 0.03, change: 0.03 })
       expect(d.growth.map((g) => Math.round(g.fund))).toEqual([100, 102])
+      // Month by month: each holding's share in August and September, sold-out ones after the rest.
+      expect(d.history!.months).toEqual(['2026-08-31', '2026-09-30'])
+      expect(d.history!.rows.map((r) => [r.name, r.weights])).toEqual([
+        ['HDFC Bank', [0.08, 0.075]],
+        ['Coal India', [null, 0.03]],
+        ['ITC', [0.05, null]]
+      ])
+      expect(d.history!.sectors).toEqual([
+        { sector: 'Financials', weights: [0.08, 0.075] },
+        { sector: 'Energy', weights: [0, 0.03] },
+        { sector: 'FMCG', weights: [0.05, 0] }
+      ])
       expect(fundDetail(db, 'nope')).toBeNull()
 
       // Following uses the fund's existing record, and can be undone.

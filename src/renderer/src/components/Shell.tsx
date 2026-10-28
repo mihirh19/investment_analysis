@@ -74,7 +74,7 @@ export function LiveStatus() {
 
 export function PageHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <header className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 border-b border-rule pb-2">
+    <header className="page-header mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 border-b border-rule pb-2">
       <h1 className="wide text-[18px] leading-tight font-semibold tracking-tight text-ink">{title}</h1>
       {children && <div className="flex flex-wrap items-center gap-3">{children}</div>}
     </header>

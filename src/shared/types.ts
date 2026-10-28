@@ -808,8 +808,12 @@ export interface PerformanceReport {
   }
 }
 
-/** 'terminal' is black and amber, like a trading terminal (dark underneath). */
-export type Theme = 'light' | 'dark' | 'system' | 'terminal'
+/**
+ * 'simple' is clean white pages with a plain top bar, like an investing app (the default).
+ * 'terminal' is black and amber with tabs and splits, like a trading terminal (dark underneath).
+ * 'light', 'dark' and 'system' are the simple layout in paper-and-ink colours.
+ */
+export type Theme = 'simple' | 'light' | 'dark' | 'system' | 'terminal'
 
 export interface HealthCheck {
   key: string

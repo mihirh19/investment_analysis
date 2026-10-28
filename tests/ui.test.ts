@@ -83,13 +83,23 @@ describe('theme setting', () => {
   it('is saved and handed to the window', () => {
     const applied: string[] = []
     const svc = createServices({ db, casparserExe: '', encrypt: (s) => s, decrypt: (s) => s, applyTheme: (t) => applied.push(t) })
-    // The terminal look until another is chosen.
-    expect(svc.getTheme()).toBe('terminal')
+    // The simple look until another is chosen.
+    expect(svc.getTheme()).toBe('simple')
     svc.setTheme('dark')
     expect(svc.getTheme()).toBe('dark')
     expect(applied).toEqual(['dark'])
     svc.setTheme('system')
     expect(svc.getTheme()).toBe('system')
     expect(() => svc.setTheme('blue' as never)).toThrow()
+  })
+
+  it('moves a terminal nobody chose to the simple look, once', () => {
+    const svc = createServices({ db, casparserExe: '', encrypt: (s) => s, decrypt: (s) => s })
+    // The terminal saved by an older version (the default then), with no choice recorded since.
+    db.insert(schema.settings).values({ key: 'ui:theme', value: 'terminal' }).run()
+    expect(svc.getTheme()).toBe('simple')
+    // Chosen now in Settings: kept.
+    svc.setTheme('terminal')
+    expect(svc.getTheme()).toBe('terminal')
   })
 })

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, nativeTheme, type BrowserWindow } from 'electron'
+import { eq } from 'drizzle-orm'
 import type { Db } from './db'
 import { persistBundle } from './importers/bundle'
 import { mapCasJson, type CasJson } from './importers/cas'
@@ -40,13 +41,13 @@ export function applyDevPaths(): void {
   if (!enabled()) return
   if (process.env.FP_USER_DATA) app.setPath('userData', process.env.FP_USER_DATA)
   const theme = process.env.FP_THEME
-  if (theme === 'light' || theme === 'dark' || theme === 'terminal')
-    void app.whenReady().then(() => (nativeTheme.themeSource = theme === 'terminal' ? 'dark' : theme))
+  if (theme === 'light' || theme === 'dark' || theme === 'terminal' || theme === 'simple')
+    void app.whenReady().then(() => (nativeTheme.themeSource = theme === 'terminal' ? 'dark' : theme === 'simple' ? 'light' : theme))
 }
 
-/** FP_THEME=terminal: the terminal look is a saved setting the window reads, so save it. */
+/** FP_THEME=terminal (or simple): the look is a saved setting the window reads, so save it. */
 export function applyDevTheme(services: Services): void {
-  if (enabled() && process.env.FP_THEME === 'terminal') services.setTheme('terminal')
+  if (enabled() && (process.env.FP_THEME === 'terminal' || process.env.FP_THEME === 'simple')) services.setTheme(process.env.FP_THEME)
 }
 
 export async function seedDemo(db: Db, services: Services): Promise<void> {
@@ -79,6 +80,8 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
       seedResearch(db, JSON.parse(readFileSync(path, 'utf8')))
     } else if (file.endsWith('.farm.json')) {
       seedFarm(db, personId, JSON.parse(readFileSync(path, 'utf8')) as FarmSeed)
+    } else if (file.endsWith('.portfolios.json')) {
+      seedPortfolios(db, JSON.parse(readFileSync(path, 'utf8')) as PortfolioSeed[])
     } else if (file.endsWith('.assets.json')) {
       const items = JSON.parse(readFileSync(path, 'utf8')) as {
         meta: ManualMeta
@@ -89,6 +92,24 @@ export async function seedDemo(db: Db, services: Services): Promise<void> {
         for (const e of it.entries ?? []) addManualEntry(db, id, e.date, e.value)
       }
     }
+  }
+}
+
+interface PortfolioSeed {
+  isin: string
+  months: { asOf: string; holdings: { name: string; isin: string | null; sector: string | null; assetType?: 'EQUITY' | 'DEBT' | 'CASH' | 'OTHER'; weight: number }[] }[]
+}
+
+/** Made-up monthly portfolios for a demo fund, so its page shows holdings month by month. */
+function seedPortfolios(db: Db, seed: PortfolioSeed[]): void {
+  for (const s of seed) {
+    const fund = db.select().from(schema.instruments).where(eq(schema.instruments.isin, s.isin)).get()
+    if (!fund) continue
+    for (const m of s.months)
+      for (const h of m.holdings)
+        db.insert(schema.fundHoldings)
+          .values({ fundInstrumentId: fund.id, asOf: m.asOf, source: 'AMC', name: h.name, isin: h.isin, sector: h.sector, assetType: h.assetType ?? 'EQUITY', weight: h.weight })
+          .run()
   }
 }
 

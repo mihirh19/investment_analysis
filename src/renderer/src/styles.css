@@ -172,6 +172,53 @@ html.terminal {
   }
 }
 
+/* Simple: white pages, soft grey lines and one green, like an investing app. The default look. */
+html.simple {
+  --paper: #ffffff;
+  --sheet: #f7f8fa;
+  --ink: #2f3241;
+  --ink-muted: #767a8a;
+  --rule: #ececf0;
+  --rule-strong: #d9dbe1;
+  --stamp: #00996f;
+  --stamp-wash: #e7f6f1;
+  --gain: #00996f;
+  --loss: #e0533d;
+  --warn: #a86400;
+  --warn-wash: #fff4e0;
+  --font-simple: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+}
+html.simple body {
+  font-family: var(--font-simple);
+  font-size: 14.5px;
+}
+@layer components {
+  /* The system face has no width axis: figures keep their columns, headings their weight. */
+  html.simple .num {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  html.simple .wide {
+    font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+  html.simple .bg-stamp {
+    color: #fff;
+  }
+  /* A big figure sits under its label, as on an investing app's cards, not out at the right. */
+  html.simple .wide.num {
+    text-align: left;
+  }
+  /* Screen titles: larger, with space instead of a rule. */
+  html.simple .page-header {
+    border-bottom-color: transparent;
+    margin-bottom: 1.25rem;
+  }
+  html.simple .page-header h1 {
+    font-size: 24px;
+  }
+}
+
 /* The research workspace (dockview), in the app's colours. */
 .fp-dock .dockview-theme-dark {
   --dv-group-view-background-color: var(--paper);

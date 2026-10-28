@@ -26,7 +26,10 @@ export function Research({ mode }: { mode?: 'screener' | 'world' }) {
   const view = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'overview') as View
   return (
     <>
-      <PageHeader title={mode === 'screener' ? 'Screener' : mode === 'world' ? 'World' : 'Research'}>{mode === 'world' ? <WorldLine /> : <SyncLine />}</PageHeader>
+      {/* A company has its own heading, with its price. */}
+      {!symbol && (
+        <PageHeader title={mode === 'screener' ? 'Screener' : mode === 'world' ? 'World' : 'Markets'}>{mode === 'world' ? <WorldLine /> : <SyncLine />}</PageHeader>
+      )}
       {mode === 'screener' ? (
         <Screener />
       ) : mode === 'world' ? (

@@ -37,6 +37,12 @@ export interface DisclosureDeps {
 }
 
 const STATUS_KEY = 'disclosures:status'
+/** Per fund house, the newest month whose earlier months have been looked for (see HISTORY_MONTHS). */
+const HISTORY_KEY = 'disclosures:history'
+/** Months of portfolios kept per fund, so the fund page can show how each holding's share moved. */
+export const HISTORY_MONTHS = 6
+/** Earlier months downloaded per fund house in one run, so filling in history stays gentle. */
+const HISTORY_PER_RUN = 3
 const REGISTRY_KEY = 'disclosures:registry'
 const SPREADSHEET = /\.(xlsx?|xlsb|zip)(?:$|[?#])/i
 const MAX_BYTES = 60 * 1024 * 1024
@@ -658,6 +664,12 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
   const nowIso = (deps.now ?? new Date()).toISOString()
   const latestPossible = latestPossiblePeriod(deps.now ?? new Date())
   const previous = new Map(getDisclosureStatus(db).map((s) => [s.amc, s]))
+  const historyRow = db.select().from(schema.settings).where(eq(schema.settings.key, HISTORY_KEY)).get()
+  const historyState = historyRow ? (JSON.parse(historyRow.value) as { done: Record<string, string>; tried: string[] }) : { done: {}, tried: [] }
+  const historyDone = new Map<string, string>(Object.entries(historyState.done))
+  // "fundId|month" pairs already looked for, found or not: an older month a page doesn't offer
+  // isn't downloaded again every day.
+  const historyTried = new Set(historyState.tried)
   const byHouse = new Map<string, HeldFund[]>()
   for (const f of funds) byHouse.set(f.fundHouse, [...(byHouse.get(f.fundHouse) ?? []), f])
   if (byHouse.size === 0) return []
@@ -680,7 +692,8 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
       unmatched: [],
       checkedAt: nowIso
     }
-    const done = houseFunds.every((f) => f.latestAsOf && f.latestAsOf.slice(0, 7) >= latestPossible)
+    const done =
+      houseFunds.every((f) => f.latestAsOf && f.latestAsOf.slice(0, 7) >= latestPossible) && (historyDone.get(base.amc) ?? '') >= latestPossible
     if (done && !force) {
       statuses.push({
         ...(previous.get(base.amc) ?? base),
@@ -741,7 +754,7 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
         continue
       }
       // Already have this month for every fund? Nothing to download.
-      if (!force && houseFunds.every((f) => f.latestAsOf && f.latestAsOf.slice(0, 7) >= pick!.period)) {
+      if (!force && houseFunds.every((f) => f.latestAsOf && f.latestAsOf.slice(0, 7) >= pick!.period) && (historyDone.get(base.amc) ?? '') >= pick.period) {
         statuses.push({ ...base, state: 'UP_TO_DATE', period: pick.period, files: pick.files.map((x) => x.url) })
         continue
       }
@@ -775,16 +788,33 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
         })
         return { found, sheets: portfolios.length }
       }
-      const { found: matches, sheets } = await readMonth(pick, fundNames)
-      // A fund with a single month on file also gets the month before, so changes show at once.
-      const months = (id: number) =>
-        new Set(db.select({ a: schema.fundHoldings.asOf }).from(schema.fundHoldings).where(eq(schema.fundHoldings.fundInstrumentId, id)).all().map((r) => r.a)).size
-      const lonely = fundNames.filter((x) => months(x.f.id) === 1)
-      const before = periodsOn(links).find((p) => p < pick!.period)
-      if (lonely.length && before) {
-        const prev = pickFiles(links, lonely.map((x) => x.names), before)
-        if (prev?.files.length) await readMonth(prev, lonely).catch(() => null)
+      const monthsOf = (id: number) =>
+        new Set(db.select({ a: schema.fundHoldings.asOf }).from(schema.fundHoldings).where(eq(schema.fundHoldings.fundInstrumentId, id)).all().map((r) => r.a.slice(0, 7)))
+      // The newest month, unless every fund has it already (a run that only fills in history).
+      const needLatest = force ? fundNames : fundNames.filter((x) => !monthsOf(x.f.id).has(pick!.period))
+      const { found: matches, sheets } = needLatest.length
+        ? await readMonth(pick, needLatest)
+        : { found: fundNames.map((x) => ({ fundId: x.f.id })), sheets: 0 }
+      // Earlier months the page still offers, newest first, for funds that lack them: a few per
+      // run until each fund has HISTORY_MONTHS, so the fund page shows how its holdings moved.
+      const earlier = periodsOn(links)
+        .filter((p) => p < pick!.period)
+        .slice(0, HISTORY_MONTHS - 1)
+      let budget = HISTORY_PER_RUN
+      let complete = true
+      for (const p of earlier) {
+        const missing = fundNames.filter((x) => !monthsOf(x.f.id).has(p) && !historyTried.has(`${x.f.id}|${p}`))
+        if (!missing.length) continue
+        if (budget-- <= 0) {
+          complete = false
+          break
+        }
+        for (const x of missing) historyTried.add(`${x.f.id}|${p}`)
+        const prev = pickFiles(links, missing.map((x) => x.names), p)
+        if (prev?.files.length) await readMonth(prev, missing).catch(() => null)
       }
+      // Looked for every earlier month the page offers (found or not): not again until next month.
+      if (complete) historyDone.set(base.amc, pick.period)
       const portfolios = { length: sheets }
       const matchedIds = new Set(matches.map((m) => m.fundId))
       statuses.push({
@@ -801,6 +831,11 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
     }
   }
 
+  const history = JSON.stringify({ done: Object.fromEntries(historyDone), tried: [...historyTried] })
+  db.insert(schema.settings)
+    .values({ key: HISTORY_KEY, value: history })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { value: history } })
+    .run()
   const value = JSON.stringify(statuses)
   db.insert(schema.settings)
     .values({ key: STATUS_KEY, value })

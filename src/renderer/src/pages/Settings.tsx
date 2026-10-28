@@ -322,7 +322,8 @@ function Disclosures() {
 }
 
 const THEMES: { key: Theme; label: string; note: string }[] = [
-  { key: 'terminal', label: 'Terminal', note: 'Black and amber, like a trading screen' },
+  { key: 'simple', label: 'Simple', note: 'Clean white pages, one screen at a time' },
+  { key: 'terminal', label: 'Terminal', note: 'Black and amber, tabs and splits, like a trading screen' },
   { key: 'system', label: 'Same as Windows', note: 'Follows the light or dark setting in Windows' },
   { key: 'light', label: 'Light', note: 'Paper and ink' },
   { key: 'dark', label: 'Dark', note: 'Easier on the eyes at night' }
@@ -331,7 +332,7 @@ const THEMES: { key: Theme; label: string; note: string }[] = [
 function Appearance() {
   const theme = useTheme()
   const set = useSetTheme()
-  const current = theme.data ?? 'terminal'
+  const current = theme.data ?? 'simple'
   return (
     <section aria-labelledby="appearance" className="mb-12 max-w-[880px]">
       <h2 id="appearance" className="wide mb-2 text-[19px] font-semibold">

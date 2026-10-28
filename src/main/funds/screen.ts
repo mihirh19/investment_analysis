@@ -17,7 +17,7 @@ import {
 import type { SchemeFacts } from '@shared/insights'
 import { schema, type Db } from '../db'
 import { factsFor, storedSchemeFacts } from '../market/amfiData'
-import { FOLLOWED_KEY } from '../market/disclosures'
+import { FOLLOWED_KEY, HISTORY_MONTHS } from '../market/disclosures'
 import { fetchNavAll, mfapiHistory, type AmfiScheme } from '../market/funds'
 import type { FetchFn } from '../market/http'
 import { yahooHistory } from '../market/yahoo'
@@ -254,6 +254,8 @@ export class FundScreenSync {
 
   /** One fund now (its page was opened), whether or not the backlog has reached it. */
   async measureNow(code: string): Promise<void> {
+    // A fund page opened before the screener ever was: the list of funds first (one AMFI file).
+    if (!storedUniverse(this.db).funds.length) await this.universe()
     const r = rowsOf(this.db, storedSchemeFacts(this.db).schemes).find((x) => x.code === code)
     if (!r) return
     const bench = benchmarkFor(r.category, r.name)
@@ -351,7 +353,46 @@ export function fundDetail(db: Db, code: string): FundDetail | null {
   const sectors = [...sNow].sort((a, b) => b[1] - a[1]).map(([sector, weight]) => ({ sector, weight, change: prev.length ? weight - (sPrev.get(sector) ?? 0) : null }))
   const mix = new Map<string, number>()
   for (const h of latest) mix.set(h.assetType, (mix.get(h.assetType) ?? 0) + h.weight)
+
+  // Month by month: each holding's share of the fund over the stored months (the latest file of
+  // each month), so a stock going from 4% in September to 2% in October shows as it happened.
+  const byMonth = new Map<string, string>()
+  for (const p of [...periods].reverse()) byMonth.set(p.slice(0, 7), p)
+  const monthDates = [...byMonth.values()].slice(-HISTORY_MONTHS)
+  const history =
+    monthDates.length > 1
+      ? (() => {
+          const at = monthDates.map((p) => new Map<string, (typeof all)[number]>(all.filter((h) => h.asOf === p).map((h) => [key(h), h])))
+          const keys = new Set(at.flatMap((m) => [...m.keys()]))
+          const last = at[at.length - 1]
+          const rows = [...keys]
+            .map((k) => {
+              const any = at.map((m) => m.get(k)).find(Boolean)!
+              const weights = at.map((m) => m.get(k)?.weight ?? null)
+              return { name: last.get(k)?.name ?? any.name, isin: any.isin, sector: any.sector, assetType: any.assetType, weights }
+            })
+            // Held now, largest first; then those sold out along the way, by the most they ever held.
+            .sort((a, b) => (b.weights.at(-1) ?? -1) - (a.weights.at(-1) ?? -1) || Math.max(...b.weights.map((w) => w ?? 0)) - Math.max(...a.weights.map((w) => w ?? 0)))
+            .filter((r) => r.weights.some((w) => (w ?? 0) >= 0.001))
+          const sectorNames = new Set<string>()
+          const perMonth = at.map((m) => {
+            const s = new Map<string, number>()
+            for (const h of m.values())
+              if (h.assetType === 'EQUITY') {
+                const name = h.sector ?? 'Other'
+                sectorNames.add(name)
+                s.set(name, (s.get(name) ?? 0) + h.weight)
+              }
+            return s
+          })
+          const sectorRows = [...sectorNames]
+            .map((sector) => ({ sector, weights: perMonth.map((s) => s.get(sector) ?? 0) }))
+            .sort((a, b) => b.weights.at(-1)! - a.weights.at(-1)!)
+          return { months: monthDates, rows, sectors: sectorRows }
+        })()
+      : null
   return {
+    history,
     row,
     growth,
     categoryAvg,

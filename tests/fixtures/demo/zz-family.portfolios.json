@@ -1,0 +1,57 @@
+[
+  {
+    "isin": "INF879O01027",
+    "note": "Made-up demo portfolios (not the fund's real holdings), to show the fund page month by month.",
+    "months": [
+      {
+        "asOf": "2026-07-31",
+        "holdings": [
+          { "name": "HDFC Bank Limited", "isin": "INE040A01034", "sector": "Financial Services", "weight": 0.081 },
+          { "name": "Power Grid Corporation of India Limited", "isin": "INE752E01010", "sector": "Power", "weight": 0.064 },
+          { "name": "Bajaj Holdings & Investment Limited", "isin": "INE118A01012", "sector": "Financial Services", "weight": 0.058 },
+          { "name": "ITC Limited", "isin": "INE154A01025", "sector": "Fast Moving Consumer Goods", "weight": 0.052 },
+          { "name": "Coal India Limited", "isin": "INE522F01014", "sector": "Oil Gas & Consumable Fuels", "weight": 0.048 },
+          { "name": "ICICI Bank Limited", "isin": "INE090A01021", "sector": "Financial Services", "weight": 0.045 },
+          { "name": "Infosys Limited", "isin": "INE009A01021", "sector": "Information Technology", "weight": 0.04 },
+          { "name": "Alphabet Inc A", "isin": "US02079K3059", "sector": "Communication Services", "weight": 0.038 },
+          { "name": "Maruti Suzuki India Limited", "isin": "INE585B01010", "sector": "Automobile and Auto Components", "weight": 0.034 },
+          { "name": "Tata Consultancy Services Limited", "isin": "INE467B01029", "sector": "Information Technology", "weight": 0.022 },
+          { "name": "Treps", "isin": null, "sector": null, "assetType": "CASH", "weight": 0.09 }
+        ]
+      },
+      {
+        "asOf": "2026-08-31",
+        "holdings": [
+          { "name": "HDFC Bank Limited", "isin": "INE040A01034", "sector": "Financial Services", "weight": 0.078 },
+          { "name": "Power Grid Corporation of India Limited", "isin": "INE752E01010", "sector": "Power", "weight": 0.066 },
+          { "name": "Bajaj Holdings & Investment Limited", "isin": "INE118A01012", "sector": "Financial Services", "weight": 0.059 },
+          { "name": "ITC Limited", "isin": "INE154A01025", "sector": "Fast Moving Consumer Goods", "weight": 0.047 },
+          { "name": "Coal India Limited", "isin": "INE522F01014", "sector": "Oil Gas & Consumable Fuels", "weight": 0.05 },
+          { "name": "ICICI Bank Limited", "isin": "INE090A01021", "sector": "Financial Services", "weight": 0.046 },
+          { "name": "Infosys Limited", "isin": "INE009A01021", "sector": "Information Technology", "weight": 0.031 },
+          { "name": "Alphabet Inc A", "isin": "US02079K3059", "sector": "Communication Services", "weight": 0.036 },
+          { "name": "Maruti Suzuki India Limited", "isin": "INE585B01010", "sector": "Automobile and Auto Components", "weight": 0.035 },
+          { "name": "Tata Consultancy Services Limited", "isin": "INE467B01029", "sector": "Information Technology", "weight": 0.03 },
+          { "name": "Kotak Mahindra Bank Limited", "isin": "INE237A01028", "sector": "Financial Services", "weight": 0.012 },
+          { "name": "Treps", "isin": null, "sector": null, "assetType": "CASH", "weight": 0.08 }
+        ]
+      },
+      {
+        "asOf": "2026-09-30",
+        "holdings": [
+          { "name": "HDFC Bank Limited", "isin": "INE040A01034", "sector": "Financial Services", "weight": 0.076 },
+          { "name": "Power Grid Corporation of India Limited", "isin": "INE752E01010", "sector": "Power", "weight": 0.067 },
+          { "name": "Bajaj Holdings & Investment Limited", "isin": "INE118A01012", "sector": "Financial Services", "weight": 0.061 },
+          { "name": "ITC Limited", "isin": "INE154A01025", "sector": "Fast Moving Consumer Goods", "weight": 0.04 },
+          { "name": "Coal India Limited", "isin": "INE522F01014", "sector": "Oil Gas & Consumable Fuels", "weight": 0.051 },
+          { "name": "ICICI Bank Limited", "isin": "INE090A01021", "sector": "Financial Services", "weight": 0.048 },
+          { "name": "Infosys Limited", "isin": "INE009A01021", "sector": "Information Technology", "weight": 0.02 },
+          { "name": "Alphabet Inc A", "isin": "US02079K3059", "sector": "Communication Services", "weight": 0.035 },
+          { "name": "Tata Consultancy Services Limited", "isin": "INE467B01029", "sector": "Information Technology", "weight": 0.038 },
+          { "name": "Kotak Mahindra Bank Limited", "isin": "INE237A01028", "sector": "Financial Services", "weight": 0.024 },
+          { "name": "Treps", "isin": null, "sector": null, "assetType": "CASH", "weight": 0.085 }
+        ]
+      }
+    ]
+  }
+]

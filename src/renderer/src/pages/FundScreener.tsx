@@ -102,7 +102,7 @@ export function FundScreener() {
       <ErrorNote error={q.error} />
       {s?.lastError && <p className="mb-3 text-[13px] text-warn">{s.lastError}. Tried again on the next pass.</p>}
 
-      <div role="radiogroup" aria-label="Ready-made screens" className="mb-3 flex flex-wrap gap-1 text-[13px]">
+      <div role="radiogroup" aria-label="Ready-made screens" className="mb-3 flex flex-wrap gap-2 text-[13px]">
         {FUND_PRESETS.map((p) => (
           <button
             key={p.key}
@@ -111,12 +111,12 @@ export function FundScreener() {
             aria-checked={preset === p.key}
             title={p.note}
             onClick={() => usePreset(p.key)}
-            className={`rounded-sm px-2.5 py-1 ${preset === p.key ? 'bg-stamp font-semibold text-black' : 'text-ink-muted hover:bg-sheet hover:text-ink'}`}
+            className={`rounded-full border px-3 py-1 transition-colors ${preset === p.key ? 'border-stamp bg-stamp-wash font-semibold text-stamp' : 'border-rule-strong text-ink-muted hover:text-ink'}`}
           >
             {p.label}
           </button>
         ))}
-        <button type="button" onClick={() => (setPreset(null), setFilters([]), setSort({ field: 'aumCr', dir: 'desc' }))} className="rounded-sm px-2.5 py-1 text-ink-muted hover:bg-sheet hover:text-ink">
+        <button type="button" onClick={() => (setPreset(null), setFilters([]), setSort({ field: 'aumCr', dir: 'desc' }))} className="rounded-full px-3 py-1 text-ink-muted hover:bg-sheet hover:text-ink">
           Clear
         </button>
       </div>
