@@ -956,6 +956,11 @@ export interface RequestApi {
   getFundDetail(code: string): Promise<ApiResult<FundDetail | null>>
   followFund(code: string, on: boolean): Promise<ApiResult<FundDetail | null>>
   getFundChart(code: string): Promise<ApiResult<FundChartData | null>>
+  /** Adds a US or UCITS ETF to the screener by Yahoo ticker, ISIN or name; returns its screener code. */
+  addFundEtf(query: string): Promise<ApiResult<string>>
+  /** The contact sent to the SEC with N-PORT requests, and where it came from. */
+  getSecContact(): Promise<ApiResult<{ email: string | null; fromGoogle: boolean }>>
+  setSecContact(email: string): Promise<ApiResult<{ email: string | null; fromGoogle: boolean }>>
   watchQuotes(key: string, symbols: string[]): Promise<ApiResult<{ symbols: number; live: boolean; error: string | null; ticks: number; fetches: number; pushes: number }>>
   getScenarioHoldings(personId?: number): Promise<ApiResult<ScenarioHolding[]>>
   /** Prints the monthly report to a PDF the person saves; null when they cancel. */

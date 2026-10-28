@@ -55,6 +55,7 @@ import { readMandiBill } from './farmBill'
 import { moneyByCountry } from './world/money'
 import { LiveFeed } from './market/live'
 import { fundChart, fundDetail, fundScreenData, setFollowed, type FundScreenSync } from './funds/screen'
+import { addGlobalEtf, secContact, setSecContact } from './funds/global'
 import type { FundDetail, FundScreenData, FundScreenStatus } from '@shared/fundScreener'
 import { computeScenarioHoldings } from './portfolio/scenario'
 import { ALL_PAGES } from '@shared/screens'
@@ -140,7 +141,7 @@ export interface ServiceDeps {
   /** Live prices changed: sent to the window (absent in tests). */
   pushQuotes?(quotes: LiveQuote[]): void
   /** The fund screener's background download; absent in tests. */
-  fundScreen?: Pick<FundScreenSync, 'opened' | 'setEnabled' | 'status' | 'measureNow'>
+  fundScreen?: Pick<FundScreenSync, 'opened' | 'setEnabled' | 'status' | 'measureNow'> & Partial<Pick<FundScreenSync, 'needsMeasure' | 'refreshPortfolio' | 'addEtf'>>
   /** The research desk's background download; absent in tests. */
   research?: {
     status(): ResearchStatus
@@ -1076,10 +1077,25 @@ export function createServices(deps: ServiceDeps) {
       return fundDetail(db, code)
     },
     async getFundDetail(code: string): Promise<FundDetail | null> {
-      const have = db.select({ at: schema.fundStats.computedAt }).from(schema.fundStats).where(eq(schema.fundStats.code, code)).get()
-      // Not measured yet: this fund now (one NAV download), ahead of the backlog.
-      if (!have) await deps.fundScreen?.measureNow(code).catch(() => null)
+      // Not measured yet, or measured without its index: this fund now (one NAV download), ahead of the backlog.
+      const fs = deps.fundScreen
+      const need = fs?.needsMeasure ? fs.needsMeasure(code) : !db.select({ at: schema.fundStats.computedAt }).from(schema.fundStats).where(eq(schema.fundStats.code, code)).get()
+      if (need) await fs?.measureNow(code).catch(() => null)
+      // A global ETF's holdings and sectors (Yahoo monthly, SEC N-PORT quarterly), fetched on opening.
+      await fs?.refreshPortfolio?.(code).catch(() => null)
       return fundDetail(db, code)
+    },
+    async addFundEtf(query: string): Promise<string> {
+      if (deps.fundScreen?.addEtf) return deps.fundScreen.addEtf(query)
+      return addGlobalEtf(db, query, deps.fetch ?? fetch)
+    },
+    getSecContact(): { email: string | null; fromGoogle: boolean } {
+      const own = db.select().from(schema.settings).where(eq(schema.settings.key, 'sec:contact')).get()?.value?.trim()
+      return { email: secContact(db), fromGoogle: !own && !!secContact(db) }
+    },
+    setSecContact(email: string): { email: string | null; fromGoogle: boolean } {
+      setSecContact(db, email)
+      return this.getSecContact()
     },
     async getCommodities(): Promise<CommodityBoard> {
       if (!commodityRows || Date.now() - commodityRows.at > 20 * 60_000) {

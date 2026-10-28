@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { openDatabase, schema } from '../src/main/db'
-import { categoryOf, fundDetail, saveStats, setFollowed, universeFrom } from '../src/main/funds/screen'
+import { benchFor, categoryOf, fundDetail, saveStats, setFollowed, universeFrom, type UniverseFund } from '../src/main/funds/screen'
+import { savePortfolioSnapshot } from '../src/main/funds/global'
 import type { AmfiScheme } from '../src/main/market/funds'
-import { applyFundScreen, benchmarkFor, computeFundMetrics, monthEnds, NO_METRICS, rollingReturns, rollingStats, type FundRow, type PricePt } from '../src/shared/fundScreener'
+import { applyFundScreen, benchmarkFor, computeFundMetrics, missingIndexFigures, monthEnds, NO_METRICS, rollingReturns, rollingStats, type FundRow, type PricePt } from '../src/shared/fundScreener'
 
 /** Business days from a start, with a value made by the function of the day's index. */
 function series(days: number, step: (i: number) => number, start = '2021-10-01'): PricePt[] {
@@ -60,12 +61,29 @@ describe('fund ratios', () => {
 
   it('picks a fair index for each kind of fund', () => {
     expect(benchmarkFor('Large Cap Fund', 'HDFC Top 100')?.symbol).toBe('^NSEI')
-    expect(benchmarkFor('Mid Cap Fund', 'Axis Midcap')?.symbol).toBe('NIFTY_MIDCAP_100.NS')
-    expect(benchmarkFor('Small Cap Fund', 'SBI Small Cap')?.symbol).toBe('^CNXSC')
+    expect(benchmarkFor('Mid Cap Fund', 'Axis Midcap')?.symbol).toBe('NIFTYMIDCAP150.NS')
+    expect(benchmarkFor('Small Cap Fund', 'SBI Small Cap')?.symbol).toBe('NIFTYSMLCAP250.NS')
+    expect(benchmarkFor('Index Funds', 'Motilal Oswal Nifty Midcap 150 Index Fund')?.symbol).toBe('NIFTYMIDCAP150.NS')
+    expect(benchmarkFor('Index Funds', 'Bharat Bond ETF FOF April 2030')).toBeNull()
+    expect(benchmarkFor('Index Funds', 'Edelweiss CRISIL IBX 50:50 Gilt Plus SDL Index Fund')).toBeNull()
+    expect(benchmarkFor('FoF Domestic', 'SBI Gold Fund')).toBeNull()
     expect(benchmarkFor('Sectoral/ Thematic', 'ICICI Prudential Banking and Financial Services')?.symbol).toBe('^NSEBANK')
     expect(benchmarkFor('Flexi Cap Fund', 'Parag Parikh Flexi Cap')?.symbol).toBe('^CRSLDX')
     expect(benchmarkFor('Liquid Fund', 'HDFC Liquid')).toBeNull()
     expect(benchmarkFor('Index Funds', 'UTI Nifty 50 Index Fund')?.symbol).toBe('^NSEI')
+  })
+
+  it('redoes ratios saved without their index', () => {
+    const flexi = benchmarkFor('Flexi Cap Fund', 'Parag Parikh Flexi Cap')
+    const full = computeFundMetrics(fund, bench)
+    const bare = computeFundMetrics(fund, null)
+    expect(missingIndexFigures(full, '^CRSLDX', flexi)).toBe(false)
+    expect(missingIndexFigures(bare, '^CRSLDX', flexi)).toBe(true)
+    // Measured against an index the fund no longer uses.
+    expect(missingIndexFigures(full, 'NIFTY_MIDCAP_100.NS', benchmarkFor('Mid Cap Fund', 'Axis Midcap'))).toBe(true)
+    // Debt: no index, nothing missing; a young fund can't have them yet.
+    expect(missingIndexFigures(bare, null, null)).toBe(false)
+    expect(missingIndexFigures({ ...bare, years: 0.5 }, '^CRSLDX', flexi)).toBe(false)
   })
 })
 
@@ -85,8 +103,12 @@ describe('the list of funds', () => {
     ])
     expect(u.map((x) => [x.code, x.name, x.category])).toEqual([
       ['1', 'Parag Parikh Flexi Cap Fund', 'Flexi Cap Fund'],
+      ['5', 'Nippon India ETF Nifty 50 BeES', 'Other ETFs'],
       ['6', 'HDFC Mid Cap Opportunities Fund', 'Mid Cap Fund']
     ])
+    // ETFs have no Direct plan; they are kept, marked as ETFs.
+    expect(u.find((x) => x.code === '5')!.vehicle).toBe('ETF')
+    expect(u.find((x) => x.code === '1')!.vehicle).toBeUndefined()
   })
 
   it('filters and sorts a screen', () => {
@@ -138,7 +160,31 @@ describe('one fund’s page', () => {
         { sector: 'Energy', weights: [0, 0.03] },
         { sector: 'FMCG', weights: [0.05, 0] }
       ])
+      // The Portfolio view: allocation and sectors per month, against SEBI's flexi cap range.
+      expect(d.portfolio!.target).toEqual([
+        { label: 'Equity', min: 0.65, max: 1 },
+        { label: 'Cash & equivalents', min: 0, max: expect.closeTo(0.35, 9) }
+      ])
+      expect(d.portfolio!.periods.map((p) => [p.asOf, p.alloc[0].weight, p.sectors[0].sector])).toEqual([
+        ['2026-08-31', expect.closeTo(0.13, 9), 'Financials'],
+        ['2026-09-30', expect.closeTo(0.105, 9), 'Financials']
+      ])
+      expect(d.row).toMatchObject({ market: 'IN', vehicle: 'MF', currency: 'INR' })
       expect(fundDetail(db, 'nope')).toBeNull()
+
+      // A UCITS ETF from the shipped list, with a Yahoo snapshot of its portfolio.
+      savePortfolioSnapshot(db, 'UC:CSPX.L', {
+        asOf: '2026-10-28',
+        source: 'YAHOO',
+        alloc: [{ label: 'Equity', weight: 0.995 }, { label: 'Cash & equivalents', weight: 0.005 }],
+        sectors: [{ sector: 'Technology', weight: 0.33 }, { sector: 'Financials', weight: 0.13 }],
+        holdings: [{ name: 'NVIDIA Corp', isin: null, sector: null, assetType: 'EQUITY', country: null, weight: 0.08 }]
+      })
+      const g = fundDetail(db, 'UC:CSPX.L')!
+      expect(g.row).toMatchObject({ market: 'UCITS', vehicle: 'ETF', ticker: 'CSPX.L', currency: 'USD', category: 'US large cap', index: 'S&P 500 (via VUAA.L)' })
+      expect(g.holdings!.rows[0]).toMatchObject({ name: 'NVIDIA Corp', weight: 0.08 })
+      expect(g.portfolio).toMatchObject({ target: null, periods: [{ asOf: '2026-10-28' }] })
+      expect(g.sectors[0]).toMatchObject({ sector: 'Technology', weight: 0.33 })
 
       // Following uses the fund's existing record, and can be undone.
       setFollowed(db, '122639', true)
@@ -188,5 +234,19 @@ describe('rolling returns', () => {
     expect(st.min).toBeCloseTo(0.12, 3)
     expect(st.buckets.find((b) => b.label === '12–15%')?.share ?? 0).toBeGreaterThan(0.4)
     expect(rollingReturns(s.slice(0, 300), 3)).toEqual([])
+  })
+})
+
+describe('a fund’s index', () => {
+  const etf = (ticker: string, name: string): UniverseFund => ({ code: `UC:${ticker}`, name, fundHouse: null, category: '', group: 'Equity', isin: null, nav: 1, navDate: null, market: 'UCITS', vehicle: 'ETF', ticker, currency: 'USD' })
+
+  it('is never the fund itself: a second fund on the same index stands in, or none', () => {
+    // CSPX.L is the dollar S&P 500 line used as the index, so it is measured against another one.
+    expect(benchFor(etf('CSPX.L', 'iShares Core S&P 500 UCITS ETF'))).toMatchObject({ symbol: 'VUAA.L', label: 'S&P 500 (via VUAA.L)' })
+    expect(benchFor(etf('IWDA.L', 'iShares Core MSCI World UCITS ETF'))?.symbol).toBe('XDWD.L')
+    // No second dollar line for emerging markets: no index rather than a meaningless one.
+    expect(benchFor(etf('EIMI.L', 'iShares Core MSCI EM IMI UCITS ETF'))).toBeNull()
+    // Any other fund keeps the index its name points to.
+    expect(benchFor(etf('VUAA.L', 'Vanguard S&P 500 UCITS ETF'))?.symbol).toBe('CSPX.L')
   })
 })

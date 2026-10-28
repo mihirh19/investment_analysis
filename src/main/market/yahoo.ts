@@ -96,6 +96,23 @@ export async function yahooHistory(
   return { prices, dividends: parseDividends(r.events?.dividends, offset), currency: r.meta.currency?.toUpperCase() }
 }
 
+/**
+ * Daily closes adjusted for dividends and splits (Yahoo's adjclose), falling back to the plain close
+ * where it has none (indices). What an ETF's holder earned, the way a fund's NAV shows it.
+ */
+export async function yahooAdjusted(symbol: string, range: '5y' | '10y' | 'max', f?: FetchFn): Promise<{ prices: PricePoint[]; currency: string; name: string | null }> {
+  const r = await chart(symbol, `range=${range}&interval=1d`, f)
+  const offset = r.meta.gmtoffset ?? 0
+  const closes = r.indicators?.quote?.[0]?.close ?? []
+  const adj = r.indicators?.adjclose?.[0]?.adjclose
+  const prices: PricePoint[] = []
+  ;(r.timestamp ?? []).forEach((t, i) => {
+    const c = adj?.[i] ?? closes[i]
+    if (typeof c === 'number' && Number.isFinite(c) && c > 0) prices.push({ date: dateInOffset(t, offset), close: c })
+  })
+  return { prices, currency: r.meta.currency ?? 'USD', name: r.meta.longName ?? r.meta.shortName ?? null }
+}
+
 export type BarInterval = '1m' | '5m' | '15m' | '1h' | '1d'
 
 /** How far back each interval goes on Yahoo (its own limits: 1-minute bars only for the last 30 days). */
@@ -246,6 +263,17 @@ export function parseYahooQuoteList(json: unknown): { symbol: string; price: num
   return out
 }
 
+export interface EtfScreenQuote {
+  symbol: string
+  name: string
+  /** In dollars, as Yahoo reports it for every listing. */
+  netAssets: number | null
+  /** % a year. */
+  expenseRatio: number | null
+  exchange: string
+  currency: string
+}
+
 export class YahooSession {
   private cookie: string | null = null
   private crumb: string | null = null
@@ -307,6 +335,43 @@ export class YahooSession {
       }
       if (!res.ok) throw new Error(`Yahoo quote ${res.status}`)
       return parseYahooQuoteList(await res.json())
+    }
+    throw new Error('Yahoo rejected the session token')
+  }
+
+  /**
+   * One page of Yahoo's ETF screener for a region (and exchange), biggest funds first: symbol, name,
+   * net assets (dollars), expense ratio (% a year), exchange and trading currency.
+   */
+  async screenEtfs(region: string, exchange: string | null, offset: number, size = 250): Promise<{ total: number; quotes: EtfScreenQuote[] }> {
+    const operands: unknown[] = [{ operator: 'eq', operands: ['region', region] }]
+    if (exchange) operands.push({ operator: 'eq', operands: ['exchange', exchange] })
+    const body = JSON.stringify({ offset, size, sortField: 'fundnetassets', sortType: 'DESC', quoteType: 'ETF', query: { operator: 'and', operands }, userId: '', userIdType: 'guid' })
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await this.ensure()
+      const url = `https://query2.finance.yahoo.com/v1/finance/screener?crumb=${encodeURIComponent(this.crumb!)}&lang=en-US&region=US&formatted=false`
+      const res = await this.f(url, { method: 'POST', headers: { Cookie: this.cookie!, 'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(30_000) })
+      if (res.status === 401 || res.status === 403) {
+        this.cookie = this.crumb = null
+        continue
+      }
+      if (!res.ok) throw new Error(`Yahoo screener ${res.status}`)
+      const j = (await res.json()) as { finance?: { result?: { total?: number; quotes?: Record<string, unknown>[] }[] } }
+      const r = j.finance?.result?.[0]
+      const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+      return {
+        total: r?.total ?? 0,
+        quotes: (r?.quotes ?? [])
+          .filter((q) => typeof q.symbol === 'string')
+          .map((q) => ({
+            symbol: q.symbol as string,
+            name: (q.longName ?? q.shortName ?? q.symbol) as string,
+            netAssets: num(q.netAssets),
+            expenseRatio: num(q.netExpenseRatio) ?? num(q.annualReportExpenseRatio),
+            exchange: (q.fullExchangeName ?? q.exchange ?? '') as string,
+            currency: (q.currency ?? 'USD') as string
+          }))
+      }
     }
     throw new Error('Yahoo rejected the session token')
   }

@@ -14,7 +14,9 @@ import {
   useMarketStatus,
   useMetalPrices,
   useRefreshMarket,
+  useSecContact,
   useSetGoldPremium,
+  useSetSecContact,
   useSetTheme,
   useSyncDisclosures,
   useTheme
@@ -108,6 +110,7 @@ export function Settings() {
         <ErrorNote error={refresh.error ?? status.error} />
         <GoldPremium />
         <Disclosures />
+        <SecContact />
       </section>
 
       <section aria-labelledby="backup" className="mt-14 max-w-[880px]">
@@ -385,5 +388,35 @@ function Licences() {
         for its own use and nothing is shared.
       </p>
     </section>
+  )
+}
+
+/** The address sent to the SEC with each request for a US ETF's N-PORT holdings (its fair-access rule asks for one). */
+function SecContact() {
+  const q = useSecContact()
+  const save = useSetSecContact()
+  const [draft, setDraft] = useState<string | null>(null)
+  const value = draft ?? (q.data && !q.data.fromGoogle ? (q.data.email ?? '') : '')
+  return (
+    <div className="mt-8">
+      <h3 className="mb-1 text-[16px] font-semibold">US ETF holdings from the SEC</h3>
+      <p className="mb-3 text-[14px] text-ink-muted">
+        Full holdings of US ETFs come from their quarterly N-PORT filings on SEC EDGAR, which asks every program to give a contact email.{' '}
+        {q.data?.email
+          ? q.data.fromGoogle
+            ? `Using ${q.data.email}, the Google account connected for statements. Type another below to use that instead.`
+            : `Using ${q.data.email}.`
+          : 'No contact yet: connect a Google account above, or type an email below. Until then US ETFs show Yahoo’s top holdings only.'}
+      </p>
+      <div className="flex max-w-[520px] items-end gap-2">
+        <div className="flex-1"><Field label="Contact email for the SEC">
+          <Input value={value} onChange={(e) => setDraft(e.target.value)} placeholder={q.data?.fromGoogle ? (q.data.email ?? '') : 'you@example.com'} />
+        </Field></div>
+        <Button disabled={save.isPending || draft === null} onClick={() => save.mutate([value], { onSuccess: () => setDraft(null) })}>
+          Save
+        </Button>
+      </div>
+      <ErrorNote error={save.error ?? q.error} />
+    </div>
   )
 }

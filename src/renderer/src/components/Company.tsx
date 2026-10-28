@@ -17,7 +17,8 @@ import { Valuation } from './Valuation'
 import { Columns } from './charts'
 import { BASE_COLUMNS, ScreenTable } from './ScreenTable'
 import { StockChart, useStoredChart } from './StockChart'
-import { scorecard, stockContext, type Tone } from '@shared/scorecard'
+import { scorecard, stockContext } from '@shared/scorecard'
+import { ScoreList } from './ScoreList'
 import { useOpenSymbol } from '../lib/links'
 import { useCompany, useScreenData } from '../lib/api'
 import { axisCrore, bigMoney, compactMoney, lakhCrore, money, percent, shortDate, toneClass, units } from '../lib/format'
@@ -224,48 +225,14 @@ function PriceCard({ c }: { c: CompanyView }) {
   )
 }
 
-const LEVEL_CLS: Record<Tone, string> = {
-  good: 'bg-gain/10 text-gain',
-  bad: 'bg-loss/10 text-loss',
-  neutral: 'bg-sheet text-ink-muted'
-}
-
 /** Performance, valuation, growth, profitability, momentum and red flags, each in a line of plain words. */
 function Scorecard({ c }: { c: CompanyView }) {
   const data = useScreenData()
   const rows = data.data?.rows ?? []
   const row = rows.find((r) => r.symbol === c.symbol)
-  const [open, setOpen] = useState<string | null>(null)
   if (!row) return null
-  const cards = scorecard(row, rows, c.bank)
   return (
-    <section aria-labelledby="scorecard" className="rounded-xl border border-rule">
-      <h3 id="scorecard" className="border-b border-rule px-5 py-3 text-[15px] font-semibold">
-        Scorecard
-      </h3>
-      <ul>
-        {cards.map((s) => (
-          <li key={s.key} className="border-b border-rule last:border-0">
-            <button
-              type="button"
-              aria-expanded={open === s.key}
-              onClick={() => setOpen(open === s.key ? null : s.key)}
-              className="flex w-full items-center gap-2 px-5 py-2.5 text-left hover:bg-sheet"
-            >
-              <span className="flex-1 text-[14px]">{s.title}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${LEVEL_CLS[s.tone]}`}>{s.level === 'None' ? 'n/a' : s.level}</span>
-              <svg aria-hidden viewBox="0 0 12 12" className={'size-3 fill-none stroke-current text-ink-muted transition-transform ' + (open === s.key ? 'rotate-180' : '')} strokeWidth="1.6">
-                <path d="m3 4.5 3 3 3-3" />
-              </svg>
-            </button>
-            {open === s.key && <p className="px-5 pb-3 text-[13px] text-ink-muted">{s.text}</p>}
-          </li>
-        ))}
-      </ul>
-      <p className="border-t border-rule px-5 py-2.5 text-[11.5px] text-ink-muted">
-        Against its industry and the market, from NSE results and prices. A description, not advice to buy or sell.
-      </p>
-    </section>
+    <ScoreList id="scorecard" cards={scorecard(row, rows, c.bank)} note="Against its industry and the market, from NSE results and prices. A description, not advice to buy or sell." />
   )
 }
 

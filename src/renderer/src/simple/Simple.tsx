@@ -138,7 +138,7 @@ function TopBar({ more, setMore }: { more: boolean; setMore: (b: boolean) => voi
   const inMore = !current
   return (
     <header className="flex h-16 shrink-0 items-center gap-6 border-b border-rule bg-paper px-6">
-      <Link to="/" className="flex items-center gap-2 text-[17px] font-semibold tracking-tight text-ink">
+      <Link to="/" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[17px] font-semibold tracking-tight text-ink">
         <span aria-hidden className="grid size-7 place-items-center rounded-full bg-stamp text-[13px] font-bold text-white">
           ₹
         </span>
@@ -151,7 +151,7 @@ function TopBar({ more, setMore }: { more: boolean; setMore: (b: boolean) => voi
             to={a.to}
             aria-current={current === a ? 'page' : undefined}
             className={
-              'rounded-full px-3 py-1.5 text-[14.5px] transition-colors ' +
+              'whitespace-nowrap rounded-full px-3 py-1.5 text-[14.5px] transition-colors ' +
               (current === a ? 'font-semibold text-ink' : 'text-ink-muted hover:text-ink')
             }
           >
@@ -164,7 +164,7 @@ function TopBar({ more, setMore }: { more: boolean; setMore: (b: boolean) => voi
         <button
           type="button"
           onClick={openGoTo}
-          className="flex h-9 w-64 items-center gap-2 rounded-lg border border-rule-strong px-3 text-left text-[13.5px] text-ink-muted hover:border-stamp"
+          className="flex h-9 w-64 min-w-0 shrink items-center gap-2 rounded-lg border border-rule-strong px-3 text-left text-[13.5px] text-ink-muted hover:border-stamp"
         >
           <svg aria-hidden viewBox="0 0 20 20" className="size-4 fill-none stroke-current" strokeWidth="2">
             <circle cx="8.5" cy="8.5" r="5.5" />
@@ -202,7 +202,7 @@ function AlertsDot() {
   const n = useAlerts().data?.unread ?? 0
   if (!n) return null
   return (
-    <Link to="/alerts" className="rounded-full bg-loss px-2 py-0.5 text-[12px] font-semibold text-white" title="Alerts that have gone off">
+    <Link to="/alerts" className="shrink-0 whitespace-nowrap rounded-full bg-loss px-2 py-0.5 text-[12px] font-semibold text-white" title="Alerts that have gone off">
       {n} alert{n === 1 ? '' : 's'}
     </Link>
   )
@@ -227,7 +227,7 @@ function MoreMenu({ open, setOpen, active }: { open: boolean; setOpen: (b: boole
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={'flex items-center gap-1 rounded-full px-3 py-1.5 text-[14.5px] ' + (active || open ? 'font-semibold text-ink' : 'text-ink-muted hover:text-ink')}
+        className={'flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[14.5px] ' + (active || open ? 'font-semibold text-ink' : 'text-ink-muted hover:text-ink')}
       >
         More
         <svg aria-hidden viewBox="0 0 12 12" className={'size-3 fill-none stroke-current transition-transform ' + (open ? 'rotate-180' : '')} strokeWidth="1.6">

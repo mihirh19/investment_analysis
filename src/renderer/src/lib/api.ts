@@ -622,6 +622,9 @@ export const useFundDetail = (code: string) =>
 export const useFundChart = (code: string) =>
   useQuery({ queryKey: ['history', 'fundChart', code], queryFn: () => unwrap(api().getFundChart(code)), staleTime: 3 * 3600_000 })
 export const useFollowFund = () => useWrite((code: string, on: boolean) => api().followFund(code, on))
+export const useAddFundEtf = () => useWrite((query: string) => api().addFundEtf(query))
+export const useSecContact = () => useQuery({ queryKey: ['settings', 'sec-contact'], queryFn: () => unwrap(api().getSecContact()) })
+export const useSetSecContact = () => useWrite((email: string) => api().setSecContact(email))
 export const useCommodities = () =>
   useQuery({ queryKey: ['history', 'commodities'], queryFn: () => unwrap(api().getCommodities()), staleTime: 10 * 60_000, refetchInterval: 20 * 60_000 })
 export const useAlerts = () => useQuery({ queryKey: ['research', 'alerts'], queryFn: () => unwrap(api().getAlerts()), refetchInterval: 60_000 })

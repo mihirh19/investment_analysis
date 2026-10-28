@@ -120,6 +120,9 @@ export function registerIpc(services: Services): void {
     getFundDetail: (code) => services.getFundDetail(code),
     followFund: (code, on) => services.followFund(code, on),
     getFundChart: (code) => services.getFundChart(code),
+    addFundEtf: (query) => services.addFundEtf(query),
+    getSecContact: () => services.getSecContact(),
+    setSecContact: (email) => services.setSecContact(email),
     watchQuotes: (key, symbols) => services.watchQuotes(key, symbols),
     getScenarioHoldings: (personId) => services.getScenarioHoldings(personId),
     saveMonthlyReport: async (personId) => {

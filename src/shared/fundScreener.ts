@@ -1,3 +1,6 @@
+import type { FundRank, FundScoreCard } from './fundScorecard'
+import type { PortfolioView } from './fundPortfolio'
+
 // The mutual fund screener: every open-ended Direct Growth plan with AMFI's facts (size, costs,
 // returns, riskometer) and figures worked out from its NAV history against an index that suits its
 // category: volatility, Sharpe and Sortino ratios, beta, alpha, R², worst fall, up and down capture,
@@ -10,6 +13,21 @@ export interface PricePt {
 
 /** The yearly return a risk-free deposit is assumed to earn (about the 91-day T-bill). */
 export const RISK_FREE = 0.065
+
+/** A rough yearly risk-free rate for each trading currency (short government bills, late 2026). */
+export function riskFreeFor(currency: string | null | undefined): number {
+  switch ((currency ?? 'INR').toUpperCase()) {
+    case 'USD':
+    case 'GBP':
+      return 0.04
+    case 'EUR':
+      return 0.02
+    case 'CHF':
+      return 0.005
+    default:
+      return RISK_FREE
+  }
+}
 
 export interface FundMetrics {
   /** Simple returns for a month to a year, then yearly (CAGR) for 3 and 5 years. */
@@ -34,6 +52,10 @@ export interface FundMetrics {
   downCapture: number | null
   /** Share of rolling one-year periods (last three years) in which the fund beat the index. */
   beatRate: number | null
+  /** Yearly standard deviation of the daily gap between the fund's return and its index's, 3 years. */
+  trackingError: number | null
+  /** One-year return in rupees (the same as ret1y for funds priced in rupees). */
+  ret1yInr: number | null
   /** Years of NAV history used. */
   years: number
 }
@@ -55,6 +77,8 @@ export const NO_METRICS: FundMetrics = {
   upCapture: null,
   downCapture: null,
   beatRate: null,
+  trackingError: null,
+  ret1yInr: null,
   years: 0
 }
 
@@ -172,6 +196,7 @@ export function computeFundMetrics(navIn: PricePt[], benchIn: PricePt[] | null, 
   }
   if (vb > 0) {
     m.beta = cov / vb
+    m.trackingError = sd(fr.map((x, i) => x - br[i])) * Math.sqrt(fr.length / Math.max(yearsBetween(common[0].date, common.at(-1)!.date), 0.01))
     m.r2 = vf > 0 ? (cov * cov) / (vb * vf) : null
     const span = yearsBetween(common[0].date, common.at(-1)!.date)
     const fy = (common.at(-1)!.close / common[0].close) ** (1 / span) - 1
@@ -216,12 +241,19 @@ export interface Benchmark {
   label: string
 }
 
+// SEBI's benchmarks for mid and small cap funds. Yahoo stopped sending NIFTY_MIDCAP_100.NS and
+// ^CNXSC (one point only), which left those funds without beta, alpha or capture.
+const MIDCAP: Benchmark = { symbol: 'NIFTYMIDCAP150.NS', label: 'Nifty Midcap 150' }
+const SMALLCAP: Benchmark = { symbol: 'NIFTYSMLCAP250.NS', label: 'Nifty Smallcap 250' }
+
 /** A fair index for a fund, from its AMFI category and name; null for debt and other funds where an equity index means nothing. */
 export function benchmarkFor(category: string, name: string): Benchmark | null {
   const c = category.toLowerCase()
   const n = name.toLowerCase()
   if (/debt|liquid|gilt|money market|overnight|duration|credit|banking and psu|corporate bond|floater|arbitrage|fund of funds.*overseas|fof.*overseas|solution oriented|retirement/i.test(c) && !/equity|hybrid/.test(c))
     return null
+  // Bond and target-maturity index funds track debt, which a share index can't measure.
+  if (!/hybrid|multi asset|balanced|equity savings/.test(c) && /gilt|g-sec|gsec|\bsdl\b|bond|crisil|ibx|target maturity|psu.*debt|t-bill|liquid|money market|overnight|gold|silver/.test(n)) return null
   // Sector and theme funds against their sector.
   if (/sectoral|thematic|index|etf/.test(c)) {
     if (/bank|financial/.test(n)) return { symbol: '^NSEBANK', label: 'Nifty Bank' }
@@ -232,18 +264,38 @@ export function benchmarkFor(category: string, name: string): Benchmark | null {
     if (/auto/.test(n)) return { symbol: '^CNXAUTO', label: 'Nifty Auto' }
     if (/psu|public sector/.test(n)) return { symbol: '^CNXPSUBANK', label: 'Nifty PSU Bank' }
     if (/next 50|junior/.test(n)) return { symbol: '^NSMIDCP', label: 'Nifty Next 50' }
-    if (/small/.test(n)) return { symbol: '^CNXSC', label: 'Nifty Smallcap 100' }
-    if (/mid/.test(n)) return { symbol: 'NIFTY_MIDCAP_100.NS', label: 'Nifty Midcap 100' }
-    if (/nifty 50|nifty50|sensex|bse 100|nifty 100/.test(n)) return { symbol: '^NSEI', label: 'Nifty 50' }
+    if (/small/.test(n)) return SMALLCAP
+    if (/mid/.test(n)) return MIDCAP
+    if (/nifty 100|bse 100/.test(n)) return { symbol: '^CNX100', label: 'Nifty 100' }
+    if (/nifty 50|nifty50|sensex/.test(n)) return { symbol: '^NSEI', label: 'Nifty 50' }
     if (/nasdaq|s&p|us |global|world|international/.test(n)) return { symbol: '^GSPC', label: 'S&P 500 (in dollars)' }
   }
   if (/large cap/.test(c) && !/mid/.test(c)) return { symbol: '^NSEI', label: 'Nifty 50' }
-  if (/mid cap/.test(c) && !/large/.test(c)) return { symbol: 'NIFTY_MIDCAP_100.NS', label: 'Nifty Midcap 100' }
-  if (/small cap/.test(c)) return { symbol: '^CNXSC', label: 'Nifty Smallcap 100' }
+  if (/mid cap/.test(c) && !/large/.test(c)) return MIDCAP
+  if (/small cap/.test(c)) return SMALLCAP
   if (/aggressive hybrid|balanced advantage|dynamic asset|multi asset|equity savings|conservative hybrid/.test(c)) return { symbol: '^NSEI', label: 'Nifty 50' }
   if (/overseas|international/.test(c) || /nasdaq|s&p|us equity/.test(n)) return { symbol: '^GSPC', label: 'S&P 500 (in dollars)' }
   // Flexi, multi, large & mid, ELSS, value, contra, focused, dividend yield and the rest of equity.
   return { symbol: '^CRSLDX', label: 'Nifty 500' }
+}
+
+/** A one-year return in another currency, turned into rupees with that currency's rate a year apart. */
+export function inrReturn(ret1y: number, fx: PricePt[] | null): number | null {
+  const last = fx?.at(-1)
+  if (!fx || !last) return null
+  const start = at(fx, back(last.date, 365))
+  if (!start || Date.parse(last.date) - Date.parse(fx[0].date) < 358 * DAY) return null
+  return (1 + ret1y) * (last.close / start.close) - 1
+}
+
+/**
+ * Stored ratios that should be worked out again before the usual week is up: measured against a
+ * different index than the fund's now, or missing the index figures though the fund has the
+ * history for them (the index download failed that time).
+ */
+export function missingIndexFigures(metrics: FundMetrics | null, indexSymbol: string | null, bench: Benchmark | null): boolean {
+  if ((bench?.symbol ?? null) !== indexSymbol) return true
+  return !!bench && !!metrics && metrics.beta === null && metrics.years >= 1.2
 }
 
 // ---------------- the screen ----------------
@@ -268,7 +320,20 @@ export interface FundRow extends FundMetrics {
   index: string | null
   held: boolean
   statsAt: string | null
+  /** India (AMFI), or an ETF listed in the US or a UCITS ETF listed in Europe. */
+  market: FundMarket
+  /** A mutual fund or an exchange-traded fund. */
+  vehicle: 'MF' | 'ETF'
+  /** Yahoo symbol for global ETFs. */
+  ticker: string | null
+  exchange: string | null
+  /** The currency its price and returns are in (GBp is pence). */
+  currency: string
+  /** Leveraged or inverse: hidden in the screener unless asked for. */
+  leveraged: boolean
 }
+
+export type FundMarket = 'IN' | 'US' | 'UCITS'
 
 export interface FundScreenStatus {
   enabled: boolean
@@ -299,8 +364,8 @@ export interface FundFieldDef {
 }
 
 export const FUND_FIELDS: FundFieldDef[] = [
-  { key: 'aumCr', label: 'Fund size', short: 'AUM', kind: 'cr', better: 'high', help: 'Assets under management, ₹ crore (AMFI)' },
-  { key: 'ter', label: 'Expense ratio', short: 'TER', kind: 'num', better: 'low', help: 'Direct plan, % a year (AMFI)' },
+  { key: 'aumCr', label: 'Fund size', short: 'AUM', kind: 'cr', better: 'high', help: 'Assets under management, ₹ crore (AMFI; global ETFs from Yahoo’s dollar figure)' },
+  { key: 'ter', label: 'Expense ratio', short: 'TER', kind: 'num', better: 'low', help: '% a year (AMFI’s Direct plan; Yahoo for global ETFs)' },
   { key: 'ret1m', label: 'Return, 1 month', short: '1M', kind: 'pct', better: 'high', help: 'From the NAV' },
   { key: 'ret3m', label: 'Return, 3 months', short: '3M', kind: 'pct', better: 'high', help: 'From the NAV' },
   { key: 'ret6m', label: 'Return, 6 months', short: '6M', kind: 'pct', better: 'high', help: 'From the NAV' },
@@ -317,6 +382,8 @@ export const FUND_FIELDS: FundFieldDef[] = [
   { key: 'upCapture', label: 'Up capture', short: 'Up cap', kind: 'capture', better: 'high', help: 'Average move in up months, as % of the index’s' },
   { key: 'downCapture', label: 'Down capture', short: 'Down cap', kind: 'capture', better: 'low', help: 'Average move in down months, as % of the index’s' },
   { key: 'beatRate', label: 'Beat the index', short: 'Beat %', kind: 'pct', better: 'high', help: 'Share of rolling 1-year periods ahead of the index, 3 years' },
+  { key: 'trackingError', label: 'Tracking error', short: 'TE', kind: 'pct', better: 'low', help: 'How far its daily returns stray from its index’s, yearly, 3 years' },
+  { key: 'ret1yInr', label: 'Return, 1 year in ₹', short: '1Y ₹', kind: 'pct', better: 'high', help: 'One-year return converted to rupees (global ETFs)' },
   { key: 'years', label: 'History', short: 'Yrs', kind: 'years', better: 'high', help: 'Years of NAV history' }
 ]
 
@@ -448,6 +515,14 @@ export interface FundDetail {
   holdingsNote: string | null
   /** Followed from the screener: its monthly portfolio is fetched though no one holds it. */
   followed: boolean
+  /** Plain-words cards against its category (see fundScorecard). */
+  scorecard: FundScoreCard[]
+  /** Its place in its category by the longest return it has. */
+  rank: FundRank | null
+  /** The biggest other funds in its category. */
+  similar: FundRow[]
+  /** Allocation and sectors period by period, for the Portfolio view. */
+  portfolio: PortfolioView | null
 }
 
 // ---------------- rolling returns ----------------

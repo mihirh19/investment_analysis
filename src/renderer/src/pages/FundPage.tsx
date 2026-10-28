@@ -1,19 +1,30 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { fundField, type FundDetail, type FundField, type FundRow } from '@shared/fundScreener'
+import { useNavigate, useParams } from 'react-router-dom'
+import { fundField, riskFreeFor, type FundDetail, type FundField, type FundRow } from '@shared/fundScreener'
+import { baseCurrency } from '@shared/globalEtfs'
 import { ErrorNote } from '../components/Shell'
 import { FundHistory } from '../components/FundCharts'
+import { ScoreList } from '../components/ScoreList'
+import { PortfolioView } from '../components/FundPortfolio'
 import { Columns } from '../components/charts'
 import { Sparkline } from '../components/viz'
 import { useFollowFund, useFundDetail } from '../lib/api'
 import { shortDate, toneClass } from '../lib/format'
 import { useOpenSymbol } from '../lib/links'
+import { useTerminal } from '../lib/terminal'
 import { fundText } from './FundScreener'
 
 const RATIOS: FundField[] = ['sharpe', 'sortino', 'alpha', 'beta', 'r2', 'vol', 'maxDrawdown', 'upCapture', 'downCapture', 'beatRate']
+/** The ratios that need an index: shown only for funds measured against one. */
+const INDEX_ONLY: FundField[] = ['alpha', 'beta', 'r2', 'upCapture', 'downCapture', 'beatRate']
 const RETURNS: FundField[] = ['ret1m', 'ret3m', 'ret6m', 'ret1y', 'ret3y', 'ret5y']
 const pts = (v: number | null) => (v === null ? 'new' : Math.abs(v) < 0.00005 ? '0.00' : `${v > 0 ? '+' : '−'}${Math.abs(v * 100).toFixed(2)}`)
 const pct = (v: number | null, d = 2) => (v === null ? '—' : `${(v * 100).toFixed(d)}%`)
+const SYMBOL: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£', CHF: 'CHF ' }
+/** A price in its trading currency (GBp is pence). */
+const priceText = (v: number, currency: string) =>
+  currency === 'GBp' ? `£${(v / 100).toLocaleString('en-GB', { maximumFractionDigits: 2 })}` : `${SYMBOL[currency] ?? `${currency} `}${v.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US', { maximumFractionDigits: 2 })}`
+const riskFreeText = (currency: string) => `${(riskFreeFor(baseCurrency(currency)) * 100).toFixed(1).replace(/\.0$/, '')}%`
 /** "Sep 26" from a month-end date. */
 const monthLabel = (iso: string) => new Date(`${iso.slice(0, 7)}-15`).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
 
@@ -23,47 +34,126 @@ export function FundPage() {
   const q = useFundDetail(code)
   const openSymbol = useOpenSymbol()
   const follow = useFollowFund()
+  const [tab, setTab] = useState<'overview' | 'portfolio'>('overview')
   const d = q.data
   if (q.isLoading) return <p className="text-ink-muted">Opening the fund (its NAV history comes from mfapi.in the first time)…</p>
   if (q.error) return <ErrorNote error={q.error} />
-  if (!d) return <p className="text-ink-muted">No open-ended Direct plan with scheme code {code}.</p>
+  if (!d) return <p className="text-ink-muted">No fund or ETF with the code {code} in the screener’s lists.</p>
   const r = d.row
   const avg = d.categoryAvg
   // The headline return: the longest of three or five years the fund has, else one year.
   const head = r.ret5y !== null ? { v: r.ret5y, label: '5Y annualised' } : r.ret3y !== null ? { v: r.ret3y, label: '3Y annualised' } : { v: r.ret1y, label: '1Y' }
 
-  return (
-    <article className="mx-auto max-w-[920px] space-y-10">
-      <header>
-        <h1 className="text-[24px] leading-tight font-semibold text-ink">{r.name}</h1>
-        <ul className="mt-2 flex flex-wrap gap-2 text-[12.5px]">
-          {[r.group, r.category, r.risk ? `${r.risk} risk` : null, r.fundHouse, r.held ? 'Held by the family' : null]
-            .filter((x): x is string => !!x)
-            .map((c) => (
-              <li key={c} className="rounded-full border border-rule-strong px-2.5 py-0.5 text-ink-muted">
-                {c}
-              </li>
-            ))}
-        </ul>
-        <div className="mt-4">
-          <span className={`text-[28px] font-semibold ${toneClass(head.v)}`}>{head.v === null ? '—' : `${head.v > 0 ? '+' : ''}${(head.v * 100).toFixed(2)}%`}</span>{' '}
-          <span className="text-[13px] text-ink-muted">{head.label}</span>
-          {r.ret1m !== null && (
-            <div className="text-[13px]">
-              <span className={toneClass(r.ret1m)}>{pct(r.ret1m)}</span> <span className="text-ink-muted">last month</span>
-            </div>
-          )}
-        </div>
-      </header>
+  const ratios = r.index ? RATIOS : RATIOS.filter((k) => !INDEX_ONLY.includes(k))
+  const indexMissing = !!r.index && r.statsAt !== null && r.beta === null
 
+  return (
+    // Tickertape's arrangement, as on a stock: the fund and its scorecard stay at the left.
+    <article aria-labelledby="fund-name" className="grid items-start gap-8 @5xl:grid-cols-[300px_minmax(0,1fr)]">
+      <aside className="space-y-4 @5xl:sticky @5xl:top-16">
+        <section className="rounded-xl border border-rule p-5">
+          <h1 id="fund-name" className="text-[19px] leading-snug font-semibold text-ink">
+            {r.name}
+          </h1>
+          <div className="mt-0.5 text-[13px] text-ink-muted">
+            {(r.market === 'IN' ? [r.fundHouse?.replace(/ Mutual Fund$/i, ''), r.vehicle === 'ETF' ? 'ETF on NSE/BSE' : 'Direct · Growth'] : [r.ticker, r.exchange, `${r.market === 'UCITS' ? 'UCITS ETF' : 'US ETF'} in ${r.currency === 'GBp' ? 'pence' : r.currency}`])
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+          <ul className="mt-3 flex flex-wrap gap-1.5 text-[12px]">
+            {[r.category, r.risk ? `${r.risk} risk` : null]
+              .filter((x): x is string => !!x)
+              .map((c) => (
+                <li key={c} className="rounded-full bg-sheet px-2.5 py-0.5 text-ink-muted">
+                  {c}
+                </li>
+              ))}
+          </ul>
+          <div className="mt-4">
+            <div className={`text-[26px] leading-none font-semibold ${toneClass(head.v)}`}>{head.v === null ? '—' : `${head.v > 0 ? '+' : ''}${(head.v * 100).toFixed(2)}%`}</div>
+            <div className="mt-1 text-[13px] text-ink-muted">
+              {head.label}
+              {r.ret1m !== null && (
+                <>
+                  {' · '}
+                  <span className={toneClass(r.ret1m)}>{pct(r.ret1m)}</span> last month
+                </>
+              )}
+            </div>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-rule pt-4 text-[13px]">
+            <Fact label={`${r.market === 'IN' ? 'NAV' : 'Price'}${r.navDate ? `, ${shortDate(r.navDate)}` : ''}`} value={r.nav ? priceText(r.nav, r.currency) : '—'} />
+            <Fact label={r.market === 'IN' ? 'Fund size' : 'Fund size, about'} value={fundText('aumCr', r.aumCr)} />
+          </dl>
+          {d.rank && (
+            <p className="mt-4 text-[13px] text-ink-muted">
+              <span className="font-semibold text-ink">
+                #{d.rank.rank} of {d.rank.of}
+              </span>{' '}
+              in {r.category} by {d.rank.label}
+            </p>
+          )}
+          {r.held && <p className="mt-4 rounded-lg bg-stamp-wash px-3 py-2 text-[13px] text-stamp">Held by the family</p>}
+        </section>
+        {d.scorecard.length > 0 && (
+          <ScoreList id="fund-scorecard" cards={d.scorecard} note={`Against ${d.categoryCount === 1 ? 'the one measured fund' : `the ${d.categoryCount} measured funds`} in ${r.category}, from . A description, not advice to buy or sell.`} />
+        )}
+      </aside>
+
+      <div className="min-w-0 space-y-10">
+      <div role="tablist" aria-label="Fund views" className="mb-6 flex gap-1 border-b border-rule">
+        {(
+          [
+            ['overview', 'Overview'],
+            ['portfolio', 'Portfolio']
+          ] as const
+        ).map(([k, l]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={'-mb-px border-b-2 px-3 pb-2 text-[14.5px] ' + (tab === k ? 'border-stamp font-medium text-ink' : 'border-transparent text-ink-muted hover:text-ink')}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      {tab === 'portfolio' ? (
+        <>
+          {d.portfolio ? <PortfolioView d={d} /> : null}
+          <section>
+            <h2 className="mb-3 text-[18px] font-semibold">What it holds</h2>
+            {!d.holdings ? (
+              <div className="rounded-xl border border-rule p-5 text-[13.5px] text-ink-muted">
+                <p>{d.holdingsNote}</p>
+                {r.market === 'IN' && !d.followed && !r.held && (
+                  <button
+                    type="button"
+                    disabled={follow.isPending}
+                    onClick={() => follow.mutate([r.code, true])}
+                    className="mt-3 rounded-lg bg-stamp px-4 py-2 font-semibold text-white disabled:opacity-50"
+                  >
+                    Get its holdings every month
+                  </button>
+                )}
+                <ErrorNote error={follow.error} />
+              </div>
+            ) : (
+              <Holdings d={d} />
+            )}
+          </section>
+        </>
+      ) : (
+        <>
       <FundHistory code={r.code} />
 
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-y border-rule py-5 text-[13px] sm:grid-cols-3 lg:grid-cols-5">
-        <Fact label={`NAV${r.navDate ? `: ${shortDate(r.navDate)}` : ''}`} value={r.nav ? `₹${r.nav.toLocaleString('en-IN', { maximumFractionDigits: 4 })}` : '—'} />
-        <Fact label="Fund size" value={fundText('aumCr', r.aumCr)} />
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-y border-rule py-5 text-[13px] @2xl:grid-cols-4">
         <Fact label="Expense ratio" value={fundText('ter', r.ter)} note={avg.ter !== undefined ? `category ${avg.ter.toFixed(2)}%` : undefined} />
-        <Fact label="Benchmark" value={r.benchmark ?? '—'} note={r.index ? `ratios against ${r.index}` : undefined} />
+        <Fact label="Benchmark" value={r.benchmark ?? r.index ?? '—'} note={r.index ? `ratios against ${r.index}` : undefined} />
         <Fact label="Track record" value={`${r.years.toFixed(1)} years`} />
+        {r.market === 'IN' ? <Fact label="Kind" value={r.group} note={r.category} /> : <Fact label="1 year in ₹" value={fundText('ret1yInr', r.ret1yInr)} note={`${fundText('ret1y', r.ret1y)} in ${r.currency === 'GBp' ? 'GBP' : r.currency}`} />}
       </dl>
 
       <section>
@@ -74,37 +164,26 @@ export function FundPage() {
       <section>
         <h2 className="mb-3 text-[18px] font-semibold">Risk, and how it got its return</h2>
         {r.statsAt ? (
-          <CompareTable fields={RATIOS} row={r} avg={avg} count={d.categoryCount} />
+          <CompareTable fields={ratios} row={r} avg={avg} count={d.categoryCount} />
         ) : (
           <p className="text-[13.5px] text-ink-muted">Not worked out yet; it comes with the background download.</p>
         )}
-        <p className="mt-2 text-[12px] text-ink-muted">Three years of daily NAVs (five for the worst fall); 6.5% a year as the risk-free rate.</p>
+        <p className="mt-2 text-[12px] text-ink-muted">
+          Three years of daily {r.market === 'IN' ? 'NAVs' : 'prices, adjusted for dividends'} (five for the worst fall); {riskFreeText(r.currency)} a year as the risk-free rate.
+          {r.index
+            ? ` Alpha, beta, capture and beating the index are against ${r.index}.`
+            : ' This fund isn’t measured against a share index (debt, gold and similar funds), so alpha, beta and capture don’t apply.'}
+          {indexMissing && r.years >= 1.2 && ' The index levels didn’t download last time; they are tried again in the background.'}
+          {indexMissing && r.years < 1.2 && ' The figures against the index need more than a year of NAVs.'}
+        </p>
       </section>
 
-      <section>
-        <h2 className="mb-3 text-[18px] font-semibold">What it holds</h2>
-        {!d.holdings ? (
-          <div className="rounded-xl border border-rule p-5 text-[13.5px] text-ink-muted">
-            <p>{d.holdingsNote}</p>
-            {!d.followed && !r.held && (
-              <button
-                type="button"
-                disabled={follow.isPending}
-                onClick={() => follow.mutate([r.code, true])}
-                className="mt-3 rounded-lg bg-stamp px-4 py-2 font-semibold text-white disabled:opacity-50"
-              >
-                Get its holdings every month
-              </button>
-            )}
-            <ErrorNote error={follow.error} />
-          </div>
-        ) : (
-          <Holdings d={d} />
-        )}
-      </section>
+      <SimilarFunds d={d} />
+        </>
+      )}
 
       <p className="text-[12px] text-ink-muted">
-        Data: AMFI, mfapi.in, Yahoo Finance, and the fund house’s monthly portfolio file.{' '}
+        {r.market === 'IN' ? 'Data: AMFI, mfapi.in, Yahoo Finance, and the fund house’s monthly portfolio file.' : `Data: Yahoo Finance (prices, top holdings and sectors)${r.market === 'US' ? ', Nasdaq Trader (the list of US ETFs) and the SEC’s N-PORT filings (full holdings)' : ''}.`}{' '}
         {d.followed && (
           <button type="button" className="mr-2 text-stamp hover:underline" onClick={() => follow.mutate([r.code, false])}>
             Stop fetching its portfolio
@@ -116,7 +195,46 @@ export function FundPage() {
           </button>
         )}
       </p>
+      </div>
     </article>
+  )
+}
+
+/** The biggest other funds in its category, as cards. */
+function SimilarFunds({ d }: { d: FundDetail }) {
+  const nav = useNavigate()
+  const terminal = useTerminal()
+  const navigate = (to: string) => (terminal ? terminal.openScreen(to) : nav(to))
+  if (!d.similar.length) return null
+  return (
+    <section>
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-[18px] font-semibold">Similar funds</h2>
+        <button type="button" onClick={() => navigate('/research/funds')} className="text-[13.5px] text-stamp hover:underline">
+          Explore all funds
+        </button>
+      </div>
+      <ul className="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-4">
+        {d.similar.map((f) => (
+          <li key={f.code}>
+            <button type="button" onClick={() => navigate(`/research/fund/${f.code}`)} className="block h-full w-full rounded-xl border border-rule p-4 text-left hover:border-rule-strong hover:bg-sheet">
+              <div className="line-clamp-2 text-[14px] leading-snug font-semibold">{f.name}</div>
+              <div className="mt-0.5 truncate text-[12px] text-ink-muted">{f.aumCr !== null ? fundText('aumCr', f.aumCr) : f.fundHouse?.replace(/ Mutual Fund$/i, '')}</div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+                <div>
+                  <dt className="text-ink-muted">3Y a year</dt>
+                  <dd className={`font-semibold ${toneClass(f.ret3y)}`}>{fundText('ret3y', f.ret3y)}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-muted">Expense</dt>
+                  <dd className="font-semibold">{fundText('ter', f.ter)}</dd>
+                </div>
+              </dl>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

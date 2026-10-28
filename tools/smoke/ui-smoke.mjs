@@ -476,6 +476,19 @@ await nav('Commodities')
 await ok('research: commodities')
 await nav('Fund screener')
 await ok('research: fund screener')
+// Markets: Indian ETFs, then the shipped UCITS list (there before any download), then a UCITS fund's page.
+for (const m of ['Indian ETFs', 'UCITS ETFs', 'US ETFs']) {
+  await ev(`[...document.querySelectorAll('[aria-label=Market] label')].find((l) => l.textContent.trim().startsWith(${JSON.stringify(m)}))?.querySelector('input')?.click()`)
+  await ok(`fund screener: ${m}`)
+}
+await ev(`[...document.querySelectorAll('[aria-label=Market] label')].find((l) => l.textContent.trim().startsWith('UCITS ETFs'))?.querySelector('input')?.click()`)
+await check('fund screener: UCITS list has rows', `document.querySelectorAll('tbody tr').length > 20`)
+await ev(`[...document.querySelectorAll('tbody tr')].find((r) => r.textContent.includes('S&P 500'))?.click()`)
+await check('fund page: opens for a UCITS ETF', `!!document.querySelector('[role=tablist][aria-label="Fund views"]')`, 20000)
+await clickText('[aria-label="Fund views"] button', 'Portfolio')
+await ok('fund page: Portfolio tab')
+await clickText('[aria-label="Fund views"] button', 'Overview')
+await ok('fund page: Overview tab')
 await nav('What if')
 await ok('planning: what if')
 // Money flows: FII/DII, F&O positions, FPI, mutual funds and big deals, on the demo copy.
