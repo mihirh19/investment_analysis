@@ -4,6 +4,7 @@ import { ErrorNote } from '../Shell'
 import { StockChart, DEFAULT_CHART, type ChartSettings } from '../StockChart'
 import { Financials, Overview, Peers, ResultsNote } from '../Company'
 import { Ownership } from '../Ownership'
+import { useFlash } from '../../lib/motion'
 import { Valuation } from '../Valuation'
 import { Breadth, Empty, Indices, Movers, World as WorldMarkets } from '../Monitor'
 import { Screener } from '../Screener'
@@ -294,6 +295,16 @@ function WatchlistPanel(p: Props) {
   )
 }
 
+/** A price that flashes green or red for a moment when a live tick moves it. */
+function FlashPrice({ value }: { value: number | null }) {
+  const flash = useFlash(value)
+  return (
+    <span key={flash.key} className={`-mx-0.5 rounded-sm px-0.5 ${flash.className}`}>
+      {value === null ? '—' : value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+    </span>
+  )
+}
+
 function WatchRows({
   symbols,
   quotes,
@@ -323,7 +334,9 @@ function WatchRows({
                 {s}
               </th>
               <td className="px-1">{q && q.points.length > 1 ? <Sparkline values={q.points} width={56} height={18} /> : null}</td>
-              <td className="num px-1">{q ? q.price.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}</td>
+              <td className="num px-1">
+                <FlashPrice value={q?.price ?? null} />
+              </td>
               <td className={`num pr-2 ${toneClass(q?.change ?? null)}`}>{percent(q?.change ?? null)}</td>
               {onRemove && (
                 <td className="w-5 pr-1">

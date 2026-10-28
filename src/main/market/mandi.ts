@@ -261,6 +261,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
  * Fetches the last week's prices for every crop the farm needs (at most every six hours unless
  * forced) and, once, a year of monthly averages. Returns the crops no price was found for.
  */
+/** Yards post prices through the day: every two hours from 10:00 to 20:00 IST, every six otherwise. */
+export function maxAge(now: Date): number {
+  const h = new Date(now.getTime() + 330 * 60_000).getUTCHours()
+  return h >= 10 && h < 20 ? 2 * 3600_000 : 6 * 3600_000
+}
+
 export async function refreshMandiPrices(db: Db, f?: FetchFn, force = false, now = new Date()): Promise<string[]> {
   // What went wrong is kept for the Farm page, whether this run was the daily one or a button press.
   try {
@@ -293,7 +299,7 @@ async function fetchAll(db: Db, f: FetchFn | undefined, force: boolean, now: Dat
       missed.push(`${label} (Agmarknet has no mandi by that name)`)
       continue
     }
-    if (!force && last[key] && now.getTime() - Date.parse(last[key]) < 6 * 3600000) continue
+    if (!force && last[key] && now.getTime() - Date.parse(last[key]) < maxAge(now)) continue
 
     const week = await getJson<{ columns?: { key: string }[]; data?: Record<string, unknown>[] }>(
       `${API}/prices-and-arrivals/market-price/lastweek?marketId=${m.id}&stateId=${m.stateId}&commodityId=${CROPS[crop].agmarkId}&includeExcel=false`,
@@ -335,7 +341,7 @@ async function fetchAll(db: Db, f: FetchFn | undefined, force: boolean, now: Dat
   // Rajkot APMC's own rates: groundnut jini and jadi, wheat lokwan and tukda, with the day's low and high.
   const rajkot = needs.some((n) => norm(n.market) === 'rajkot')
   const yardKey = 'APMC:RAJKOT'
-  if (rajkot && (force || !last[yardKey] || now.getTime() - Date.parse(last[yardKey]) >= 6 * 3600000)) {
+  if (rajkot && (force || !last[yardKey] || now.getTime() - Date.parse(last[yardKey]) >= maxAge(now))) {
     try {
       for (const r of await fetchRajkotRates(f)) {
         const k = classKey(r.crop, 'Rajkot', r.cls)

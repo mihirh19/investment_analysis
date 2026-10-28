@@ -11,6 +11,7 @@ import { GoTo, openGoTo } from '../components/GoTo'
 import { LiveStatus } from '../components/Shell'
 import {
   saveWorkspaces,
+  useLiveQuotesSubscription,
   useMarketSubscription,
   usePersons,
   useAlerts,
@@ -24,6 +25,7 @@ import { percent, toneClass } from '../lib/format'
 import { titleFor } from '../lib/nav'
 import { useScope, type Scope } from '../lib/scope'
 import { TerminalCtx, useTerminal, type TerminalApi } from '../lib/terminal'
+import { useFlash } from '../lib/motion'
 
 // The whole app as a trading terminal: a command line and function keys along the top, every
 // screen and tool as a tab that can be split, stacked or floated, and a status bar with a ticker.
@@ -126,6 +128,7 @@ function build(api: DockviewApi, id: string) {
 
 export function Terminal() {
   useMarketSubscription()
+  useLiveQuotesSubscription()
   useResearchSubscription()
   const theme = useTheme().data ?? 'terminal'
   useEffect(() => {
@@ -485,7 +488,7 @@ function StatusBar() {
     const q = by.get(t.symbol)!
     return (
       <span key={t.symbol} className="mr-6 whitespace-nowrap">
-        <span className="text-ink-muted">{t.label}</span> <span className="num text-ink">{q.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>{' '}
+        <span className="text-ink-muted">{t.label}</span> <TickPrice value={q.price} />{' '}
         <span className={`num ${toneClass(q.change)}`}>{percent(q.change)}</span>
       </span>
     )
@@ -512,6 +515,16 @@ function StatusBar() {
       <AlertsBadge />
       <Clock />
     </footer>
+  )
+}
+
+/** A ticker price that flashes when it moves. */
+function TickPrice({ value }: { value: number }) {
+  const flash = useFlash(value)
+  return (
+    <span key={flash.key} className={`num rounded-sm px-0.5 text-ink ${flash.className}`}>
+      {value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+    </span>
   )
 }
 

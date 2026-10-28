@@ -9,6 +9,8 @@ import { Xray } from '../pages/Xray'
 import { Sectors } from '../pages/Sectors'
 import { News } from '../pages/News'
 import { Commodities } from '../pages/Commodities'
+import { FundScreener } from '../pages/FundScreener'
+import { FundPage } from '../pages/FundPage'
 import { Alerts } from '../pages/Alerts'
 import { Scenarios } from '../pages/Scenarios'
 import { Calendar } from '../pages/Calendar'
@@ -66,6 +68,8 @@ export function AppRoutes() {
       <Route path="research/sectors" element={<Sectors />} />
       <Route path="research/news" element={<News />} />
       <Route path="research/commodities" element={<Commodities />} />
+      <Route path="research/funds" element={<FundScreener />} />
+      <Route path="research/fund/:code" element={<FundPage />} />
       <Route path="alerts" element={<Alerts />} />
       <Route path="scenarios" element={<Scenarios />} />
       <Route path="research/:symbol" element={<Research />} />

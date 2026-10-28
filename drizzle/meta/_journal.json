@@ -183,6 +183,13 @@
       "when": 1793072159527,
       "tag": "0025_farm_support",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1793157429391,
+      "tag": "0026_fund_stats",
+      "breakpoints": true
     }
   ]
 }

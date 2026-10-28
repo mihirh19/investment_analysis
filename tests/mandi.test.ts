@@ -176,9 +176,9 @@ describe('fetching the farm’s prices', () => {
       ['Jadi (bold)', 'APMC', 6125]
     ])
 
-    // Within six hours: nothing fetched again unless asked.
+    // Within two hours during the yard day: nothing fetched again unless asked.
     const before = asked.length
-    await refreshMandiPrices(db, f, false, new Date('2026-10-22T09:00:00Z'))
+    await refreshMandiPrices(db, f, false, new Date('2026-10-22T07:00:00Z'))
     expect(asked.length).toBe(before)
     await refreshMandiPrices(db, f, true, new Date('2026-10-22T09:00:00Z'))
     // Forced: the week again, and only the last two months now that the year is there.

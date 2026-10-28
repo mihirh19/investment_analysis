@@ -123,6 +123,33 @@ export function fundamentalsOf(filings: Filing[]): Fundamentals {
 
 /** The price-history figures a screener row carries (all null until the history is downloaded). */
 export type TechFields = Omit<Technicals, 'date' | 'momentum'>
+/** NSE index names (as its daily file writes them) to Yahoo's symbols, for live levels. */
+export const INDEX_YAHOO: Record<string, string> = {
+  'Nifty 50': '^NSEI',
+  'Nifty Next 50': '^NSMIDCP',
+  'Nifty Bank': '^NSEBANK',
+  'NIFTY MIDCAP 100': 'NIFTY_MIDCAP_100.NS',
+  'NIFTY SMLCAP 100': '^CNXSC',
+  'Nifty 500': '^CRSLDX',
+  'India VIX': '^INDIAVIX',
+  'Nifty IT': '^CNXIT',
+  'Nifty Fin Service': 'NIFTY_FIN_SERVICE.NS',
+  'Nifty Pharma': '^CNXPHARMA',
+  'NIFTY HEALTHCARE': 'NIFTY_HEALTHCARE.NS',
+  'Nifty FMCG': '^CNXFMCG',
+  'Nifty Auto': '^CNXAUTO',
+  'Nifty Metal': '^CNXMETAL',
+  'Nifty Energy': '^CNXENERGY',
+  'NIFTY OIL AND GAS': 'NIFTY_OIL_AND_GAS.NS',
+  'Nifty Realty': '^CNXREALTY',
+  'Nifty Infra': '^CNXINFRA',
+  'Nifty PSU Bank': '^CNXPSUBANK',
+  'Nifty Media': '^CNXMEDIA',
+  'NIFTY CONSR DURBL': 'NIFTY_CONSR_DURBL.NS',
+  'Nifty Ind Defence': 'NIFTY_IND_DEFENCE.NS',
+  'Nifty Capital Mkt': 'NIFTY_CAPITAL_MKT.NS'
+}
+
 export const NO_TECHNICALS: TechFields = {
   ret1w: null,
   ret1m: null,

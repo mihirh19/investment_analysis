@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
 import type { ManualAssetInput } from '@shared/assets'
 import type { VehicleInput } from '@shared/vehicles'
 import type { Plan } from '@shared/plan'
@@ -6,7 +6,7 @@ import type { CropKey, FarmEntryInput, FarmSupportInput, FarmSeasonInput, Holdin
 import type { LoanInput, LoanPayment } from '@shared/loans'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory } from '@shared/ai'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Basis, ChartInterval, ExcelSheet, SavedWorkspace } from '@shared/research'
+import type { Basis, ChartBars, ChartInterval, ExcelSheet, LiveQuote, SavedWorkspace } from '@shared/research'
 import type { AlertRuleInput, AutoAlert } from '@shared/alerts'
 import type { FarmPlace } from '@shared/weather'
 import type { Screen } from '@shared/screener'
@@ -111,6 +111,50 @@ export const usePolicies = () => useQuery({ queryKey: ['policies'], queryFn: () 
 export const useNpsSchemes = (enabled: boolean) =>
   useQuery({ queryKey: ['npsSchemes'], queryFn: () => unwrap(api().listNpsSchemes()), enabled, staleTime: Infinity })
 
+/**
+ * Live prices pushed by the main process (only for symbols on screen, while their market is open),
+ * patched straight into the quotes and charts already showing; nothing is fetched again.
+ */
+export function useLiveQuotesSubscription() {
+  const qc = useQueryClient()
+  useEffect(
+    () =>
+      api().onLiveQuotes((quotes) => {
+        const by = new Map(quotes.map((q) => [q.symbol.toUpperCase(), q]))
+        for (const [key, data] of qc.getQueriesData<LiveQuote[]>({ queryKey: ['history', 'quotes'] })) {
+          if (!data?.some((q) => by.has(q.symbol.toUpperCase()))) continue
+          qc.setQueryData(
+            key,
+            data.map((q) => {
+              const n = by.get(q.symbol.toUpperCase())
+              return n ? { ...q, price: n.price, prevClose: n.prevClose ?? q.prevClose, change: n.change, time: n.time, points: n.points.length ? n.points : q.points } : q
+            })
+          )
+        }
+        // The last candle of an open chart follows the price.
+        for (const [key, data] of qc.getQueriesData<ChartBars>({ queryKey: ['history', 'bars'] })) {
+          const n = by.get(String(key[2] ?? '').toUpperCase())
+          const last = data?.bars.at(-1)
+          if (!data || !n || !last) continue
+          qc.setQueryData(key, { ...data, bars: [...data.bars.slice(0, -1), { ...last, close: n.price, high: Math.max(last.high, n.price), low: Math.min(last.low, n.price) }] })
+        }
+      }),
+    [qc]
+  )
+}
+
+/** Asks for live prices of these symbols while the component is on screen. */
+export function useLiveWatch(symbols: string[]) {
+  const id = useId()
+  const key = [...symbols].sort().join(',')
+  useEffect(() => {
+    void api().watchQuotes(id, key ? key.split(',') : [])
+    return () => {
+      void api().watchQuotes(id, [])
+    }
+  }, [id, key])
+}
+
 /** Keeps every screen current: new prices from the main process refresh all data except chart history. */
 export function useMarketSubscription() {
   const qc = useQueryClient()
@@ -125,7 +169,13 @@ export function useMarketSubscription() {
 
 function useWrite<A extends unknown[], R>(fn: (...a: A) => Promise<ApiResult<R>>) {
   const invalidate = useInvalidateAll()
-  return useMutation({ mutationFn: (args: A) => unwrap(fn(...args)), onSuccess: invalidate })
+  // The screens refresh in the background: a write doesn't wait for every query (live prices among them) to come back.
+  return useMutation({
+    mutationFn: (args: A) => unwrap(fn(...args)),
+    onSuccess: () => {
+      void invalidate()
+    }
+  })
 }
 
 export const useRefreshMarket = () => useWrite(() => api().refreshMarket())
@@ -461,8 +511,9 @@ export const useAisStatus = () => useQuery({ queryKey: ['aisStatus'], queryFn: (
 export const useSetAisKey = () => useWrite((key: string) => api().setAisKey(key))
 export const useRemoveAisKey = () => useWrite(() => api().removeAisKey())
 
-export const useChartBars = (symbol: string | null, interval: ChartInterval) =>
-  useQuery({
+export const useChartBars = (symbol: string | null, interval: ChartInterval) => {
+  useLiveWatch(symbol ? [symbol] : [])
+  return useQuery({
     // A "history" key, so the minute-by-minute price refresh doesn't refetch every chart.
     queryKey: ['history', 'bars', symbol, interval],
     queryFn: () => unwrap(api().getChartBars(symbol!, interval)),
@@ -472,6 +523,7 @@ export const useChartBars = (symbol: string | null, interval: ChartInterval) =>
     refetchInterval: interval === '1d' ? false : 60_000,
     retry: 1
   })
+}
 
 export const useWatchlists = () => useQuery({ queryKey: ['research', 'watchlists'], queryFn: () => unwrap(api().listWatchlists()) })
 
@@ -505,15 +557,17 @@ export function useSaveNote() {
 /** Saves sheets as an Excel file (asks where); resolves to the path, or null if cancelled. */
 export const exportExcel = (fileName: string, sheets: ExcelSheet[]) => unwrap(api().exportExcel(fileName, sheets))
 
-export const useQuotes = (symbols: string[]) =>
-  useQuery({
+export const useQuotes = (symbols: string[]) => {
+  useLiveWatch(symbols)
+  return useQuery({
     queryKey: ['history', 'quotes', [...symbols].sort().join(',')],
     queryFn: () => unwrap(api().getQuotes(symbols)),
     enabled: symbols.length > 0,
-    // Delayed prices: a fresh look every half minute is plenty.
+    // Between live pushes (and while markets are shut) a look every half minute.
     refetchInterval: 30_000,
     staleTime: 25_000
   })
+}
 
 export const useWorkspaces = () =>
   // A "history" key: neither the price refresh nor the research download should reload layouts.
@@ -556,6 +610,18 @@ export const findFarmPlaces = (query: string) => unwrap(api().findFarmPlaces(que
 export const useScenarioHoldings = (personId?: number) =>
   useQuery({ queryKey: ['scenario', personId ?? 'all'], queryFn: () => unwrap(api().getScenarioHoldings(personId)) })
 export const useSaveMonthlyReport = () => useMutation({ mutationFn: (personId?: number) => unwrap(api().saveMonthlyReport(personId)) })
+export const useFundScreen = () => useQuery({ queryKey: ['research', 'fund-screen'], queryFn: () => unwrap(api().getFundScreen()) })
+export const useSetFundScreenSync = () => useWrite((on: boolean) => api().setFundScreenSync(on))
+export const useFundDetail = (code: string) =>
+  useQuery({
+    queryKey: ['research', 'fund', code],
+    queryFn: () => unwrap(api().getFundDetail(code)),
+    // Followed and waiting for its portfolio: look again now and then.
+    refetchInterval: (q) => (q.state.data?.followed && !q.state.data.holdings ? 15_000 : false)
+  })
+export const useFundChart = (code: string) =>
+  useQuery({ queryKey: ['history', 'fundChart', code], queryFn: () => unwrap(api().getFundChart(code)), staleTime: 3 * 3600_000 })
+export const useFollowFund = () => useWrite((code: string, on: boolean) => api().followFund(code, on))
 export const useCommodities = () =>
   useQuery({ queryKey: ['history', 'commodities'], queryFn: () => unwrap(api().getCommodities()), staleTime: 10 * 60_000, refetchInterval: 20 * 60_000 })
 export const useAlerts = () => useQuery({ queryKey: ['research', 'alerts'], queryFn: () => unwrap(api().getAlerts()), refetchInterval: 60_000 })

@@ -442,6 +442,8 @@ await nav('Alerts')
 await ok('alerts: screen')
 await nav('Commodities')
 await ok('research: commodities')
+await nav('Fund screener')
+await ok('research: fund screener')
 await nav('What if')
 await ok('planning: what if')
 // Money flows: FII/DII, F&O positions, FPI, mutual funds and big deals, on the demo copy.
@@ -502,6 +504,7 @@ const answered = await ev(
 )
 if (!answered) failures++
 console.log((answered ? 'ok   ' : 'FAIL ') + 'chat: answer rendered as markdown (bold, table, list)')
+if (!answered) console.log('     chat shows: ' + JSON.stringify(await ev(`document.querySelector('${chat}')?.innerText.slice(-400)`)) + ', calls to the fake API: ' + apiCalls)
 await ok('chat: still on screen after answering')
 await clickText(`${chat} button`, 'Close')
 await clickText('button', 'Refresh')

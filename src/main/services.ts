@@ -53,6 +53,9 @@ import * as farmWeather from './farmWeather'
 import { cropExports } from './farmExports'
 import { readMandiBill } from './farmBill'
 import { moneyByCountry } from './world/money'
+import { LiveFeed } from './market/live'
+import { fundChart, fundDetail, fundScreenData, setFollowed, type FundScreenSync } from './funds/screen'
+import type { FundDetail, FundScreenData, FundScreenStatus } from '@shared/fundScreener'
 import { computeScenarioHoldings } from './portfolio/scenario'
 import { ALL_PAGES } from '@shared/screens'
 import { gatherReport, reportHtml } from './report'
@@ -100,7 +103,7 @@ import {
 } from './importers/trades'
 import { fetchNavAll, mfapiHistory, npsHistory, npsLatest, npsSchemes, type AmfiScheme } from './market/funds'
 import { getJson, mapLimit, type FetchFn } from './market/http'
-import { parseYahooQuotes, yahooBars, yahooHistory } from './market/yahoo'
+import { parseYahooQuotes, yahooBars, yahooHistory, YahooSession } from './market/yahoo'
 import { listDividends } from './portfolio/dividends'
 import { computeExposure } from './portfolio/exposure'
 import { listHoldings } from './portfolio/holdings'
@@ -134,6 +137,10 @@ export interface ServiceDeps {
     setEnabled(on: boolean): void
     run(): Promise<void>
   }
+  /** Live prices changed: sent to the window (absent in tests). */
+  pushQuotes?(quotes: LiveQuote[]): void
+  /** The fund screener's background download; absent in tests. */
+  fundScreen?: Pick<FundScreenSync, 'opened' | 'setEnabled' | 'status' | 'measureNow'>
   /** The research desk's background download; absent in tests. */
   research?: {
     status(): ResearchStatus
@@ -180,6 +187,40 @@ export const THEME_KEY = 'ui:theme'
 
 export function createServices(deps: ServiceDeps) {
   const { db } = deps
+  const fundScreenStatus = (): FundScreenStatus =>
+    deps.fundScreen?.status() ?? { enabled: false, funds: 0, measured: 0, running: false, current: null, lastError: null }
+  /** Up to 20 symbols straight from Yahoo (no cache), kept for getQuotes too. */
+  const freshQuotes = async (batch: string[]): Promise<LiveQuote[]> => {
+    const bySymbol = new Map(batch.map((s) => [yahooSymbol(s), s]))
+    const json = await getJson<unknown>(
+      `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent([...bySymbol.keys()].join(','))}&range=1d&interval=5m`,
+      { fetch: deps.fetch, timeoutMs: 8000 }
+    )
+    const out: LiveQuote[] = []
+    for (const q of parseYahooQuotes(json)) {
+      const s = bySymbol.get(q.symbol)
+      if (!s) continue
+      const lq = { ...q, symbol: s }
+      quoteCache.set(s, { at: Date.now(), q: lq })
+      out.push(lq)
+    }
+    return out
+  }
+  // Live prices come from Yahoo's session quote list; sparkline points stay from the last spark fetch.
+  const liveYahoo = new YahooSession(deps.fetch)
+  const liveQuotes = async (batch: string[]): Promise<LiveQuote[]> => {
+    const bySymbol = new Map(batch.map((s) => [yahooSymbol(s), s]))
+    const out: LiveQuote[] = []
+    for (const q of await liveYahoo.quotes([...bySymbol.keys()])) {
+      const s = bySymbol.get(q.symbol)
+      if (!s) continue
+      const lq: LiveQuote = { ...q, symbol: s, points: quoteCache.get(s)?.q.points ?? [] }
+      quoteCache.set(s, { at: Date.now(), q: lq })
+      out.push(lq)
+    }
+    return out
+  }
+  const live = new LiveFeed(liveQuotes, (q) => deps.pushQuotes?.(q))
   /** The family's money by country, added to the map's figures so it colours like any other. */
   const withMoney = (m: Omit<WorldMap, 'money'> & { money?: WorldMap['money'] }): WorldMap => {
     const money = moneyByCountry(db)
@@ -1015,6 +1056,27 @@ export function createServices(deps: ServiceDeps) {
     },
     /** Opening the map the first time starts its background updates. */
     /** World futures (Yahoo, delayed; kept 20 minutes) and prices at home: gold and silver in rupees, the farm's mandi crops. */
+    getFundScreen(): FundScreenData {
+      deps.fundScreen?.opened()
+      return fundScreenData(db, fundScreenStatus())
+    },
+    setFundScreenSync(on: boolean): FundScreenData {
+      deps.fundScreen?.setEnabled(on)
+      return fundScreenData(db, fundScreenStatus())
+    },
+    /** Fetches a fund's monthly portfolio from now on (the disclosure check runs in the background). */
+    getFundChart: (code: string) => fundChart(db, code, deps.fetch),
+    followFund(code: string, on: boolean): FundDetail | null {
+      setFollowed(db, code, on)
+      if (on) void (deps.market?.syncDisclosures ? deps.market.syncDisclosures() : syncDisclosures(db, { fetch: deps.fetch })).catch(() => null)
+      return fundDetail(db, code)
+    },
+    async getFundDetail(code: string): Promise<FundDetail | null> {
+      const have = db.select({ at: schema.fundStats.computedAt }).from(schema.fundStats).where(eq(schema.fundStats.code, code)).get()
+      // Not measured yet: this fund now (one NAV download), ahead of the backlog.
+      if (!have) await deps.fundScreen?.measureNow(code).catch(() => null)
+      return fundDetail(db, code)
+    },
     async getCommodities(): Promise<CommodityBoard> {
       if (!commodityRows || Date.now() - commodityRows.at > 20 * 60_000) {
         const got = await mapLimit(COMMODITIES, 4, async (c) => {
@@ -1089,20 +1151,16 @@ export function createServices(deps: ServiceDeps) {
         const hit = quoteCache.get(s)
         return !hit || Date.now() - hit.at > 30_000
       })
-      for (let i = 0; i < stale.length; i += 20) {
-        const batch = stale.slice(i, i + 20)
-        const bySymbol = new Map(batch.map((s) => [yahooSymbol(s), s]))
-        const json = await getJson<unknown>(
-          `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent([...bySymbol.keys()].join(','))}&range=1d&interval=5m`,
-          { fetch: deps.fetch }
-        )
-        for (const q of parseYahooQuotes(json)) {
-          const s = bySymbol.get(q.symbol)
-          if (s) quoteCache.set(s, { at: Date.now(), q: { ...q, symbol: s } })
-        }
-      }
+      for (let i = 0; i < stale.length; i += 20) await freshQuotes(stale.slice(i, i + 20))
       return wanted.map((s) => quoteCache.get(s)?.q).filter((q): q is LiveQuote => !!q)
     },
+    /** A screen's symbols for live prices while their market is open (empty to stop). */
+    watchQuotes(key: string, symbols: string[]) {
+      live.watch(key, symbols)
+      return live.status()
+    },
+    startLive: () => live.start(),
+    stopLive: () => live.stop(),
     getWorkspaces(): SavedWorkspace[] {
       try {
         const v = JSON.parse(getSetting(WORKSPACES_KEY) ?? '[]') as SavedWorkspace[]

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { API_METHODS, CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED, WORLD_UPDATED } from '@shared/api'
+import { API_METHODS, CHAT_EVENT, MARKET_UPDATED, QUOTES_LIVE, RESEARCH_UPDATED, WORLD_UPDATED } from '@shared/api'
+import type { LiveQuote } from '@shared/research'
 import type { ChatEvent } from '@shared/ai'
 import type { Api } from '@shared/types'
 
@@ -21,6 +22,11 @@ const api = {
     const handler = () => listener()
     ipcRenderer.on(RESEARCH_UPDATED, handler)
     return () => ipcRenderer.removeListener(RESEARCH_UPDATED, handler)
+  },
+  onLiveQuotes(listener: (quotes: LiveQuote[]) => void) {
+    const handler = (_: unknown, q: LiveQuote[]) => listener(q)
+    ipcRenderer.on(QUOTES_LIVE, handler)
+    return () => ipcRenderer.removeListener(QUOTES_LIVE, handler)
   },
   onWorldUpdate(listener: () => void) {
     const handler = () => listener()

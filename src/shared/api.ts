@@ -78,6 +78,12 @@ export const API_METHODS = [
   'getMarketMonitor',
   'getWorldBoard',
   'getCommodities',
+  'getFundScreen',
+  'setFundScreenSync',
+  'getFundDetail',
+  'followFund',
+  'getFundChart',
+  'watchQuotes',
   'getScenarioHoldings',
   'saveMonthlyReport',
   'getSavedScreens',
@@ -171,6 +177,7 @@ export const _allMethodsListed: Missing extends never ? true : Missing = true
 
 /** Main → renderer push channel, sent after each market data refresh. */
 export const MARKET_UPDATED = 'market:updated'
+export const QUOTES_LIVE = 'quotes:live'
 export const CHAT_EVENT = 'chat:event'
 export const RESEARCH_UPDATED = 'research:updated'
 export const WORLD_UPDATED = 'world:updated'

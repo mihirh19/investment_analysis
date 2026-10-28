@@ -71,6 +71,7 @@ export const SECTIONS: NavSection[] = [
       { to: '/research', label: 'Monitor', code: 'MON', end: true },
       { to: '/research/screener', label: 'Screener', code: 'SCR' },
       { to: '/research/sectors', label: 'Sectors', code: 'SECT' },
+      { to: '/research/funds', label: 'Fund screener', code: 'MFS' },
       { to: '/research/flows', label: 'Money flows', code: 'FLOW' },
       { to: '/research/news', label: 'Announcements', code: 'NEWS' },
       { to: '/research/world', label: 'World', code: 'WLD' },
@@ -102,6 +103,8 @@ export function titleFor(route: string): string {
   const path = route.split('?')[0]
   const page = ALL_PAGES.find((p) => path === p.to)
   if (page) return page.label
+  const fund = /^\/research\/fund\/(\d+)$/.exec(path)
+  if (fund) return `Fund ${fund[1]}`
   const company = /^\/research\/([^/]+)$/.exec(path)
   if (company) return decodeURIComponent(company[1]).toUpperCase()
   return ALL_PAGES.find((p) => pageActive(p, path))?.label ?? 'Screen'

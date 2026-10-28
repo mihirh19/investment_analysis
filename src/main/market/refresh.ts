@@ -125,7 +125,7 @@ export class MarketData {
   private status = new Map<SourceKey, MarketSourceStatus>()
   private running: Promise<void> | null = null
   private timer: NodeJS.Timeout | null = null
-  private last = { quotes: 0, funds: 0, meta: 0 }
+  private last = { quotes: 0, funds: 0, meta: 0, mandi: 0 }
   private yahoo: YahooSession
 
   constructor(
@@ -176,10 +176,17 @@ export class MarketData {
   private async tick(): Promise<void> {
     const now = Date.now()
     const open = isMarketOpen('NSE') || isMarketOpen('US')
-    const quotesDue = now - this.last.quotes >= (open ? MINUTE : 30 * MINUTE)
+    // Held stocks every half minute while a market is open (screens on show get live prices besides).
+    const quotesDue = now - this.last.quotes >= (open ? MINUTE / 2 : 30 * MINUTE)
     const fundsDue = now - this.last.funds >= 120 * MINUTE
     const metaDue = now - this.last.meta >= 24 * 60 * MINUTE
     if (quotesDue || fundsDue || metaDue) await this.refresh({ quotes: quotesDue, funds: fundsDue, meta: metaDue })
+    // Mandi prices on their own clock: each crop checks its own age, so most looks ask nothing.
+    if (now - this.last.mandi >= 30 * MINUTE && !this.running) {
+      this.last.mandi = now
+      await this.guard('mandi', () => refreshMandiPrices(this.db, this.f))
+      this.onUpdate()
+    }
   }
 
   /** Refreshes the requested groups; concurrent calls share one run. */

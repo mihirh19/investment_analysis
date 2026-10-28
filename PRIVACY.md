@@ -33,6 +33,11 @@ To show live prices and reference data, the app downloads public information (st
   - From NSE: FII/DII figures, F&O participant positions, bulk and block deals, and takeover disclosures.
   - From NSDL: its foreign portfolio investment reports.
   - From AMFI: its monthly mutual fund reports.
+- **Fund screener:** only after the screen is first opened, the app downloads the following, slowly and with a pause button:
+  - AMFI's list of funds;
+  - each fund's NAV history from mfapi.in;
+  - index levels from Yahoo Finance;
+  - for funds you choose to follow, the fund house's monthly portfolio file.
 - **Charts and watchlists:** delayed prices and price history come from Yahoo Finance.
 - **World map:** only after the map is first opened, the app downloads public figures from:
   - IMF PortWatch (ArcGIS);

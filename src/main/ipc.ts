@@ -115,6 +115,12 @@ export function registerIpc(services: Services): void {
     getMarketMonitor: () => services.getMarketMonitor(),
     getWorldBoard: () => services.getWorldBoard(),
     getCommodities: () => services.getCommodities(),
+    getFundScreen: () => services.getFundScreen(),
+    setFundScreenSync: (on) => services.setFundScreenSync(on),
+    getFundDetail: (code) => services.getFundDetail(code),
+    followFund: (code, on) => services.followFund(code, on),
+    getFundChart: (code) => services.getFundChart(code),
+    watchQuotes: (key, symbols) => services.watchQuotes(key, symbols),
     getScenarioHoldings: (personId) => services.getScenarioHoldings(personId),
     saveMonthlyReport: async (personId) => {
       const month = new Date().toISOString().slice(0, 7)

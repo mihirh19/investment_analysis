@@ -7,6 +7,7 @@ import { ErrorNote, PageHeader } from '../components/Shell'
 import { Input } from '../components/ui'
 import { useHoldings, useSparklines } from '../lib/api'
 import { useFlash } from '../lib/motion'
+import { useLiveHoldings } from '../lib/live'
 import { Sparkline } from '../components/viz'
 import { money, percent, shortDate, signedMoney, toneClass, units } from '../lib/format'
 import { ASSET_COLORS, ASSET_LABELS, ASSET_ORDER, PRICE_SOURCE_LABELS } from '../lib/labels'
@@ -41,7 +42,10 @@ const SORTERS: Record<SortKey, (a: HoldingRow, b: HoldingRow) => number> = {
 
 export function Holdings() {
   const { scope } = useScope()
-  const holdings = useHoldings(scopePersonId(scope))
+  const holdingsQuery = useHoldings(scopePersonId(scope))
+  // Indian shares and ETFs follow the live price while NSE is open; the rest as last refreshed.
+  const liveRows = useLiveHoldings(holdingsQuery.data)
+  const holdings = { ...holdingsQuery, data: liveRows }
   const sparkIds = useMemo(
     () => [...new Set((holdings.data ?? []).filter((r) => !isBalance(r)).map((r) => r.instrumentId))],
     [holdings.data]

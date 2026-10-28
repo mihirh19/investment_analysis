@@ -847,3 +847,13 @@ export const farmSupport = sqliteTable('farm_support', {
   amount: real('amount').notNull(),
   note: text('note')
 })
+
+/** The fund screener's figures for one fund (an AMFI scheme code): ratios from its NAVs, and month-end NAVs for its chart. */
+export const fundStats = sqliteTable('fund_stats', {
+  code: text('code').primaryKey(),
+  metricsJson: text('metrics_json'),
+  monthsJson: text('months_json').notNull(),
+  indexSymbol: text('index_symbol'),
+  computedAt: text('computed_at').notNull(),
+  error: text('error')
+})

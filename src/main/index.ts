@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { app, BrowserWindow, dialog, nativeTheme, Notification, shell } from 'electron'
 import { CROPS } from '@shared/farm'
 import { newlyReachedTargets } from './farm'
-import { CHAT_EVENT, MARKET_UPDATED, RESEARCH_UPDATED, WORLD_UPDATED } from '@shared/api'
+import { CHAT_EVENT, MARKET_UPDATED, QUOTES_LIVE, RESEARCH_UPDATED, WORLD_UPDATED } from '@shared/api'
 import { openDatabase } from './db'
 import { applyDevPaths, applyDevTheme, captureScreens, seedDemo } from './dev'
 import { registerIpc } from './ipc'
@@ -11,6 +11,7 @@ import { decryptSecret, encryptSecret, loadOrCreateDbKey, writeDbKey } from './k
 import { MarketData } from './market/refresh'
 import { ResearchSync } from './research/sync'
 import { AlertWatcher } from './alerts'
+import { FundScreenSync } from './funds/screen'
 import { FlowsSync } from './flows/sync'
 import { WorldSync } from './world/sync'
 import { renderLinks } from './market/render'
@@ -76,6 +77,7 @@ if (!app.requestSingleInstanceLock()) {
     let worldSync: WorldSync
     let services: Services
     let alertWatcher: AlertWatcher
+    let fundScreen: FundScreenSync
     try {
       const userData = app.getPath('userData')
       const keyFile = join(userData, 'db.key')
@@ -145,8 +147,19 @@ if (!app.requestSingleInstanceLock()) {
         },
         () => services.getFarmWeather()
       )
+      // The fund screener's NAVs and ratios: quiet until the screener is first opened.
+      fundScreen = new FundScreenSync(db, () => {
+        pending ??= setTimeout(() => {
+          pending = null
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send(RESEARCH_UPDATED)
+        }, 3000)
+      })
       services = createServices({
         db,
+        fundScreen,
+        pushQuotes: (quotes) => {
+          for (const w of BrowserWindow.getAllWindows()) w.webContents.send(QUOTES_LIVE, quotes)
+        },
         casparserExe: app.isPackaged
           ? join(process.resourcesPath, 'bin', 'casparser.exe')
           : join(app.getAppPath(), 'resources', 'bin', 'casparser.exe'),
@@ -194,6 +207,8 @@ if (!app.requestSingleInstanceLock()) {
     setTimeout(() => researchSync.start(), 45_000)
     setTimeout(() => flowsSync.start(), 75_000)
     alertWatcher.start()
+    setTimeout(() => fundScreen.start(), 90_000)
+    services.startLive()
     worldSync.start()
     // Connected Gmail accounts are checked for new statements a minute after start, then every 12 hours.
     const checkMail = () => {

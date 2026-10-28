@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { SCREEN_FIELDS, sortRows, type FieldKey, type FieldKind, type ScreenRow } from '@shared/screener'
 import { bigMoney, money, toneClass } from '../lib/format'
 import { useOpenSymbol } from '../lib/links'
+import { useLive } from '../lib/live'
+import { FlashNum } from './FlashNum'
 
 /** A figure the way the screener shows it. */
 export function fieldText(kind: FieldKind, v: unknown): string {
@@ -59,6 +61,8 @@ export function ScreenTable({
   const [sort, setSort] = useState(initialSort ?? null)
   const [shown, setShown] = useState(limit)
   const sorted = sort ? sortRows(rows, sort.field, sort.dir) : rows
+  // The first rows on screen get live prices (the day's move follows; the order stays as sorted).
+  const live = useLive(sorted.slice(0, Math.min(shown, 40)).map((r) => r.symbol))
   const open = useOpenSymbol()
   const head = (k: FieldKey) => {
     const f = fieldOf(k)
@@ -106,10 +110,11 @@ export function ScreenTable({
                 <div className="truncate text-[12px] text-ink-muted">{r.name}</div>
               </th>
               {columns.map((k) => {
-                const v = r[k]
+                const l = live.get(r.symbol)
+                const v = l && k === 'close' ? l.price : l && k === 'change' ? l.change : r[k]
                 return (
                   <td key={k} className={'num px-2 ' + (SIGNED.includes(k) ? toneClass(v as number | null) : '')}>
-                    {fieldText(fieldOf(k).kind, v)}
+                    {k === 'close' && l ? <FlashNum value={l.price} text={fieldText(fieldOf(k).kind, v)} /> : fieldText(fieldOf(k).kind, v)}
                   </td>
                 )
               })}

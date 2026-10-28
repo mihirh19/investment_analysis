@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
-import type { IndexLevel, ScreenRow, WorldSeries } from '@shared/screener'
+import { INDEX_YAHOO, type IndexLevel, type ScreenRow, type WorldSeries } from '@shared/screener'
+import type { LiveQuote } from '@shared/research'
+import { FlashNum } from './FlashNum'
+import { useLive } from '../lib/live'
 import { ErrorNote } from './Shell'
 import { Treemap, Sparkline } from './viz'
 import { useMarketMonitor, useWorldBoard } from '../lib/api'
@@ -27,7 +30,7 @@ export function Monitor() {
   return (
     <div className="flex flex-col gap-3">
       <ErrorNote error={m.error} />
-      <Panel title="NSE indices" note={d?.date ? `close of ${shortDate(d.date)}` : 'arrive with the first daily file'}>
+      <Panel title="NSE indices" note={d?.date ? `live while NSE is open; close of ${shortDate(d.date)} otherwise` : 'arrive with the first daily file'}>
         {d && d.indices.length > 0 ? <Indices list={d.indices} /> : <Empty>Index levels come with NSE’s end-of-day file, once the download is running.</Empty>}
       </Panel>
       <div className="grid gap-3 @7xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -76,17 +79,21 @@ export function Monitor() {
 export const Empty = ({ children }: { children: ReactNode }) => <p className="text-[13.5px] text-ink-muted">{children}</p>
 
 export function Indices({ list }: { list: IndexLevel[] }) {
+  const live = useLive(list.map((i) => INDEX_YAHOO[i.name]))
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-x-4 gap-y-2">
       {list.map((i) => {
-        const ch = i.prevClose ? i.close / i.prevClose - 1 : null
+        const l = live.get(INDEX_YAHOO[i.name] ?? '')
+        const close = l?.price ?? i.close
+        const prev = l?.prevClose ?? i.prevClose
+        const ch = prev ? close / prev - 1 : null
         return (
           <li key={i.name} className="flex items-baseline justify-between gap-2 border-b border-rule pb-1">
             <span className="truncate text-[13px] text-ink-muted" title={i.name}>
               {i.name}
             </span>
             <span className="text-right">
-              <span className="num block text-[14px] text-ink">{level(i.close)}</span>
+              <FlashNum value={close} text={level(close)} className="num block text-[14px] text-ink" />
               <span className={`num block text-[12px] ${toneClass(ch)}`}>{percent(ch)}</span>
             </span>
           </li>
@@ -98,28 +105,29 @@ export function Indices({ list }: { list: IndexLevel[] }) {
 
 export function World() {
   const w = useWorldBoard()
+  const live = useLive((w.data ?? []).map((s) => s.key))
   if (w.isLoading) return <Empty>Fetching world markets…</Empty>
   if (w.error) return <ErrorNote error={w.error} />
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-3">
       {(w.data ?? []).map((s) => (
-        <WorldTile key={s.key} s={s} />
+        <WorldTile key={s.key} s={s} live={live.get(s.key.toUpperCase())} />
       ))}
     </ul>
   )
 }
 
-function WorldTile({ s }: { s: WorldSeries }) {
+function WorldTile({ s, live }: { s: WorldSeries; live?: LiveQuote }) {
   const pts = s.points
-  const last = pts[pts.length - 1].close
-  const prev = pts[pts.length - 2]?.close
+  const last = live?.price ?? pts[pts.length - 1].close
+  const prev = live?.prevClose ?? pts[pts.length - 2]?.close
   const day = prev ? last / prev - 1 : null
   const half = last / pts[0].close - 1
   return (
     <li className="min-w-0 border-b border-rule pb-2">
       <div className="truncate text-[12.5px] text-ink-muted">{s.label}</div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="num text-[15px] text-ink">{level(last)}</span>
+        <FlashNum value={last} text={level(last)} className="num text-[15px] text-ink" />
         <span className={`num text-[12px] ${toneClass(day)}`}>{percent(day)}</span>
       </div>
       <Sparkline values={pts.map((p) => p.close)} width={124} height={36} />
@@ -149,11 +157,15 @@ export function Breadth({ b }: { b: { up: number; down: number; flat: number; at
 
 export function Movers({ rows, withPe = false }: { rows: ScreenRow[]; withPe?: boolean }) {
   const open = useOpenSymbol()
+  const live = useLive(rows.slice(0, 12).map((r) => r.symbol))
   if (rows.length === 0) return <Empty>Shows once NSE’s daily prices are in.</Empty>
   return (
     <table className="w-full text-[13px]">
       <tbody>
-        {rows.slice(0, 12).map((r) => (
+        {rows.slice(0, 12).map((row) => {
+          const l = live.get(row.symbol)
+          const r = l ? { ...row, close: l.price, change: l.change } : row
+          return (
           <tr
             key={r.symbol}
             tabIndex={0}
@@ -165,11 +177,14 @@ export function Movers({ rows, withPe = false }: { rows: ScreenRow[]; withPe?: b
               <span className="font-semibold text-stamp">{r.symbol}</span>
               <div className="truncate text-[11.5px] text-ink-muted">{r.name}</div>
             </th>
-            <td className="num px-1">{r.close === null ? '—' : money(r.close, 'INR', 2)}</td>
+            <td className="num px-1">
+              <FlashNum value={r.close} text={r.close === null ? '—' : money(r.close, 'INR', 2)} />
+            </td>
             {withPe && <td className="num px-1 text-ink-muted">{r.pe === null ? '—' : `${r.pe.toFixed(1)}×`}</td>}
             <td className={`num pl-1 ${toneClass(r.change)}`}>{percent(r.change)}</td>
           </tr>
-        ))}
+          )
+        })}
       </tbody>
     </table>
   )

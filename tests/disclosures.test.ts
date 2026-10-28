@@ -413,7 +413,8 @@ describe('automatic monthly disclosures and ETF prices', () => {
       funds: ['Parag Parikh Flexi Cap Fund - Direct Plan - Growth']
     })
     expect(ppfas.files[0]).toMatch(/September_30_2026\.xls$/)
-    expect(calls.some((u) => u.includes('August_31_2026'))).toBe(false)
+    // A fund with one month on file also asks for the month before; that file missing changes nothing.
+    expect(calls.filter((u) => u.includes('August_31_2026'))).toHaveLength(1)
 
     const rows = db.select().from(schema.fundHoldings).all()
     expect(rows.map((r) => [r.name, r.source, r.asOf, r.weight])).toEqual([

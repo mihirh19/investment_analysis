@@ -8,6 +8,7 @@ import { useAnalysis, useExposure, useFx, useHealth, useHoldings, usePersons } f
 import { PeriodPicker, periodStartIndex, periodTitle, usePeriod } from '../lib/period'
 import { PageSkeleton } from '../components/Skeleton'
 import { ReportButton } from '../components/ReportButton'
+import { useLiveHoldings } from '../lib/live'
 import { Sparkline } from '../components/viz'
 import type { HealthReport } from '@shared/types'
 import { compactMoney, lakhCrore, money, percent, shortDate, signedMoney, timeAgo, toneClass } from '../lib/format'
@@ -21,7 +22,9 @@ const GROUP_ORDER: ChartGroup[] = ['STOCKS', 'FUNDS', 'US', 'GOLD', 'DEBT', 'RET
 export function Overview() {
   const { scope } = useScope()
   const persons = usePersons().data ?? []
-  const holdings = useHoldings(scopePersonId(scope))
+  const holdingsQuery = useHoldings(scopePersonId(scope))
+  // Net worth and the day's change follow live prices while NSE is open.
+  const holdings = { ...holdingsQuery, data: useLiveHoldings(holdingsQuery.data) }
   const exposure = useExposure(scopePersonId(scope))
   const analysis = useAnalysis(scopePersonId(scope))
   const fx = useFx().data

@@ -231,6 +231,21 @@ export interface FundBreakdown {
   other: number
 }
 
+/** Yahoo's quote list (v7) into prices with their time. */
+export function parseYahooQuoteList(json: unknown): { symbol: string; price: number; prevClose: number | null; change: number | null; time: string }[] {
+  const rows = (json as { quoteResponse?: { result?: Record<string, unknown>[] } } | null)?.quoteResponse?.result ?? []
+  const out = []
+  for (const r of rows) {
+    const price = Number(r.regularMarketPrice)
+    const t = Number(r.regularMarketTime)
+    if (typeof r.symbol !== 'string' || !Number.isFinite(price) || price <= 0 || !Number.isFinite(t)) continue
+    const prev = Number(r.regularMarketPreviousClose)
+    const prevClose = Number.isFinite(prev) && prev > 0 ? prev : null
+    out.push({ symbol: r.symbol, price, prevClose, change: prevClose ? price / prevClose - 1 : null, time: new Date(t * 1000).toISOString() })
+  }
+  return out
+}
+
 export class YahooSession {
   private cookie: string | null = null
   private crumb: string | null = null
@@ -273,6 +288,25 @@ export class YahooSession {
       if (!res.ok) throw new Error(`Yahoo quoteSummary ${res.status}`)
       const json = (await res.json()) as { quoteSummary?: { result?: Record<string, unknown>[] | null } }
       return json.quoteSummary?.result?.[0] ?? null
+    }
+    throw new Error('Yahoo rejected the session token')
+  }
+
+  /**
+   * Latest prices for up to 50 Yahoo symbols in one call (the session's quote list). Fresher than the
+   * public spark endpoint, whose cached copies can run a minute or more behind.
+   */
+  async quotes(symbols: string[]): Promise<{ symbol: string; price: number; prevClose: number | null; change: number | null; time: string }[]> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await this.ensure()
+      const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}&fields=regularMarketPrice,regularMarketTime,regularMarketPreviousClose&crumb=${encodeURIComponent(this.crumb!)}`
+      const res = await this.f(url, { headers: { Cookie: this.cookie!, 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) })
+      if (res.status === 401 || res.status === 403) {
+        this.cookie = this.crumb = null
+        continue
+      }
+      if (!res.ok) throw new Error(`Yahoo quote ${res.status}`)
+      return parseYahooQuoteList(await res.json())
     }
     throw new Error('Yahoo rejected the session token')
   }

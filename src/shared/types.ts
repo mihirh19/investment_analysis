@@ -25,6 +25,7 @@ import type { IndustryMap } from './sectors'
 import type { AlertRuleInput, AlertsReport, AutoAlert } from './alerts'
 import type { FarmPlace, FarmWeather } from './weather'
 import type { CommodityBoard } from './commodities'
+import type { FundChartData, FundDetail, FundScreenData } from './fundScreener'
 import type { ScenarioHolding } from './scenario'
 import type { AisStatus, ShipsView, WorldMap } from './world'
 import type { AiFeatures, AiStatus, ChatEvent, ChatTurn, SpendCategory, SpendingReport, StatementImportResult } from './ai'
@@ -946,6 +947,12 @@ export interface RequestApi {
   /** Six months of world indices, currency, oil, gold and US yields from Yahoo Finance. */
   getWorldBoard(): Promise<ApiResult<WorldSeries[]>>
   getCommodities(): Promise<ApiResult<CommodityBoard>>
+  getFundScreen(): Promise<ApiResult<FundScreenData>>
+  setFundScreenSync(on: boolean): Promise<ApiResult<FundScreenData>>
+  getFundDetail(code: string): Promise<ApiResult<FundDetail | null>>
+  followFund(code: string, on: boolean): Promise<ApiResult<FundDetail | null>>
+  getFundChart(code: string): Promise<ApiResult<FundChartData | null>>
+  watchQuotes(key: string, symbols: string[]): Promise<ApiResult<{ symbols: number; live: boolean; error: string | null; ticks: number; fetches: number; pushes: number }>>
   getScenarioHoldings(personId?: number): Promise<ApiResult<ScenarioHolding[]>>
   /** Prints the monthly report to a PDF the person saves; null when they cancel. */
   saveMonthlyReport(personId?: number): Promise<ApiResult<string | null>>
@@ -1091,4 +1098,6 @@ export interface Api extends RequestApi {
   onResearchUpdate(listener: () => void): () => void
   /** A World map source finished updating. */
   onWorldUpdate(listener: () => void): () => void
+  /** Live prices as they change (only for watched symbols, while their market is open). */
+  onLiveQuotes(listener: (quotes: LiveQuote[]) => void): () => void
 }

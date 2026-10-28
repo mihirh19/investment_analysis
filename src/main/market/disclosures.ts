@@ -464,17 +464,32 @@ function consolidatedOf<T extends FoundLink & { label: string }>(files: T[]): T 
  * publishes one file per scheme, only the files that name a fund you hold are taken, or its
  * consolidated file, or, for a handful of files, all of them (the sheets are matched afterwards).
  */
-export function pickFiles(links: FoundLink[], heldFunds: FundNames[]): { period: string; files: FoundLink[] } | null {
+/** Every month the page offers a file for, newest first. */
+export function periodsOn(links: FoundLink[]): string[] {
+  return [
+    ...new Set(
+      links
+        .map((l) => ({ ...l, label: `${l.text} ${fileName(l.url)}` }))
+        .filter((l) => !EXCLUDE.test(l.label) && INCLUDE.test(`${l.label} ${l.context ?? ''} ${l.url}`))
+        .map((l) => periodOf(l.label) ?? periodOf(l.context ?? '') ?? periodOf(l.url))
+        .filter((p): p is string => !!p)
+    )
+  ].sort().reverse()
+}
+
+export function pickFiles(links: FoundLink[], heldFunds: FundNames[], onlyPeriod?: string): { period: string; files: FoundLink[] } | null {
   const candidates = links
     .map((l) => ({ ...l, label: `${l.text} ${fileName(l.url)}` }))
     .filter((l) => !EXCLUDE.test(l.label) && INCLUDE.test(`${l.label} ${l.context ?? ''} ${l.url}`))
     .map((l) => ({ ...l, period: periodOf(l.label) ?? periodOf(l.context ?? '') ?? periodOf(l.url) }))
     .filter((l): l is typeof l & { period: string } => !!l.period)
   if (candidates.length === 0) return null
-  const period = candidates
-    .map((c) => c.period)
-    .sort()
-    .pop()!
+  const period =
+    onlyPeriod ??
+    candidates
+      .map((c) => c.period)
+      .sort()
+      .pop()!
   const latest = candidates.filter((c) => c.period === period)
   if (latest.length <= 3) return { period, files: latest }
 
@@ -550,13 +565,21 @@ interface HeldFund {
   latestAsOf: string | null
 }
 
+/** Funds whose monthly portfolios are fetched though no one holds them (followed from the fund screener). */
+export const FOLLOWED_KEY = 'funds:followed'
+
 function heldFunds(db: Db): HeldFund[] {
+  const followed = JSON.parse(db.select().from(schema.settings).where(eq(schema.settings.key, FOLLOWED_KEY)).get()?.value ?? '[]') as string[]
+  const followedIds = followed.length
+    ? db.select({ id: schema.instruments.id }).from(schema.instruments).where(inArray(schema.instruments.amfiCode, followed)).all().map((r) => r.id)
+    : []
   const ids = [
-    ...new Set(
-      listHoldings(db)
+    ...new Set([
+      ...listHoldings(db)
         .filter((h) => h.assetClass === 'MF' || h.assetClass === 'ETF')
-        .map((h) => h.instrumentId)
-    )
+        .map((h) => h.instrumentId),
+      ...followedIds
+    ])
   ]
   if (ids.length === 0) return []
   const instruments = db.select().from(schema.instruments).where(inArray(schema.instruments.id, ids)).all()
@@ -687,13 +710,13 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
       // A house-specific API if the page is a form; else plain HTML; else the page rendered in a
       // hidden browser window (which also reads the JSON the page loads).
       let pick: ReturnType<typeof pickFiles> = null
-      if (adapter?.links) pick = pickFiles(await adapter.links(deps.fetch, deps.now ?? new Date()), names)
+      // The links the page offered, kept for a second look at the month before.
+      let links: FoundLink[] = []
+      if (adapter?.links) pick = pickFiles((links = await adapter.links(deps.fetch, deps.now ?? new Date())), names)
       if (!pick || pick.files.length === 0) {
         try {
-          pick = pickFiles(
-            extractLinks(await getText(amc.monthlyUrl, { fetch: deps.fetch, timeoutMs: 30_000 }), amc.monthlyUrl),
-            names
-          )
+          links = extractLinks(await getText(amc.monthlyUrl, { fetch: deps.fetch, timeoutMs: 30_000 }), amc.monthlyUrl)
+          pick = pickFiles(links, names)
         } catch {
           /* blocked or failed: try rendering */
         }
@@ -706,7 +729,8 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
         })
         try {
           const plan = adapter?.render?.(deps.now ?? new Date())
-          pick = pickFiles(await Promise.race([deps.renderLinks(amc.monthlyUrl, plan), gaveUp]), names)
+          links = await Promise.race([deps.renderLinks(amc.monthlyUrl, plan), gaveUp])
+          pick = pickFiles(links, names)
         } finally {
           clearTimeout(timer)
         }
@@ -721,30 +745,45 @@ export async function syncDisclosures(db: Db, deps: DisclosureDeps = {}, force =
         continue
       }
 
-      const portfolios: DisclosedPortfolio[] = []
-      for (const file of pick.files) {
-        const buf = await download(file.url, amc.monthlyUrl, deps.fetch)
-        for (const wb of workbooksIn(file.url, buf, names)) portfolios.push(...parseAmcWorkbook(wb))
-      }
-      const asOfFallback = monthEnd(pick.period)
-      // Best sheet per fund over all its names.
-      const best = new Map<number, ReturnType<typeof matchPortfolios>[number]>()
-      for (const m of matchPortfolios(
-        portfolios,
-        fundNames.flatMap((x) => x.names.map((name) => ({ id: x.f.id, name })))
-      ))
-        if (!best.has(m.fundId) || m.score > best.get(m.fundId)!.score) best.set(m.fundId, m)
-      const matches = [...best.values()]
-      db.transaction((tx) => {
-        for (const m of matches) {
-          saveFundHoldings(tx as unknown as Db, {
-            fundId: m.fundId,
-            asOf: m.portfolio.asOf ?? asOfFallback,
-            holdings: m.portfolio.holdings,
-            source: 'AMC_AUTO'
-          })
+      // One month's files: downloaded, read, and each fund's best-matching sheet saved.
+      const readMonth = async (p: NonNullable<ReturnType<typeof pickFiles>>, only: typeof fundNames) => {
+        const portfolios: DisclosedPortfolio[] = []
+        for (const file of p.files) {
+          const buf = await download(file.url, amc.monthlyUrl!, deps.fetch)
+          for (const wb of workbooksIn(file.url, buf, only.map((x) => x.names))) portfolios.push(...parseAmcWorkbook(wb))
         }
-      })
+        const asOfFallback = monthEnd(p.period)
+        // Best sheet per fund over all its names.
+        const best = new Map<number, ReturnType<typeof matchPortfolios>[number]>()
+        for (const m of matchPortfolios(
+          portfolios,
+          only.flatMap((x) => x.names.map((name) => ({ id: x.f.id, name })))
+        ))
+          if (!best.has(m.fundId) || m.score > best.get(m.fundId)!.score) best.set(m.fundId, m)
+        const found = [...best.values()]
+        db.transaction((tx) => {
+          for (const m of found) {
+            saveFundHoldings(tx as unknown as Db, {
+              fundId: m.fundId,
+              asOf: m.portfolio.asOf ?? asOfFallback,
+              holdings: m.portfolio.holdings,
+              source: 'AMC_AUTO'
+            })
+          }
+        })
+        return { found, sheets: portfolios.length }
+      }
+      const { found: matches, sheets } = await readMonth(pick, fundNames)
+      // A fund with a single month on file also gets the month before, so changes show at once.
+      const months = (id: number) =>
+        new Set(db.select({ a: schema.fundHoldings.asOf }).from(schema.fundHoldings).where(eq(schema.fundHoldings.fundInstrumentId, id)).all().map((r) => r.a)).size
+      const lonely = fundNames.filter((x) => months(x.f.id) === 1)
+      const before = periodsOn(links).find((p) => p < pick!.period)
+      if (lonely.length && before) {
+        const prev = pickFiles(links, lonely.map((x) => x.names), before)
+        if (prev?.files.length) await readMonth(prev, lonely).catch(() => null)
+      }
+      const portfolios = { length: sheets }
       const matchedIds = new Set(matches.map((m) => m.fundId))
       statuses.push({
         ...base,

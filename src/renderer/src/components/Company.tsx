@@ -10,6 +10,8 @@ import {
   type Metrics
 } from '@shared/research'
 import { ErrorNote } from './Shell'
+import { FlashNum } from './FlashNum'
+import { useLive } from '../lib/live'
 import { Ownership } from './Ownership'
 import { Valuation } from './Valuation'
 import { Columns } from './charts'
@@ -99,7 +101,9 @@ export function CompanyPage({ symbol, view }: { symbol: string; view: View }) {
 }
 
 export function Header({ c }: { c: CompanyView }) {
-  const q = c.quote
+  const live = useLive([c.symbol]).get(c.symbol.toUpperCase())
+  // While NSE is open the price is live; otherwise the last end-of-day close.
+  const q = c.quote && live ? { ...c.quote, close: live.price, prevClose: live.prevClose ?? c.quote.prevClose, date: live.time.slice(0, 10) } : c.quote
   const change = q?.prevClose ? q.close - q.prevClose : null
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-x-10 gap-y-3">
@@ -121,10 +125,12 @@ export function Header({ c }: { c: CompanyView }) {
       {q && (
         <div className="flex items-end gap-6">
           <div className="text-right">
-            <div className="wide num text-[28px] leading-none font-semibold">{money(q.close, 'INR', 2)}</div>
+            <div className="wide num text-[28px] leading-none font-semibold">
+              <FlashNum value={q.close} text={money(q.close, 'INR', 2)} />
+            </div>
             <div className={`num text-[14px] ${toneClass(change)}`}>
               {change === null ? '' : `${change >= 0 ? '+' : '−'}${Math.abs(change).toFixed(2)} (${percent(q.prevClose ? q.close / q.prevClose - 1 : null)})`}{' '}
-              <span className="text-ink-muted">on {shortDate(q.date)}</span>
+              <span className="text-ink-muted">{live ? `live, ${new Date(live.time).toLocaleTimeString('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' })}` : `on ${shortDate(q.date)}`}</span>
             </div>
           </div>
           {q.low52 !== null && q.high52 !== null && q.high52 > q.low52 && <Range52 low={q.low52} high={q.high52} close={q.close} />}

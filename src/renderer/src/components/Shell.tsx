@@ -45,8 +45,8 @@ export function LiveStatus() {
   const busy = refresh.isPending || s?.refreshing
   const Dot = ({ open, label }: { open: boolean; label: string }) => (
     <span className="flex items-center gap-1" title={`${label} ${open ? 'open' : 'closed'}`}>
-      <span aria-hidden className={'inline-block size-1.5 rounded-full ' + (open ? 'bg-gain' : 'bg-rule-strong')} />
-      {label}
+      <span aria-hidden className={'inline-block size-1.5 rounded-full ' + (open ? 'animate-pulse bg-gain' : 'bg-rule-strong')} />
+      {open ? `${label} live` : label}
     </span>
   )
   return (
