@@ -207,7 +207,8 @@ describe('phone entries on the books', () => {
           { date: '2026-09-12', description: 'PAYMENT RECEIVED', merchant: null, amount: 9000, direction: 'CREDIT', category: 'CARD_PAYMENT', isEmi: false },
           { date: '2026-09-20', description: 'HPCL', merchant: 'HPCL', amount: 4000, direction: 'DEBIT', category: 'FUEL', isEmi: false }
         ],
-        trades: []
+        trades: [],
+        holdings: []
       },
       'sep.pdf'
     )

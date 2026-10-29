@@ -45,7 +45,7 @@ const pick = (row: Row, aliases: string[]): unknown => {
 }
 const str = (v: unknown) => (v === undefined || v === null ? '' : String(v).trim())
 
-function stockInstrument(opts: {
+export function stockInstrument(opts: {
   isin: string | null
   symbol: string
   exchange: string

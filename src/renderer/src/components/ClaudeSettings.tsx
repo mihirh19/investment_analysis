@@ -4,8 +4,6 @@ import { Button, Field, Input } from './ui'
 import {
   openExternal,
   useAiStatus,
-  useForgetPdfPasswords,
-  usePdfPasswordCount,
   useRemoveAiKey,
   useSetAiFeatures,
   useSetAiKey
@@ -48,8 +46,6 @@ export function ClaudeSettings() {
   const setKey = useSetAiKey()
   const remove = useRemoveAiKey()
   const features = useSetAiFeatures()
-  const pdf = usePdfPasswordCount()
-  const forget = useForgetPdfPasswords()
   const [key, setKeyText] = useState('')
   const s = q.data
   if (!s) return null
@@ -161,14 +157,6 @@ export function ClaudeSettings() {
           press the button; roughly US$0.02–0.05 each.
         </Toggle>
       </div>
-      {(pdf.data ?? 0) > 0 && (
-        <p className="mt-3 text-[13px] text-ink-muted">
-          {pdf.data} statement PDF password{pdf.data === 1 ? '' : 's'} remembered (encrypted).{' '}
-          <button className="text-stamp hover:underline" onClick={() => confirm('Forget the saved PDF passwords?') && forget.mutate([])}>
-            Forget them
-          </button>
-        </p>
-      )}
       <ErrorNote error={setKey.error ?? features.error ?? remove.error} />
     </section>
   )

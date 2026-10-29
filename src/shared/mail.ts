@@ -11,6 +11,9 @@ export interface MailFound {
   received: string
   result: 'IMPORTED' | 'FAILED'
   message: string
+  /** The email's id, set when a PDF needs a password, so the log can offer a box to type it. */
+  messageId?: string
+  needsPassword?: boolean
 }
 
 /** An email found by a search, for Ask your money. */

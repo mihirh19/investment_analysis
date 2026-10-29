@@ -31,7 +31,7 @@ const ACCOUNTS_KEY = 'google:accounts'
 /** NSDL, CDSL, CAMS and KFintech consolidated account statements. */
 /** Card and bank statements and contract notes; never a CAS (that has its own job). */
 export const STATEMENT_QUERY =
-  'has:attachment filename:pdf {subject:"credit card statement" subject:"card statement" subject:"account statement" subject:"e-statement" subject:estatement subject:"contract note"} -subject:"consolidated account statement" -subject:CAS'
+  'has:attachment filename:pdf {subject:"credit card statement" subject:"card statement" subject:"account statement" subject:"statement of account" subject:"e-statement" subject:estatement subject:"monthly statement" subject:"debit card" subject:"contract note"} -subject:"consolidated account statement" -subject:CAS'
 
 /** Broker reports sent as spreadsheets: Zerodha Console, Groww and INDmoney downloads. */
 export const REPORT_QUERY =
@@ -70,9 +70,9 @@ export interface MailDeps {
   openUrl?(url: string): void | Promise<void>
   personName(id: number): string
   /** Imports a CAS PDF for a person with their saved password; resolves to a short summary. */
-  importCas(personId: number, filePath: string): Promise<string>
+  importCas(personId: number, filePath: string, password?: string): Promise<string>
   /** Reads a card or bank statement or a contract note (with Claude); resolves to a short summary. */
-  importStatement?(personId: number, filePath: string, source: string): Promise<string>
+  importStatement?(personId: number, filePath: string, source: string, password?: string): Promise<string>
   /** Whether reading statements with Claude is switched on. */
   statementsEnabled?(): boolean
   /** Imports a broker's Excel/CSV report (tradebook, holdings…) by its columns; resolves to a summary. */
@@ -175,8 +175,15 @@ export function createMail(d: MailDeps) {
           found.push({ ...base, result: 'IMPORTED', message })
         } catch (e) {
           const m = errorText(e)
-          if (/password/i.test(m)) retry = true
-          found.push({ ...base, result: 'FAILED', message: /password/i.test(m) ? `${m} ${j.passwordHint}` : m })
+          const locked = /password/i.test(m)
+          if (locked) retry = true
+          found.push({
+            ...base,
+            result: 'FAILED',
+            message: locked ? `${m} ${j.passwordHint}` : m,
+            // So the log can offer a password box for this file.
+            ...(locked ? { messageId: id, needsPassword: true } : {})
+          })
         }
       }
       if (retry) break
@@ -197,11 +204,12 @@ export function createMail(d: MailDeps) {
           job: 'CAS',
           query: CAS_QUERY,
           after: a.casAfter,
-          // First time: just the latest statement from the last two months. Then: anything newer.
-          firstWindow: '60d',
-          firstMax: 1,
+          // First time: the last fourteen months of CAS emails, oldest first (each is a dated snapshot of
+          // the holdings plus the transactions since the last one). Then: anything newer.
+          firstWindow: '14m',
+          firstMax: 14,
           run: (personId, file) => d.importCas(personId, file),
-          passwordHint: 'Import one CAS by hand with "Remember the password" ticked; later ones then import by themselves.'
+          passwordHint: 'Type the file’s password in the box below it (it is remembered for later files), or save your PAN under Settings → PDF passwords.'
         },
         a.seen
       )
@@ -216,10 +224,10 @@ export function createMail(d: MailDeps) {
             job: 'STATEMENT',
             query: STATEMENT_QUERY,
             after: statementsAfter,
-            firstWindow: '45d',
-            firstMax: 10,
+            firstWindow: '6m',
+            firstMax: 30,
             run: (personId, file, messageId) => d.importStatement!(personId, file, `gmail:${messageId}`),
-            passwordHint: 'Add one such statement by hand on the Spending page with its password; it is remembered for the next ones.'
+            passwordHint: 'Type the file’s password in the box below it (it is remembered for later files), or save your PAN under Settings → PDF passwords.'
           },
           seen
         )
@@ -412,7 +420,7 @@ export function createMail(d: MailDeps) {
      * a CAS with the saved CAS password, other PDFs as statements (when reading them is switched on).
      * Imports skip what is already there, so doing one twice changes nothing.
      */
-    async importMessage(email: string, id: string): Promise<MailFound[]> {
+    async importMessage(email: string, id: string, password?: string): Promise<MailFound[]> {
       const a = accountOf(email)
       const gmail = await gmailFor(a)
       const msg = await gmail.message(id)
@@ -429,23 +437,62 @@ export function createMail(d: MailDeps) {
               if (!d.importReport) throw new Error('This version cannot import spreadsheets from mail.')
               return d.importReport(a.personId, file, att.filename)
             }
-            if (cas) return d.importCas(a.personId, file)
+            if (cas) return d.importCas(a.personId, file, password)
             if (!d.importStatement || !d.statementsEnabled?.())
               throw new Error('Card and bank statements need "Read statements" switched on in Settings → Claude.')
-            return d.importStatement(a.personId, file, `gmail:${id}`)
+            return d.importStatement(a.personId, file, `gmail:${id}`, password)
           })
           found.push({ ...base, result: 'IMPORTED', message })
         } catch (e) {
-          found.push({ ...base, result: 'FAILED', message: errorText(e) })
+          const m = errorText(e)
+          const locked = /password/i.test(m)
+          found.push({ ...base, result: 'FAILED', message: m, ...(locked ? { messageId: id, needsPassword: true } : {}) })
         }
       }
       if (!found.length) throw new Error('That email has no PDF, Excel or CSV attachment to import.')
       const cur = accountOf(email)
+      const allIn = found.every((x) => x.result === 'IMPORTED')
+      // Once every file of the email is in, its earlier "needs a password" lines are done with.
+      const earlier = allIn ? cur.recent.filter((x) => !(x.messageId === id && x.needsPassword)) : cur.recent
+      // An email still locked is left for the next check; one that is in (or failed for another reason) is not retried.
+      const locked = found.some((x) => x.needsPassword)
       update(cur.email, {
-        seen: cur.seen.includes(id) ? cur.seen : [...cur.seen, id].slice(-500),
-        recent: [...[...found].reverse(), ...cur.recent].slice(0, 20)
+        seen: locked || cur.seen.includes(id) ? cur.seen : [...cur.seen, id].slice(-500),
+        recent: [...[...found].reverse(), ...earlier].slice(0, 20)
       })
       return found
+    },
+
+    /**
+     * Reads the last three months of statements from stockbrokers again, ignoring which emails were
+     * handled before: for ones skipped by an earlier version (a securities statement used to be
+     * dropped as "not a statement"). Imports skip what is already there, so nothing is doubled.
+     */
+    async rereadBrokerStatements(email: string): Promise<MailFound[]> {
+      const a = accountOf(email)
+      if (!d.importStatement || !d.statementsEnabled?.())
+        throw new Error('Reading statements needs "Read statements" switched on in Settings → Claude.')
+      const gmail = await gmailFor(a)
+      const r = await syncJob(
+        a,
+        gmail,
+        {
+          job: 'STATEMENT',
+          query: `${STATEMENT_QUERY} {from:zerodha from:groww from:indmoney}`,
+          after: null,
+          firstWindow: '3m',
+          firstMax: 40,
+          run: (personId, file, messageId, _name) => d.importStatement!(personId, file, `gmail:${messageId}`),
+          passwordHint: 'Type the file’s password in the box below it (it is remembered for later files), or save your PAN under Settings → PDF passwords.'
+        },
+        []
+      )
+      const cur = accountOf(email)
+      update(cur.email, {
+        seen: [...new Set([...cur.seen, ...r.seen])].slice(-500),
+        recent: [...[...r.found].reverse(), ...cur.recent].slice(0, 20)
+      })
+      return r.found
     },
 
     due(): boolean {

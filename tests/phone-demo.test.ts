@@ -89,7 +89,8 @@ it.runIf(process.env.FP_PHONE_DEMO)('builds the demo snapshot', async () => {
         txn(9, 'Netflix', 649, 'ENTERTAINMENT'),
         txn(6, 'BigBasket', 3410, 'GROCERIES')
       ],
-      trades: []
+      trades: [],
+      holdings: []
     },
     'demo'
   )

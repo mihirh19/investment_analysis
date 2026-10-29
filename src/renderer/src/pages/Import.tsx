@@ -116,6 +116,10 @@ export function ImportPage() {
           setFilePath(null)
           setPassword('')
           setTypeNewPassword(false)
+        },
+        // Nothing saved opened the file: ask for this file's own password.
+        onError: (e) => {
+          if (/password/i.test(e instanceof Error ? e.message : String(e))) setTypeNewPassword(true)
         }
       }
     )
@@ -212,7 +216,7 @@ export function ImportPage() {
             <div className="mt-4 max-w-[640px]">
               {useSaved ? (
                 <p className="text-[14px] text-ink-muted">
-                  Using the saved PDF password for this person.{' '}
+                  Using the saved PAN and passwords (Settings → PDF passwords); if none opens the file you are asked.{' '}
                   <button className="text-stamp underline" onClick={() => setTypeNewPassword(true)}>
                     Type a different one
                   </button>

@@ -132,3 +132,23 @@ export function nportFilings(atom: string): { accession: string; cik: string; fi
   }
   return out.sort((a, b) => b.filed.localeCompare(a.filed))
 }
+
+/**
+ * A global ETF's periods from its stored snapshots. N-PORT filings give the allocation and every
+ * holding but no sectors, so a filing takes the sectors of Yahoo's summary read in the same month;
+ * Yahoo's summaries from other months (with sectors) are periods of their own, so the sector charts
+ * fill in as months pass. `holdings` is the N-PORT snapshots (or Yahoo's, where there are none).
+ */
+export function globalPeriods(snaps: PortfolioSnapshot[]): { holdings: PortfolioSnapshot[]; periods: PortfolioPeriod[] } {
+  const toPeriod = (s: PortfolioSnapshot): PortfolioPeriod => ({ asOf: s.asOf, alloc: s.alloc, sectors: s.sectors })
+  const nport = snaps.filter((s) => s.source === 'NPORT')
+  const yahoo = snaps.filter((s) => s.source === 'YAHOO')
+  if (!nport.length) return { holdings: yahoo, periods: yahoo.map(toPeriod) }
+  const month = (s: PortfolioSnapshot) => s.asOf.slice(0, 7)
+  const enriched = nport.map((n) => {
+    const y = n.sectors.length ? undefined : yahoo.find((x) => month(x) === month(n) && x.sectors.length)
+    return y ? { ...n, sectors: y.sectors } : n
+  })
+  const extra = yahoo.filter((y) => y.sectors.length && !nport.some((n) => month(n) === month(y)))
+  return { holdings: enriched, periods: [...enriched, ...extra].map(toPeriod).sort((a, b) => a.asOf.localeCompare(b.asOf)) }
+}

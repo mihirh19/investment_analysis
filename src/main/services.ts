@@ -19,7 +19,7 @@ import type {
   Theme,
   Transaction
 } from '@shared/types'
-import { PLATFORM_LABELS, type ImportKind } from '@shared/types'
+import { PLATFORM_LABELS, type ImportKind, type PanInfo } from '@shared/types'
 import * as assets from './assets'
 import * as manual from './manualAssets'
 import { historyFor } from './market/extra'
@@ -65,7 +65,7 @@ import type { FarmPlace } from '@shared/weather'
 import type { AlertRuleInput, AutoAlert } from '@shared/alerts'
 import { refreshSchemeFacts, storedSchemeFacts } from './market/amfiData'
 import { storedCpi } from './market/cpi'
-import { deleteStatement, PdfPasswordNeeded, readStatement, saveStatement, setCategory, spendingReport, statementContent } from './statements'
+import { deleteStatement, isBrokerLedger, ledgerRead, PdfPasswordNeeded, readStatement, saveStatement, setCategory, spendingReport, statementContent } from './statements'
 import type { AiFeatures, ChatEvent, ChatTurn, SpendCategory, StatementImportResult, StatementRead } from '@shared/ai'
 import { applyPhoneEntry, buildPhoneSnapshot } from './phoneData'
 import { computeForecast, savePlan } from './portfolio/forecast'
@@ -90,6 +90,7 @@ import { importBrokerHoldings, saveIndmoneyDates, setManualCost } from './import
 import { reclassifyDemat, tidyListedNames } from './importers/isin'
 import { persistBundle, rowHash, type ImportBundle } from './importers/bundle'
 import { CasHelperError, mapCasJson, runCasparser, runPdfText } from './importers/cas'
+import { importSecurityBalances } from './importers/securities'
 import {
   GENERIC_HEADERS,
   GROWW_HEADERS,
@@ -272,8 +273,8 @@ export function createServices(deps: ServiceDeps) {
     fetch: deps.fetch,
     openUrl: deps.openUrl,
     personName: (id) => db.select().from(schema.persons).where(eq(schema.persons.id, id)).get()?.name ?? '',
-    async importStatement(personId, filePath, source) {
-      const r = await importStatementFile(personId, filePath, source)
+    async importStatement(personId, filePath, source, password) {
+      const r = await importStatementFile(personId, filePath, source, password)
       return r.duplicate ? `${r.account}: already read.` : `${r.account}: ${r.message}`
     },
     statementsEnabled: () => ai.enabled('statements'),
@@ -291,8 +292,8 @@ export function createServices(deps: ServiceDeps) {
         rmSync(named, { force: true })
       }
     },
-    async importCas(personId, filePath) {
-      const r = await services.runImport({ kind: 'CAS_PDF', personId, filePath })
+    async importCas(personId, filePath, password) {
+      const r = await services.runImport({ kind: 'CAS_PDF', personId, filePath, password, rememberPassword: !!password })
       return r.snapshotsAdded || r.transactionsAdded
         ? `Imported: ${r.snapshotsAdded} holdings, ${r.transactionsAdded} transactions.`
         : 'Already up to date.'
@@ -334,6 +335,34 @@ export function createServices(deps: ServiceDeps) {
     const list = pdfPasswords()
     if (!list.includes(p)) setSetting(PDF_PASSWORDS, deps.encrypt(JSON.stringify([...list, p])))
   }
+  const tryDecrypt = (stored: string | null): string | null => {
+    if (!stored) return null
+    try {
+      return deps.decrypt(stored)
+    } catch {
+      return null
+    }
+  }
+  /** Each person's PAN (kept encrypted, on this computer only): the password of most depository, broker and contract-note PDFs. */
+  const panKey = (personId: number) => `person_pan:${personId}`
+  const panOf = (personId: number): string | null => tryDecrypt(getSetting(panKey(personId)))
+  const isPanPassword = (p: string): boolean =>
+    db
+      .select({ id: schema.persons.id })
+      .from(schema.persons)
+      .all()
+      .some((x) => panOf(x.id)?.toLowerCase() === p.toLowerCase())
+  /**
+   * The passwords to try on a PDF for a person, in order: one just typed, their saved CAS password,
+   * their PAN (capitals, then lower case), the other people's PANs (joint accounts, a parent's
+   * statements in your mailbox), then every password saved from earlier files. Each PDF can have its
+   * own password; the first one that opens it is used.
+   */
+  const passwordCandidates = (personId: number, typed?: string): string[] => {
+    const pans = [personId, ...db.select({ id: schema.persons.id }).from(schema.persons).all().map((p) => p.id).filter((i) => i !== personId)].map(panOf)
+    const list = [typed, tryDecrypt(getSetting(casPasswordKey(personId))), ...pans.flatMap((p) => (p ? [p, p.toLowerCase()] : [])), ...pdfPasswords()]
+    return [...new Set(list.filter((x): x is string => !!x))]
+  }
   /** Contract-note trades join the same Zerodha account as a tradebook import (and match its trades). */
   const importNoteTrades = (personId: number, fileName: string) => (r: StatementRead) => {
     if (!/zerodha/i.test(r.institution)) return 0
@@ -358,11 +387,14 @@ export function createServices(deps: ServiceDeps) {
     const { content, password: used } = await statementContent(
       (path, pw) => runPdfText(deps.casparserExe, path, pw),
       filePath,
-      password ? [password, ...pdfPasswords()] : pdfPasswords()
+      passwordCandidates(personId, password)
     )
+    // Remembered for the next files, except a PAN (which is tried anyway and kept in its own place).
+    if (used && !isPanPassword(used)) rememberPassword(used)
+    // A broker's funds statement or ledger is of no use here: skipped on its own words, so nothing is sent to Claude.
+    if ('text' in content && isBrokerLedger(content.text)) return saveStatement(db, personId, ledgerRead(), source)
     const read = await readStatement(client, content, (u) => ai.record(u))
-    if (used) rememberPassword(used)
-    return saveStatement(db, personId, read, source, importNoteTrades(personId, source))
+    return saveStatement(db, personId, read, source, importNoteTrades(personId, source), (r) => importSecurityBalances(db, personId, source, r))
   }
 
   /** What "Ask your money" can look up: the pages' own figures, without chart series. */
@@ -653,8 +685,9 @@ export function createServices(deps: ServiceDeps) {
       return null
     },
 
+    /** Whether there is anything to try on a CAS without typing: a saved CAS password, a PAN, or earlier passwords. */
     hasSavedCasPassword(personId: number): boolean {
-      return getSetting(casPasswordKey(personId)) !== null
+      return passwordCandidates(personId).length > 0
     },
 
     async runImport(req: ImportRequest): Promise<ImportResult> {
@@ -672,22 +705,31 @@ export function createServices(deps: ServiceDeps) {
 
       switch (kind) {
         case 'CAS_PDF': {
-          let password = req.password ?? ''
-          if (!password) {
-            const saved = getSetting(casPasswordKey(req.personId))
-            if (saved) password = deps.decrypt(saved)
-          }
-          if (!password)
+          const candidates = passwordCandidates(req.personId, req.password)
+          if (!candidates.length)
             throw new Error(
-              'Enter the PDF password (usually your PAN in capitals, or the one you set when requesting the CAS)'
+              'Enter the PDF password (usually your PAN in capitals, or the one you set when requesting the CAS). Saving your PAN under Settings → PDF passwords lets it be tried automatically.'
             )
-          try {
-            bundle = mapCasJson(await runCasparser(deps.casparserExe, req.filePath, password))
-          } catch (e) {
-            if (e instanceof CasHelperError && e.code === 'wrong_password') throw new Error('Wrong PDF password')
-            throw e
+          // Each file may have its own password: the typed one, the saved ones and the PAN are tried in turn.
+          let json: Awaited<ReturnType<typeof runCasparser>> | null = null
+          let used = ''
+          for (const pw of candidates) {
+            try {
+              json = await runCasparser(deps.casparserExe, req.filePath, pw)
+              used = pw
+              break
+            } catch (e) {
+              if (e instanceof CasHelperError && e.code === 'wrong_password') continue
+              throw e
+            }
           }
-          if (req.password && req.rememberPassword) setSetting(casPasswordKey(req.personId), deps.encrypt(req.password))
+          if (!json) throw new Error(req.password && candidates.length === 1 ? 'Wrong PDF password' : `Wrong PDF password: none of the ${candidates.length} tried opened it (the one typed, your PAN and the passwords saved so far)`)
+          bundle = mapCasJson(json)
+          // Remembered when asked: the first as the person's CAS password, later ones (other files) in the shared list.
+          if (req.password && used === req.password && req.rememberPassword) {
+            if (!getSetting(casPasswordKey(req.personId))) setSetting(casPasswordKey(req.personId), deps.encrypt(req.password))
+            else rememberPassword(req.password)
+          }
           break
         }
         case 'ZERODHA_TRADEBOOK':
@@ -1431,6 +1473,27 @@ export function createServices(deps: ServiceDeps) {
       return s
     },
     pdfPasswordCount: () => pdfPasswords().length,
+    /** Whose PAN is saved (never the PAN itself: only its last four characters), for Settings. */
+    getPanInfo(): PanInfo[] {
+      return db
+        .select({ id: schema.persons.id, name: schema.persons.name })
+        .from(schema.persons)
+        .all()
+        .map((p) => {
+          const pan = panOf(p.id)
+          return { personId: p.id, name: p.name, saved: !!pan, ending: pan ? pan.slice(-4) : null }
+        })
+    },
+    setPersonPan(personId: number, pan: string): PanInfo[] {
+      const v = pan.replace(/\s+/g, '').toUpperCase()
+      if (v && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v)) throw new Error('A PAN is five letters, four digits and a letter, like ABCDE1234F.')
+      if (v) setSetting(panKey(personId), deps.encrypt(v))
+      else db.delete(schema.settings).where(eq(schema.settings.key, panKey(personId))).run()
+      return this.getPanInfo()
+    },
+    /** Imports one email again with a password typed for its file (the Gmail log's "Import with password"). */
+    retryMailMessage: (email: string, id: string, password: string) => mail.importMessage(email, id, password),
+    rereadBrokerStatements: (email: string) => mail.rereadBrokerStatements(email),
     forgetPdfPasswords(): null {
       setSetting(PDF_PASSWORDS, deps.encrypt('[]'))
       return null

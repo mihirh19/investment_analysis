@@ -21,7 +21,7 @@ import {
 } from '@shared/fundScreener'
 import { baseCurrency, globalProfile, issuerRank } from '@shared/globalEtfs'
 import { fundRank, fundScorecard } from '@shared/fundScorecard'
-import { allocOf, sebiTarget, type PortfolioSnapshot, type PortfolioView } from '@shared/fundPortfolio'
+import { allocOf, globalPeriods, sebiTarget, type PortfolioSnapshot, type PortfolioView } from '@shared/fundPortfolio'
 import type { SchemeFacts } from '@shared/insights'
 import { schema, type Db } from '../db'
 import { factsFor, storedSchemeFacts } from '../market/amfiData'
@@ -618,13 +618,30 @@ export function fundDetail(db: Db, code: string): FundDetail | null {
   // Global ETFs: the stored snapshots (N-PORT where there are any, else Yahoo's summaries).
   const snaps = global ? portfolioSnapshots(db, code) : []
   const nport = snaps.filter((x) => x.source === 'NPORT')
-  const chosen = nport.length ? nport : snaps.filter((x) => x.source === 'YAHOO')
+  // Holdings and allocation from N-PORT where there is a filing; its sectors (it has none) from Yahoo's summaries.
+  const merged = globalPeriods(snaps)
+  const chosen = merged.holdings
   const gHoldings = global ? globalHoldings(chosen) : null
+  if (gHoldings) {
+    const withSectors = merged.periods.filter((p) => p.sectors.length)
+    const cur = withSectors.at(-1)
+    const before = withSectors.at(-2)
+    if (cur && !gHoldings.sectors.length) {
+      const prev = new Map((before?.sectors ?? []).map((s) => [s.sector, s.weight]))
+      gHoldings.sectors = cur.sectors.map((s) => ({ sector: s.sector, weight: s.weight, change: before ? s.weight - (prev.get(s.sector) ?? 0) : null }))
+    }
+  }
 
   const bench = benchFor(row)
   const portfolio: PortfolioView | null = global
     ? chosen.length
-      ? { periods: chosen.map((x) => ({ asOf: x.asOf, alloc: x.alloc, sectors: x.sectors })), target: null, source: nport.length ? 'Quarterly N-PORT filings with the SEC' : 'Yahoo Finance’s fund summary, read once a month' }
+      ? {
+          periods: merged.periods,
+          target: null,
+          source: nport.length
+            ? 'Quarterly N-PORT filings with the SEC (allocation and holdings) and Yahoo Finance’s fund summary, read once a month (sectors, which the filings don’t carry)'
+            : 'Yahoo Finance’s fund summary, read once a month'
+        }
       : null
     : periods.length
       ? {

@@ -10,7 +10,15 @@ import type {
   PropertyView
 } from './assets'
 import type { VehicleDocRead, VehicleInput, VehicleView } from './vehicles'
-import type { GoogleAccountView, GoogleSetup } from './mail'
+import type { GoogleAccountView, GoogleSetup, MailFound } from './mail'
+
+export interface PanInfo {
+  personId: number
+  name: string
+  saved: boolean
+  /** Last four characters of the saved PAN, to recognise it. */
+  ending: string | null
+}
 import type { Forecast, Plan } from './plan'
 import type { PhoneSyncStatus } from './phone'
 import type { FundComparisons, SectorInsights } from './insights'
@@ -1043,6 +1051,14 @@ export interface RequestApi {
   /** PDF passwords remembered for statements (how many; never the passwords). */
   pdfPasswordCount(): Promise<ApiResult<number>>
   forgetPdfPasswords(): Promise<ApiResult<null>>
+  /** Whose PAN is saved for opening PDFs (only its last four characters come back). */
+  getPanInfo(): Promise<ApiResult<PanInfo[]>>
+  /** Saves (or, empty, removes) a person's PAN, encrypted on this computer; it is tried on every PDF. */
+  setPersonPan(personId: number, pan: string): Promise<ApiResult<PanInfo[]>>
+  /** Imports one email's attachments again with a password typed for its PDF (and remembers it). */
+  retryMailMessage(email: string, id: string, password: string): Promise<ApiResult<MailFound[]>>
+  /** Reads the last three months of broker statements again (those an older version skipped). */
+  rereadBrokerStatements(email: string): Promise<ApiResult<MailFound[]>>
   /** Reads a card or bank statement (or a contract note) with Claude and saves it. */
   importStatement(input: { personId: number; filePath: string; password?: string }): Promise<ApiResult<StatementImportResult>>
   getSpending(personId?: number): Promise<ApiResult<SpendingReport>>

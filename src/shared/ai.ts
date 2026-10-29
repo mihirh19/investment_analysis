@@ -150,7 +150,7 @@ export interface SpendingReport {
 
 /** What Claude read from one statement, before it is saved. */
 export interface StatementRead {
-  kind: 'CREDIT_CARD' | 'BANK_ACCOUNT' | 'CONTRACT_NOTE' | 'OTHER'
+  kind: 'CREDIT_CARD' | 'BANK_ACCOUNT' | 'CONTRACT_NOTE' | 'SECURITIES' | 'OTHER'
   institution: string
   accountName: string
   last4: string | null
@@ -184,6 +184,15 @@ export interface StatementRead {
     exchange: string | null
     /** The exchange's trade number, so the same trade from a tradebook is recognised. */
     tradeId: string | null
+  }[]
+  /** A broker's securities statement: each security's closing balance as of periodTo. */
+  holdings: {
+    name: string
+    isin: string | null
+    symbol: string | null
+    quantity: number
+    price: number | null
+    value: number | null
   }[]
 }
 

@@ -9,6 +9,8 @@ import {
   useDisconnectGoogle,
   useGoogleSetup,
   usePersons,
+  useRereadBrokerStatements,
+  useRetryMailMessage,
   useSaveGoogleClient,
   useSetGooglePerson
 } from '../lib/api'
@@ -145,6 +147,7 @@ function AccountRow({ a, persons }: { a: GoogleAccountView; persons: { id: numbe
   const disconnect = useDisconnectGoogle()
   const check = useCheckMail()
   const connect = useConnectGoogle()
+  const reread = useRereadBrokerStatements()
   const st = STATUS[a.status]
   return (
     <li className="border-b border-rule py-3 text-[14px]">
@@ -173,6 +176,16 @@ function AccountRow({ a, persons }: { a: GoogleAccountView; persons: { id: numbe
               {check.isPending ? 'Checking…' : 'Check now'}
             </Button>
           )}
+          {a.status !== 'RECONNECT' && (
+            <Button
+              variant="quiet"
+              disabled={reread.isPending}
+              title="Reads the last three months of Zerodha, Groww and INDmoney statements again, including ones an older version skipped. What is already in is not added twice; each file read costs a few cents of your Claude key."
+              onClick={() => reread.mutate([a.email])}
+            >
+              {reread.isPending ? 'Reading…' : 'Read broker statements again'}
+            </Button>
+          )}
           <Button
             variant="danger"
             onClick={() => confirm(`Disconnect ${a.email}? Statements already imported stay.`) && disconnect.mutate([a.email])}
@@ -181,25 +194,65 @@ function AccountRow({ a, persons }: { a: GoogleAccountView; persons: { id: numbe
           </Button>
         </span>
       </div>
+      {reread.data && (
+        <p className="mt-1 text-gain">
+          Read {reread.data.length} file{reread.data.length === 1 ? '' : 's'}:{' '}
+          {reread.data.filter((x) => x.result === 'IMPORTED').length} read
+          {reread.data.some((x) => x.result === 'FAILED') ? `, ${reread.data.filter((x) => x.result === 'FAILED').length} need attention (see below)` : ''}.
+        </p>
+      )}
       {a.message && <p className={`mt-1 ${a.status === 'OK' ? 'text-ink-muted' : st.cls}`}>{a.message}</p>}
       {a.recent.length > 0 && (
-        <details className="mt-1">
+        <details className="mt-1" open={a.recent.some((x) => x.needsPassword)}>
           <summary className="cursor-pointer text-[13px] text-ink-muted hover:text-ink">Recent statements</summary>
           <table className="mt-1 w-full text-[13px]">
             <tbody>
               {a.recent.map((x, i) => (
-                <tr key={i} className="border-b border-rule">
+                <tr key={i} className="border-b border-rule align-top">
                   <td className="py-1 pr-3 whitespace-nowrap">{shortDate(x.received)}</td>
                   <td className="py-1 pr-3">{x.subject}</td>
-                  <td className={`py-1 ${x.result === 'IMPORTED' ? 'text-gain' : 'text-warn'}`}>{x.message}</td>
+                  <td className={`py-1 ${x.result === 'IMPORTED' ? 'text-gain' : 'text-warn'}`}>
+                    {x.message}
+                    {x.needsPassword && x.messageId && <LockedFile email={a.email} id={x.messageId} />}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </details>
       )}
-      <ErrorNote error={setPerson.error ?? disconnect.error ?? check.error ?? connect.error} />
+      <ErrorNote error={setPerson.error ?? disconnect.error ?? check.error ?? connect.error ?? reread.error} />
     </li>
+  )
+}
+
+/** A PDF that needs its own password: type it once, and it is imported and remembered for the next ones. */
+function LockedFile({ email, id }: { email: string; id: string }) {
+  const retry = useRetryMailMessage()
+  const [pw, setPw] = useState('')
+  return (
+    <form
+      className="mt-1.5 flex flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        retry.mutate([email, id, pw], { onSuccess: () => setPw('') })
+      }}
+    >
+      <Input
+        type="password"
+        aria-label="Password for this file"
+        placeholder="Password for this file"
+        className="w-52 !py-1 text-[13px]"
+        autoComplete="off"
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+      />
+      <Button type="submit" className="!px-3 !py-1 !text-[13px]" disabled={!pw || retry.isPending}>
+        {retry.isPending ? 'Opening…' : 'Import with this password'}
+      </Button>
+      {retry.data?.some((r) => r.result === 'FAILED') && <span className="text-loss">{retry.data.find((r) => r.result === 'FAILED')!.message}</span>}
+      <ErrorNote error={retry.error} />
+    </form>
   )
 }
 

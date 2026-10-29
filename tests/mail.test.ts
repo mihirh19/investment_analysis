@@ -59,9 +59,11 @@ function fakeGoogle(mailboxes: Record<string, { id: string; date: number; subjec
   return { f, searches, signInAs: (email: string) => (nextCodeEmail = email) }
 }
 
-function setup(g: ReturnType<typeof fakeGoogle>, withReports = false) {
+function setup(g: ReturnType<typeof fakeGoogle>, withReports = false, withStatements = false) {
+  const statements: { personId: number; content: string; source: string }[] = []
   const settings = new Map<string, string>()
   const imported: { personId: number; content: string }[] = []
+  const passwords: (string | undefined)[] = []
   const reports: { personId: number; file: string; name: string; content: string }[] = []
   const mail = createMail({
     getSetting: (k) => settings.get(k) ?? null,
@@ -77,12 +79,21 @@ function setup(g: ReturnType<typeof fakeGoogle>, withReports = false) {
       expect(u.searchParams.get('code_challenge_method')).toBe('S256')
       await fetch(new URL(`?code=ok&state=${u.searchParams.get('state')}`, u.searchParams.get('redirect_uri')!))
     },
-    async importCas(personId, filePath) {
+    async importCas(personId, filePath, password) {
       const content = readFileSync(filePath, 'utf8')
-      if (content.includes('locked')) throw new Error('Enter the PDF password')
+      // A "locked" file opens only with its own password, typed for it.
+      if (content.includes('locked') && password !== 'its-own-password') throw new Error('Enter the PDF password')
       imported.push({ personId, content })
+      passwords.push(password)
       return 'Imported'
     },
+    ...(withStatements && {
+      statementsEnabled: () => true,
+      async importStatement(personId: number, file: string, source: string) {
+        statements.push({ personId, content: readFileSync(file, 'utf8'), source })
+        return 'Zerodha Statement of Accounts of Securities: 3 holdings updated.'
+      }
+    }),
     ...(withReports && {
       async importReport(personId: number, file: string, name: string) {
         reports.push({ personId, file, name, content: readFileSync(file, 'utf8') })
@@ -90,7 +101,7 @@ function setup(g: ReturnType<typeof fakeGoogle>, withReports = false) {
       }
     })
   })
-  return { mail, settings, imported, reports }
+  return { mail, settings, imported, reports, passwords, statements }
 }
 
 describe('statements from Gmail', () => {
@@ -112,20 +123,85 @@ describe('statements from Gmail', () => {
     g.signInAs('dad@gmail.com')
     const dad = await mail.connect(2)
 
-    // First check of each mailbox takes only the latest statement.
+    // First check of each mailbox takes the statements of the last fourteen months, oldest first.
     expect(imported).toEqual([
+      { personId: 1, content: 'me-july' },
       { personId: 1, content: 'me-aug' },
       { personId: 2, content: 'dad-aug' }
     ])
     expect([me.status, dad.status, dad.personName]).toEqual(['OK', 'OK', 'Dad'])
-    expect(g.searches[0]).toBe(`${CAS_QUERY} newer_than:60d`)
+    expect(g.searches[0]).toBe(`${CAS_QUERY} newer_than:14m`)
     // Refresh tokens are stored encrypted.
     expect(JSON.parse(settings.get('google:accounts')!)[0].token).toBe('enc:rt-me@gmail.com')
 
     // Nothing new: nothing imported twice.
     await mail.check()
-    expect(imported).toHaveLength(2)
+    expect(imported).toHaveLength(3)
     expect(mail.setup().accounts.map((a) => a.message)).toEqual(['Nothing new.', 'Nothing new.'])
+  })
+
+  it('imports a locked statement once its own password is typed, and does not try it again', async () => {
+    const g = fakeGoogle({
+      'me@gmail.com': [
+        { id: 'm1', date: Date.parse('2026-09-12'), subject: 'CAS from CAMS', pdf: 'locked' },
+        { id: 'm2', date: Date.parse('2026-09-13'), subject: 'CAS from CDSL', pdf: 'open' }
+      ]
+    })
+    const { mail, imported, passwords } = setup(g)
+    mail.saveClient(CLIENT)
+    g.signInAs('me@gmail.com')
+    const me = await mail.connect(1)
+    // The locked one stops the queue for now, with a note that offers a password box.
+    expect(me.recent[0]).toMatchObject({ result: 'FAILED', messageId: 'm1', needsPassword: true })
+    expect(imported).toEqual([])
+
+    // A wrong password changes nothing; the right one imports it and clears the note.
+    const wrong = await mail.importMessage('me@gmail.com', 'm1', 'nope')
+    expect(wrong[0]).toMatchObject({ result: 'FAILED', needsPassword: true })
+    const right = await mail.importMessage('me@gmail.com', 'm1', 'its-own-password')
+    expect(right[0].result).toBe('IMPORTED')
+    expect(passwords).toEqual(['its-own-password'])
+    // Every earlier "needs a password" line for that email is gone, replaced by the import.
+    const log = mail.setup().accounts[0].recent
+    expect(log.filter((x) => x.needsPassword)).toHaveLength(0)
+    expect(log.filter((x) => x.result === 'IMPORTED')).toHaveLength(1)
+
+    // The next check takes the email after it, and does not ask for m1 again.
+    await mail.check('me@gmail.com')
+    expect(imported.map((x) => x.content)).toEqual(['locked', 'open'])
+  })
+
+  it('reads broker statements again, ignoring which emails were handled before', async () => {
+    const g = fakeGoogle({
+      'me@gmail.com': [
+        { id: 'w1', date: Date.parse('2026-10-14'), subject: 'Weekly Account Statement for TYB529', pdf: 'securities-week-1' },
+        { id: 'w2', date: Date.parse('2026-10-19'), subject: 'Weekly Account Statement for TYB529', pdf: 'securities-week-2' }
+      ]
+    })
+    const { mail, statements } = setup(g, false, true)
+    mail.saveClient(CLIENT)
+    g.signInAs('me@gmail.com')
+    await mail.connect(1)
+    // Handled by the first check; a second check leaves them alone.
+    const before = statements.length
+    await mail.check('me@gmail.com')
+    expect(statements).toHaveLength(before)
+
+    const found = await mail.rereadBrokerStatements('me@gmail.com')
+    // Both read again, oldest first, with the broker clause added to the search.
+    expect(statements.slice(before).map((s) => s.source)).toEqual(['gmail:w1', 'gmail:w2'])
+    expect(found.map((x) => x.result)).toEqual(['IMPORTED', 'IMPORTED'])
+    expect(g.searches.at(-1)).toMatch(/from:zerodha from:groww from:indmoney\} newer_than:3m$/)
+    expect(mail.setup().accounts[0].recent[0].message).toMatch(/holdings updated/)
+  })
+
+  it('will not read broker statements again when reading statements is off', async () => {
+    const g = fakeGoogle({ 'me@gmail.com': [] })
+    const { mail } = setup(g)
+    mail.saveClient(CLIENT)
+    g.signInAs('me@gmail.com')
+    await mail.connect(1)
+    await expect(mail.rereadBrokerStatements('me@gmail.com')).rejects.toThrow(/Read statements/)
   })
 
   it('keeps going past a statement it cannot open, and asks to reconnect a revoked account', async () => {
@@ -137,8 +213,9 @@ describe('statements from Gmail', () => {
     g.signInAs('me@gmail.com')
     const me = await mail.connect(1)
     expect(me.status).toBe('ERROR')
-    expect(me.message).toMatch(/Remember the password/)
-    expect(me.recent[0]).toMatchObject({ job: 'CAS', result: 'FAILED', subject: 'CAS' })
+    expect(me.message).toMatch(/PAN|file’s password/)
+    // The log carries what is needed to offer a password box for this file.
+    expect(me.recent[0]).toMatchObject({ job: 'CAS', result: 'FAILED', subject: 'CAS', messageId: 'm1', needsPassword: true })
     // Not marked as handled: the next check tries it again.
     await mail.check('me@gmail.com')
     expect(mail.setup().accounts[0].recent.filter((x) => x.result === 'FAILED')).toHaveLength(2)

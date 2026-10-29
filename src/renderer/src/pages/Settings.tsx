@@ -5,6 +5,7 @@ import { ErrorNote, PageHeader } from '../components/Shell'
 import { GoogleAccounts } from '../components/GoogleAccounts'
 import { PhoneApp } from '../components/PhoneApp'
 import { ClaudeSettings } from '../components/ClaudeSettings'
+import { PdfPasswords } from '../components/PdfPasswords'
 import { AisSettings } from '../components/AisSettings'
 import { Button, Field, Input } from '../components/ui'
 import {
@@ -55,6 +56,7 @@ export function Settings() {
       <PageHeader title="Settings & backup" />
       <Appearance />
       <GoogleAccounts />
+      <PdfPasswords />
       <ClaudeSettings />
       <AisSettings />
       <PhoneApp />

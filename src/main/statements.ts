@@ -29,7 +29,7 @@ const maybeDay = day.nullable()
 const money = z.number().nullable()
 
 export const StatementSchema = z.object({
-  kind: z.enum(['CREDIT_CARD', 'BANK_ACCOUNT', 'CONTRACT_NOTE', 'OTHER']),
+  kind: z.enum(['CREDIT_CARD', 'BANK_ACCOUNT', 'CONTRACT_NOTE', 'SECURITIES', 'OTHER']),
   institution: z.string().describe('Bank, card issuer or broker, short: "HDFC Bank", "SBI Card", "Zerodha"'),
   accountName: z.string().describe('The card or account as named on the statement, e.g. "Millennia Credit Card", "Savings Account"'),
   last4: z.string().nullable().describe('Last 4 digits of the card or account number; never more'),
@@ -66,10 +66,20 @@ export const StatementSchema = z.object({
       exchange: z.string().nullable(),
       tradeId: z.string().nullable().describe('Trade number as printed')
     })
+  ),
+  holdings: z.array(
+    z.object({
+      name: z.string().describe('The security as printed'),
+      isin: z.string().nullable(),
+      symbol: z.string().nullable().describe('NSE/BSE symbol when printed'),
+      quantity: z.number().describe('Units held at the end of the statement: the closing balance, all categories (free, pledged, retained…) added together'),
+      price: z.number().nullable().describe('Rate or closing price per unit, only when printed'),
+      value: z.number().nullable().describe('Value of the holding, only when printed')
+    })
   )
 })
 
-const SYSTEM = `You read Indian credit card statements, bank account statements and stockbroker contract notes, and return what they say in the given JSON shape.
+const SYSTEM = `You read Indian credit card statements, bank account statements, stockbroker contract notes and broker securities statements, and return what they say in the given JSON shape.
 
 Rules:
 - Copy figures exactly as printed. Never estimate, total up or invent a value: use null for anything not printed.
@@ -77,7 +87,9 @@ Rules:
 - Amounts in rupees as positive numbers; the direction says which way the money went. On a card, purchases, fees, interest and EMIs are DEBIT; payments to the card, refunds and cashback are CREDIT. In a bank account, withdrawals and payments out are DEBIT; deposits, salary and interest are CREDIT.
 - Include every transaction line, in the order printed. Skip opening/closing balance lines, sub-totals and summary rows.
 - Categories: a card bill paid from a bank account is CARD_PAYMENT; a payment received on a card is CARD_PAYMENT too. Moves between the holder's own accounts are TRANSFER. Mutual fund SIPs, broker and NPS payments are INVESTMENT. Loan and card EMIs are EMI_LOAN with isEmi true. A UPI payment to a person with no other clue is OTHER, not TRANSFER.
-- For a contract note, list each trade (not the summary) with its trade number; leave transactions empty.
+- For a contract note, list each trade (not the summary) with its trade number; leave transactions and holdings empty.
+- A broker's statement of the securities held (Zerodha's "Statement of Accounts of Securities", a holding or demat balance statement) is kind SECURITIES: list every security under holdings with its closing quantity (all categories of the same security added together; a security whose closing balance is zero is listed with quantity 0), ISIN when printed, and the price or value only if printed. Put the date the balances are as of in periodTo (and statementDate); leave transactions and trades empty.
+- A broker's funds statement, trading ledger, retention statement or margin report is OTHER (it is neither a card or bank statement, nor trades, nor holdings).
 - last4 is at most the last 4 digits of a card or account number.`
 
 /** Every page's text; tries no password, then each saved one. Throws when none opens it. */
@@ -177,7 +189,8 @@ export function saveStatement(
   personId: number,
   r: StatementRead,
   source: string,
-  importTrades?: (r: StatementRead) => number
+  importTrades?: (r: StatementRead) => number,
+  importHoldings?: (r: StatementRead) => number
 ): StatementImportResult {
   const label = `${r.institution} ${r.accountName}${r.last4 ? ` ••${r.last4}` : ''}`
   if (r.kind === 'CONTRACT_NOTE') {
@@ -189,10 +202,34 @@ export function saveStatement(
       transactions: 0,
       trades: n,
       duplicate: false,
-      message: n ? `${n} trade${n > 1 ? 's' : ''} added to your trade history.` : 'No new trades.'
+      // Said apart, so a note the reader found no trades in is not mistaken for one already in the history.
+      message: n
+        ? `${n} trade${n > 1 ? 's' : ''} added to your trade history.`
+        : r.trades.length
+          ? `${r.trades.length} trade${r.trades.length > 1 ? 's' : ''} read, all already in your trade history.`
+          : 'No trades found in this contract note.'
     }
   }
-  if (r.kind === 'OTHER') return { statementId: null, account: label, kind: r.kind, transactions: 0, trades: 0, duplicate: false, message: 'Not a card or bank statement.' }
+  if (r.kind === 'SECURITIES') {
+    const n = importHoldings && r.holdings.length ? importHoldings(r) : 0
+    // Securities, not lines: one split into free and pledged lines is one holding.
+    const read = new Set(r.holdings.map((h) => h.isin ?? h.symbol ?? h.name)).size
+    return {
+      statementId: null,
+      account: label,
+      kind: r.kind,
+      transactions: 0,
+      trades: 0,
+      duplicate: false,
+      message: n
+        ? `${n} holding${n > 1 ? 's' : ''} updated as of ${r.periodTo ?? r.statementDate}.`
+        : read
+          ? `${read} holding${read > 1 ? 's' : ''} read, all already recorded.`
+          : 'No securities found in this statement.'
+    }
+  }
+  if (r.kind === 'OTHER')
+    return { statementId: null, account: label, kind: r.kind, transactions: 0, trades: 0, duplicate: false, message: 'Not a card or bank statement, a contract note or a securities statement (a funds ledger or similar): skipped.' }
 
   const fingerprint = createHash('sha256')
     .update(
@@ -400,5 +437,39 @@ export function spendingReport(db: Db, personId?: number, monthsBack = 12, today
       edited: t.edited,
       isEmi: t.isEmi
     }))
+  }
+}
+
+/**
+ * A broker's funds statement, trading ledger or retention statement, told from its own heading, so
+ * it is skipped without being sent to Claude (Zerodha sends these every week beside the securities
+ * statement, which is read). A document that also carries a securities statement is not one.
+ */
+export function isBrokerLedger(text: string): boolean {
+  const head = text.slice(0, 4000)
+  return /statement of accounts? of funds|trading ledger|retention (account )?statement|funds statement/i.test(head) && !/statement of accounts? of securities|holding statement|demat holding/i.test(head)
+}
+
+/** What is recorded for such a document: nothing to save, and the log says it was skipped. */
+export function ledgerRead(): StatementRead {
+  return {
+    kind: 'OTHER',
+    institution: 'Broker',
+    accountName: 'Funds statement or ledger',
+    last4: null,
+    holderName: null,
+    periodFrom: null,
+    periodTo: null,
+    statementDate: null,
+    dueDate: null,
+    totalDue: null,
+    minimumDue: null,
+    creditLimit: null,
+    openingBalance: null,
+    closingBalance: null,
+    rewardPoints: null,
+    transactions: [],
+    trades: [],
+    holdings: []
   }
 }

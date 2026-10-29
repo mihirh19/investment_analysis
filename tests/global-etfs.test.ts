@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { openDatabase, schema } from '../src/main/db'
 import { fundsFromScreen, issuerOf, portfolioSnapshots, savePortfolioSnapshot, secContact, setSecContact, storedGlobal, ucitsSeed } from '../src/main/funds/global'
 import type { EtfScreenQuote } from '../src/main/market/yahoo'
-import { allocOf, nportFilings, parseNport, sebiTarget } from '../src/shared/fundPortfolio'
+import { allocOf, globalPeriods, nportFilings, parseNport, sebiTarget } from '../src/shared/fundPortfolio'
 import { computeFundMetrics, inrReturn, riskFreeFor, type PricePt } from '../src/shared/fundScreener'
 import { baseCurrency, globalProfile, isUcitsListing, pickListings } from '../src/shared/globalEtfs'
 
@@ -175,5 +175,33 @@ describe('portfolios', () => {
       o.sqlite.close()
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('a global ETF’s portfolio periods', () => {
+  const alloc = [{ label: 'Equity' as const, weight: 1 }]
+  const snap = (source: 'NPORT' | 'YAHOO', asOf: string, sectors: string[]) => ({
+    asOf,
+    source,
+    alloc,
+    sectors: sectors.map((sector) => ({ sector, weight: 0.5 })),
+    holdings: [{ name: source === 'NPORT' ? 'Full list holding' : 'Top 10 holding', isin: null, sector: null, assetType: 'EQUITY' as const, country: null, weight: 0.1 }]
+  })
+
+  it('takes N-PORT’s holdings and Yahoo’s sectors, same month or its own tab', () => {
+    const { holdings, periods } = globalPeriods([
+      snap('NPORT', '2026-06-30', []),
+      snap('YAHOO', '2026-06-12', ['Technology']),
+      snap('YAHOO', '2026-10-28', ['Technology', 'Financials'])
+    ])
+    // Holdings are the filing's, with the June summary's sectors; October's summary is a period of its own.
+    expect(holdings.map((s) => [s.source, s.asOf, s.sectors.length])).toEqual([['NPORT', '2026-06-30', 1]])
+    expect(periods.map((p) => [p.asOf, p.sectors.length])).toEqual([['2026-06-30', 1], ['2026-10-28', 2]])
+  })
+
+  it('shows only the summaries when there is no filing, and skips ones without sectors beside a filing', () => {
+    expect(globalPeriods([snap('YAHOO', '2026-09-01', ['A']), snap('YAHOO', '2026-10-01', ['A'])]).periods).toHaveLength(2)
+    const beside = globalPeriods([snap('NPORT', '2026-06-30', []), snap('YAHOO', '2026-10-28', [])])
+    expect(beside.periods.map((p) => p.asOf)).toEqual(['2026-06-30'])
   })
 })

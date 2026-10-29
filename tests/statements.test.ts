@@ -33,6 +33,7 @@ const card = (over: Partial<StatementRead> = {}): StatementRead => ({
     { date: '2026-09-10', description: 'AMAZON', merchant: 'Amazon', amount: 1800, direction: 'DEBIT', category: 'SHOPPING', isEmi: false }
   ],
   trades: [],
+  holdings: [],
   ...over
 })
 

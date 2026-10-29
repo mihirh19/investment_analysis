@@ -382,6 +382,10 @@ export const useRemoveAiKey = () => useWrite(() => api().removeAiKey())
 export const useSetAiFeatures = () => useWrite((f: AiFeatures) => api().setAiFeatures(f))
 export const usePdfPasswordCount = () => useQuery({ queryKey: ['pdfPasswords'], queryFn: () => unwrap(api().pdfPasswordCount()) })
 export const useForgetPdfPasswords = () => useWrite(() => api().forgetPdfPasswords())
+export const usePanInfo = () => useQuery({ queryKey: ['panInfo'], queryFn: () => unwrap(api().getPanInfo()) })
+export const useSetPersonPan = () => useWrite((personId: number, pan: string) => api().setPersonPan(personId, pan))
+export const useRereadBrokerStatements = () => useWrite((email: string) => api().rereadBrokerStatements(email))
+export const useRetryMailMessage = () => useWrite((email: string, id: string, password: string) => api().retryMailMessage(email, id, password))
 export const useImportStatement = () =>
   useWrite((input: { personId: number; filePath: string; password?: string }) => api().importStatement(input))
 export const useSpending = (personId?: number) =>

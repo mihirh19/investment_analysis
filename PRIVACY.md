@@ -17,6 +17,10 @@ If the user connects a Google account (Settings → Google accounts), the app as
 
 The app's use of information received from Google APIs adheres to the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.
 
+## PAN and PDF passwords
+
+If the user saves a PAN (Settings → PDF passwords) or types a PDF's password, it is stored encrypted on the computer, together with the other saved passwords, and is used only to open the user's own PDF files here. It is never sent anywhere, shown in full, or included in anything sent to Anthropic. The statement text Claude reads is what the PDF contains once it is open, not the password.
+
 ## Other connections
 
 To show live prices and reference data, the app downloads public information (stock prices, fund NAVs, exchange rates, home price indices, mandi crop prices) from public sources. These requests do not include the user's holdings or personal details.

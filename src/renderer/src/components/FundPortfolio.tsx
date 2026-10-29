@@ -91,7 +91,13 @@ export function PortfolioView({ d }: { d: FundDetail }) {
                   </button>
                 </li>
               ))}
-              {!bars.length && <li className="text-[13px] text-ink-muted">No sectors for this period.</li>}
+              {!bars.length && (
+                <li className="text-[13px] text-ink-muted">
+                  {d.row.market === 'IN'
+                    ? 'No sectors for this period.'
+                    : 'The SEC’s filings don’t list sectors. They come from Yahoo’s monthly summary, so only the months it was read have them.'}
+                </li>
+              )}
             </ul>
           </section>
           <section>
